@@ -82,6 +82,7 @@ class AdminHomePage extends ConsumerWidget {
     final tools = [
       _AdminItem('Users', Icons.manage_accounts_rounded, '/admin/users', Colors.blue),
       if (settings.feesEnabled) _AdminItem('Fees', Icons.currency_rupee_rounded, '/admin/fees', Colors.green),
+      if (settings.testsEnabled) _AdminItem('Tests', Icons.quiz_rounded, '/tests', Colors.deepPurple),
       if (settings.parentAlertsEnabled)
         _AdminItem('Parent Alerts', Icons.family_restroom_rounded, '/admin/parent-alerts', Colors.pink),
       // 🔴 ROUTE FIX: Changed to match app_router.dart exactly

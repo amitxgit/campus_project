@@ -145,6 +145,25 @@ service cloud.firestore {
       }
     }
 
+    // ---------------------------------------------------------- tests & results
+    match /tests/{testId} {
+      allow read: if isStaff();
+      allow create: if isAdmin()
+        || (isTeacher() && request.resource.data.createdBy == request.auth.uid);
+      allow update, delete: if isStaff();
+
+      // Raw marks for the whole batch: staff only.
+      match /marks/{doc} {
+        allow read, write: if isStaff();
+      }
+    }
+
+    // Published results, one doc per student (written on publish).
+    match /student_results/{studentId} {
+      allow read: if isStaff() || (isSelf(studentId) && active());
+      allow write: if isStaff();
+    }
+
     // --------------------------------------------------------------------- fees
     // Admins manage fees; students can see their own plan and receipts.
     match /fee_accounts/{studentId} {

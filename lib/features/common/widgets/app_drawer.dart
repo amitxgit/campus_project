@@ -322,6 +322,7 @@ class AppDrawer extends ConsumerWidget {
           const _DrawerItem('Users', Icons.people_rounded, '/admin/users'),
           if (s.feesEnabled) const _DrawerItem('Fees', Icons.currency_rupee_rounded, '/admin/fees'),
           if (s.parentAlertsEnabled) const _DrawerItem('Parent Alerts', Icons.family_restroom_rounded, '/admin/parent-alerts'),
+          if (s.testsEnabled) const _DrawerItem('Tests & Results', Icons.quiz_rounded, '/tests'),
           const _DrawerItem('Students Directory', Icons.badge_rounded, '/students/directory'),
           const _DrawerItem('Timetable & Subjects', Icons.calendar_month_rounded, '/admin/timetable'),
           const _DrawerItem('Query Tickets', Icons.support_agent_rounded, '/admin/query-management'),
@@ -337,6 +338,7 @@ class AppDrawer extends ConsumerWidget {
         return _RoleMenu('Faculty Tools', [
           const _DrawerItem('Dashboard', Icons.dashboard_rounded, '/home/teacher', isHome: true),
           const _DrawerItem('Students Directory', Icons.badge_rounded, '/students/directory'),
+          if (s.testsEnabled) const _DrawerItem('Tests & Results', Icons.quiz_rounded, '/tests'),
           if (s.internalMarksEnabled)
             const _DrawerItem('Internal Marks', Icons.grading_rounded, '/teacher/internal-marks'),
           if (s.remarksEnabled)
@@ -351,6 +353,7 @@ class AppDrawer extends ConsumerWidget {
           if (s.internalMarksEnabled)
             const _DrawerItem('Internal Marks', Icons.score_rounded, '/student/internal-marks'),
           const _DrawerItem('Timetable', Icons.calendar_month_rounded, '/student/timetable'),
+          if (s.testsEnabled) const _DrawerItem('My Results', Icons.emoji_events_rounded, '/student/results'),
           if (s.feesEnabled) const _DrawerItem('My Fees', Icons.currency_rupee_rounded, '/student/fees'),
           const _DrawerItem('Raise Query', Icons.live_help_rounded, '/student/raise-query'),
         ]);

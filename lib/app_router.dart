@@ -48,6 +48,9 @@ import 'features/fees/fees_admin_page.dart';
 import 'features/fees/fee_detail_page.dart';
 import 'features/fees/my_fees_page.dart';
 import 'features/parent_alerts/parent_alerts_page.dart';
+import 'features/tests/tests_page.dart';
+import 'features/tests/test_detail_page.dart';
+import 'features/tests/my_results_page.dart';
 
 // ============================
 // 🔹 ROUTE CONSTANTS
@@ -66,6 +69,7 @@ class AppRoutes {
 
   static const studentsDirectory = '/students/directory';
   static const teachersDirectory = '/teachers/directory';
+  static const tests = '/tests';
 }
 
 // ============================
@@ -124,6 +128,7 @@ class RouteConfig {
     AppRoutes.studentHome: [UserRole.student],
     AppRoutes.studentsDirectory: [UserRole.admin, UserRole.teacher],
     AppRoutes.teachersDirectory: [UserRole.admin, UserRole.teacher, UserRole.student],
+    AppRoutes.tests: [UserRole.admin, UserRole.teacher],
   };
 }
 
@@ -191,6 +196,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/student/internal-marks', builder: (_, __) => const student_marks.InternalMarksPage()),
       GoRoute(path: '/student/scan-qr', builder: (_, __) => const ScanQRPage()),
       GoRoute(path: '/student/fees', builder: (_, __) => const MyFeesPage()),
+      GoRoute(path: '/student/results', builder: (_, __) => const MyResultsPage()),
+      GoRoute(path: AppRoutes.tests, builder: (_, __) => const TestsPage()),
+      GoRoute(
+        path: '/tests/:testId',
+        builder: (_, state) => TestDetailPage(testId: state.pathParameters['testId'] ?? ''),
+      ),
 
       // ===== TEACHER =====
       GoRoute(path: AppRoutes.teacherHome, builder: (_, __) => const TeacherHomePage()),
