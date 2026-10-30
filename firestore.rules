@@ -145,6 +145,23 @@ service cloud.firestore {
       }
     }
 
+    // --------------------------------------------------------------------- fees
+    // Admins manage fees; students can see their own plan and receipts.
+    match /fee_accounts/{studentId} {
+      allow read: if isAdmin() || (isSelf(studentId) && active());
+      allow write: if isAdmin();
+
+      match /payments/{paymentId} {
+        allow read: if isAdmin() || (isSelf(studentId) && active());
+        allow create, update: if isAdmin();
+      }
+    }
+
+    // Receipt numbering and other internal counters.
+    match /meta/{doc} {
+      allow read, write: if isAdmin();
+    }
+
     // ------------------------------------------------------------------ remarks
     // Private to the teacher who wrote them (admins can audit).
     match /remarks/{id} {

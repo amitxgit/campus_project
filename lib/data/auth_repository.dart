@@ -79,6 +79,11 @@ class AuthRepository {
     return snapshot.docs.map((doc) => doc.data()).toList();
   }
 
+  Future<UserAccount?> userById(String uid) async {
+    final doc = await _usersRef.doc(uid).get();
+    return doc.data();
+  }
+
   /// Teacher profiles only. Use this from screens students can open, so they
   /// never download other students' personal details.
   Future<List<UserAccount>> allTeachers() async {

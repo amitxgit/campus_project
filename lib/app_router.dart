@@ -44,6 +44,9 @@ import 'features/admin/import_export_page.dart';
 import 'features/admin/reset_passwords_page.dart';
 import 'features/admin/query_management_page.dart';
 import 'features/admin/institution_settings_page.dart';
+import 'features/fees/fees_admin_page.dart';
+import 'features/fees/fee_detail_page.dart';
+import 'features/fees/my_fees_page.dart';
 
 // ============================
 // 🔹 ROUTE CONSTANTS
@@ -186,6 +189,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/student/raise-query', builder: (_, __) => const RaiseQueryPage()),
       GoRoute(path: '/student/internal-marks', builder: (_, __) => const student_marks.InternalMarksPage()),
       GoRoute(path: '/student/scan-qr', builder: (_, __) => const ScanQRPage()),
+      GoRoute(path: '/student/fees', builder: (_, __) => const MyFeesPage()),
 
       // ===== TEACHER =====
       GoRoute(path: AppRoutes.teacherHome, builder: (_, __) => const TeacherHomePage()),
@@ -222,6 +226,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/admin/reset-passwords', builder: (_, __) => const ResetPasswordsPage()),
       GoRoute(path: '/admin/query-management', builder: (_, __) => const QueryManagementPage()),
       GoRoute(path: '/admin/settings', builder: (_, __) => const InstitutionSettingsPage()),
+      GoRoute(path: '/admin/fees', builder: (_, __) => const FeesAdminPage()),
+      GoRoute(
+        path: '/admin/fees/:studentId',
+        builder: (_, state) => FeeDetailPage(studentId: state.pathParameters['studentId'] ?? ''),
+      ),
     ],
 
     errorBuilder: (_, state) => Scaffold(

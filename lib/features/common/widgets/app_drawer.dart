@@ -320,6 +320,7 @@ class AppDrawer extends ConsumerWidget {
         return _RoleMenu('Admin Tools', [
           const _DrawerItem('Dashboard', Icons.dashboard_rounded, '/home/admin', isHome: true),
           const _DrawerItem('Users', Icons.people_rounded, '/admin/users'),
+          if (s.feesEnabled) const _DrawerItem('Fees', Icons.currency_rupee_rounded, '/admin/fees'),
           const _DrawerItem('Students Directory', Icons.badge_rounded, '/students/directory'),
           const _DrawerItem('Timetable & Subjects', Icons.calendar_month_rounded, '/admin/timetable'),
           const _DrawerItem('Query Tickets', Icons.support_agent_rounded, '/admin/query-management'),
@@ -349,6 +350,7 @@ class AppDrawer extends ConsumerWidget {
           if (s.internalMarksEnabled)
             const _DrawerItem('Internal Marks', Icons.score_rounded, '/student/internal-marks'),
           const _DrawerItem('Timetable', Icons.calendar_month_rounded, '/student/timetable'),
+          if (s.feesEnabled) const _DrawerItem('My Fees', Icons.currency_rupee_rounded, '/student/fees'),
           const _DrawerItem('Raise Query', Icons.live_help_rounded, '/student/raise-query'),
         ]);
     }
