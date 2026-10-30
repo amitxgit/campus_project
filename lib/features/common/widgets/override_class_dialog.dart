@@ -116,6 +116,7 @@ class _OverrideClassDialogState extends ConsumerState<OverrideClassDialog> {
         // Create or Update the override
         await db.collection('timetable_overrides').doc(docId).set({
           'entryId': widget.entry.id,
+          'section': widget.entry.section,
           'date': todayDateStr,
           'teacherId': widget.currentTeacherId,
           'isCancelled': _action == 'Cancel',

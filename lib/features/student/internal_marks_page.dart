@@ -10,6 +10,7 @@ import '../../core/models/internal_marks.dart';
 import '../../core/models/subject.dart';
 import '../../core/models/user.dart';
 import '../../main.dart';
+import '../../data/settings_repository.dart';
 
 // Provider to fetch all data needed for this page
 final studentMarksProvider = FutureProvider.autoDispose((ref) async {
@@ -126,14 +127,16 @@ class InternalMarksPage extends ConsumerWidget {
   }
 }
 
-class _MarkDetailsTile extends StatelessWidget {
+class _MarkDetailsTile extends ConsumerWidget {
   final InternalMarks marks;
   final String teacherName;
 
   const _MarkDetailsTile({required this.marks, required this.teacherName});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = ref.watch(settingsProvider);
+    final maxTotal = scheme.totalMarksMax;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: Column(
@@ -144,9 +147,9 @@ class _MarkDetailsTile extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _MarkItem(label: 'Assignment', value: marks.assignmentMarks, max: 12),
-              _MarkItem(label: 'Test/Ppt', value: marks.testMarks, max: 12),
-              _MarkItem(label: 'Attendance', value: marks.attendanceMarks, max: 6),
+              _MarkItem(label: 'Assignment', value: marks.assignmentMarks, max: scheme.assignmentMax.round()),
+              _MarkItem(label: 'Test/Ppt', value: marks.testMarks, max: scheme.testMax.round()),
+              _MarkItem(label: 'Attendance', value: marks.attendanceMarks, max: scheme.attendanceMax.round()),
             ],
           ),
           const Divider(height: 24),
@@ -155,7 +158,7 @@ class _MarkDetailsTile extends StatelessWidget {
             children: [
               Text('Total: ', style: Theme.of(context).textTheme.bodyMedium),
               Text(
-                '${marks.totalMarks.toStringAsFixed(0)} / 30',
+                '${marks.totalMarks.toStringAsFixed(0)} / ${maxTotal.toStringAsFixed(0)}',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],

@@ -1,6 +1,7 @@
 // lib/features/auth/login_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/settings_repository.dart';
 import '../../main.dart';
 import '../../core/utils/firebase_error_parser.dart';
 
@@ -148,7 +149,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // 1. Top Left Badge (Campus Track)
+                // 1. Top Left Badge (institute name)
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Container(
@@ -157,21 +158,21 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 0.1),
                           blurRadius: 8,
                           offset: const Offset(0, 4),
                         )
                       ],
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.school_rounded, color: lavenderAccent, size: 20),
-                        SizedBox(width: 8),
+                        const Icon(Icons.school_rounded, color: lavenderAccent, size: 20),
+                        const SizedBox(width: 8),
                         Text(
-                          "CAMPUS\nTRACK",
-                          style: TextStyle(
+                          ref.watch(settingsProvider).name.toUpperCase(),
+                          style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 10,
@@ -199,7 +200,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   "Login to manage your campus life",
                   style: TextStyle(
                     fontSize: 16,
-                    color: textColor.withOpacity(0.7),
+                    color: textColor.withValues(alpha: 0.7),
                   ),
                 ),
 
@@ -215,7 +216,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
+                        color: Colors.black.withValues(alpha: 0.2),
                         blurRadius: 15,
                         offset: const Offset(0, 8),
                       ),

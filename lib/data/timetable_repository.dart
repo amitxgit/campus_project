@@ -2,7 +2,6 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import 'package:uuid/uuid.dart';
 
 import '../core/models/timetable_entry.dart';
 import '../core/models/timetable_override.dart';
@@ -87,20 +86,6 @@ class TimetableRepository {
     await _entriesRef.doc(id).delete();
   }
 
-  Future<TimetableEntry> newBlankEntry() async {
-    final subjects = await allSubjects();
-    return TimetableEntry(
-      id: const Uuid().v4(),
-      subjectId: subjects.isNotEmpty ? subjects.first.id : '',
-      dayOfWeek: 'Mon',
-      startTime: '09:30',
-      endTime: '10:30',
-      room: '',
-      section: '',
-      teacherIds: [],
-    );
-  }
-
   // ─── Overrides ───────────────────────────────────────────────────────────────
 
   /// Fetch all overrides for [section] on a given [date] ('YYYY-MM-DD').
@@ -122,52 +107,6 @@ class TimetableRepository {
     } catch (e) {
       debugPrint('TimetableRepository.getOverridesForDate error: $e');
       return [];
-    }
-  }
-
-  /// Teacher cancels or reschedules a class.
-  ///
-  /// Saves the override document, then writes a push-notification record
-  /// targeted at [overrideData.section] so students are informed automatically.
-  ///
-  /// Throws an [Exception] on failure so the calling layer can surface a
-  /// meaningful error in the UI.
-  Future<void> createOverride(
-      TimetableOverride overrideData,
-      String subjectName,
-      ) async {
-    try {
-      // 1. Persist the override.
-      await _overridesRef
-          .doc(overrideData.id)
-          .set(overrideData.toMap());
-
-      // 2. Build a human-readable notification for the affected section.
-      final title = overrideData.isCancelled
-          ? 'Class Cancelled: $subjectName'
-          : 'Class Rescheduled: $subjectName';
-
-      final body = overrideData.isCancelled
-          ? 'Today\'s class has been cancelled. '
-          'Reason: ${overrideData.reason ?? "Urgent work"}'
-          : 'Class moved to ${overrideData.newStartTime} '
-          'in Room ${overrideData.newRoom}';
-
-      // 3. Write to notifications collection.
-      //    A background Cloud Function (or your FCM layer) should watch
-      //    this collection and fan-out to the actual device tokens for
-      //    the targetSection.
-      await _db.collection('notifications').add({
-        'title': title,
-        'message': body,
-        'targetSection': overrideData.section,
-        'createdAt': DateTime.now().toIso8601String(),
-        'type': 'timetable_override',
-        // Carry the override id so the notification can deep-link back.
-        'overrideId': overrideData.id,
-      });
-    } catch (e) {
-      throw Exception('Failed to create class override: $e');
     }
   }
 

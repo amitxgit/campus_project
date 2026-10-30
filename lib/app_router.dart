@@ -43,6 +43,7 @@ import 'features/admin/internal_marks_overrides_page.dart';
 import 'features/admin/import_export_page.dart';
 import 'features/admin/reset_passwords_page.dart';
 import 'features/admin/query_management_page.dart';
+import 'features/admin/institution_settings_page.dart';
 
 // ============================
 // 🔹 ROUTE CONSTANTS
@@ -220,6 +221,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/admin/import-export', builder: (_, __) => const ImportExportPage()),
       GoRoute(path: '/admin/reset-passwords', builder: (_, __) => const ResetPasswordsPage()),
       GoRoute(path: '/admin/query-management', builder: (_, __) => const QueryManagementPage()),
+      GoRoute(path: '/admin/settings', builder: (_, __) => const InstitutionSettingsPage()),
     ],
 
     errorBuilder: (_, state) => Scaffold(

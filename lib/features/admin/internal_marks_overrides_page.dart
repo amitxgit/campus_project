@@ -13,6 +13,7 @@ import '../../core/models/subject.dart';
 import '../../core/models/user.dart';
 import '../../core/models/role.dart';
 import '../../main.dart';
+import '../../data/settings_repository.dart';
 
 // -----------------------------------------------------------------------------
 // PROVIDER
@@ -53,6 +54,7 @@ class _InternalMarksOverridesPageState
   @override
   Widget build(BuildContext context) {
     final asyncData = ref.watch(adminMarksProvider);
+    final scheme = ref.watch(settingsProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -211,7 +213,7 @@ class _InternalMarksOverridesPageState
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text(
-                                  '${current.totalMarks.toStringAsFixed(1)} / 30',
+                                  '${current.totalMarks.toStringAsFixed(1)} / ${ref.watch(settingsProvider).totalMarksMax.toStringAsFixed(0)}',
                                   style: TextStyle(
                                     fontWeight: FontWeight.w900,
                                     fontSize: 16,
@@ -238,21 +240,21 @@ class _InternalMarksOverridesPageState
                                     _buildScoreEditor(
                                       label: 'Attendance',
                                       current: current.attendanceMarks,
-                                      max: 6,
+                                      max: scheme.attendanceMax,
                                       onChanged: (v) => _updateLocalEntry(current, attendance: v),
                                     ),
                                     const SizedBox(width: 12),
                                     _buildScoreEditor(
                                       label: 'Assignment',
                                       current: current.assignmentMarks,
-                                      max: 12,
+                                      max: scheme.assignmentMax,
                                       onChanged: (v) => _updateLocalEntry(current, assignment: v),
                                     ),
                                     const SizedBox(width: 12),
                                     _buildScoreEditor(
                                       label: 'Mid-Term',
                                       current: current.testMarks,
-                                      max: 12,
+                                      max: scheme.testMax,
                                       onChanged: (v) => _updateLocalEntry(current, test: v),
                                     ),
                                   ],
@@ -410,9 +412,17 @@ class _InternalMarksOverridesPageState
     setState(() => _isSaving = true);
     final batch = FirebaseFirestore.instance.batch();
 
+    final scheme = ref.read(settingsProvider);
     for (final mark in _edited.values) {
-      final total = mark.attendanceMarks + mark.assignmentMarks + mark.testMarks;
-      final toSave = mark.copyWith(totalMarks: total);
+      final assign = mark.assignmentMarks.clamp(0.0, scheme.assignmentMax);
+      final test = mark.testMarks.clamp(0.0, scheme.testMax);
+      final att = mark.attendanceMarks.clamp(0.0, scheme.attendanceMax);
+      final toSave = mark.copyWith(
+        assignmentMarks: assign,
+        testMarks: test,
+        attendanceMarks: att,
+        totalMarks: assign + test + att,
+      );
 
       final ref = FirebaseFirestore.instance.collection('internal_marks').doc(toSave.id);
       batch.set(ref, toSave.toMap(), SetOptions(merge: true));

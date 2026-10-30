@@ -57,6 +57,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ----------------------------------------------------------------- settings
+    // Institute name/branding is shown on the login screen, so it is public.
+    match /settings/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ---------------------------------------------------- timetable & subjects
     match /subjects/{id} {
       allow read: if active();

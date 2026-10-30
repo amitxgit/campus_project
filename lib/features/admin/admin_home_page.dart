@@ -10,6 +10,7 @@ import '../common/widgets/app_drawer.dart';
 import '../common/widgets/async_error_widget.dart';
 import '../../core/models/role.dart';
 import '../../core/models/query_ticket.dart';
+import '../../data/settings_repository.dart';
 
 // -----------------------------------------------------------------------------
 // VIEW MODEL & PROVIDER
@@ -76,6 +77,7 @@ class AdminHomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncData = ref.watch(adminDashboardProvider);
+    final settings = ref.watch(settingsProvider);
 
     final tools = [
       _AdminItem('Users', Icons.manage_accounts_rounded, '/admin/users', Colors.blue),
@@ -83,11 +85,13 @@ class AdminHomePage extends ConsumerWidget {
       _AdminItem('Queries', Icons.support_agent_rounded, '/admin/query-management', Colors.orange),
       _AdminItem('Timetable', Icons.calendar_month_rounded, '/admin/timetable', Colors.purple),
       _AdminItem('Attendance', Icons.fact_check_rounded, '/admin/attendance-overrides', Colors.teal),
-      _AdminItem('Internal Marks', Icons.military_tech_rounded, '/admin/internal-marks-overrides', Colors.amber),
+      if (settings.internalMarksEnabled)
+        _AdminItem('Internal Marks', Icons.military_tech_rounded, '/admin/internal-marks-overrides', Colors.amber),
       _AdminItem('Passwords', Icons.password_rounded, '/admin/reset-passwords', Colors.red),
       _AdminItem('Students', Icons.school_rounded, '/students/directory', Colors.indigo),
       _AdminItem('Teachers', Icons.history_edu_rounded, '/teachers/directory', Colors.brown),
       _AdminItem('Data Sync', Icons.cloud_sync_rounded, '/admin/import-export', Colors.green),
+      _AdminItem('Settings', Icons.tune_rounded, '/admin/settings', Colors.blueGrey),
     ];
 
     return Scaffold(

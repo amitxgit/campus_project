@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/settings_repository.dart';
 
 /// ---------------------------------------------------------------------------
 /// SPLASH PAGE
@@ -35,7 +36,7 @@ class SplashPage extends ConsumerWidget {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.25),
+                color: Colors.black.withValues(alpha: 0.25),
                 blurRadius: 14,
                 offset: const Offset(0, 8),
               ),
@@ -80,7 +81,7 @@ class SplashPage extends ConsumerWidget {
               ),
               const SizedBox(height: 14),
               Text(
-                'Loading Campus Track...',
+                'Loading ${ref.watch(settingsProvider).name}...',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.85),
                   fontSize: 14,

@@ -9,6 +9,7 @@ import '../common/widgets/async_error_widget.dart';
 import '../../core/models/attendance.dart';
 import '../../core/models/subject.dart';
 import '../../main.dart';
+import '../../data/settings_repository.dart';
 
 // -----------------------------------------------------------------------------
 // MODELS
@@ -53,6 +54,7 @@ class _AttendanceData {
 // -----------------------------------------------------------------------------
 
 final attendanceDataProvider = FutureProvider.autoDispose<_AttendanceData>((ref) async {
+  final threshold = (await ref.watch(settingsFutureProvider.future)).attendanceThreshold;
   final authRepo = ref.watch(authRepoProvider);
   final user = await authRepo.currentUser();
   if (user == null) throw Exception('Not logged in');
@@ -98,9 +100,9 @@ final attendanceDataProvider = FutureProvider.autoDispose<_AttendanceData>((ref)
     final pct = total == 0 ? 100 : ((present / total) * 100).round();
 
     Color color = Colors.green;
-    if (pct < 75) {
+    if (pct < threshold) {
       color = Colors.red;
-    } else if (pct < 85) {
+    } else if (pct < threshold + 10) {
       color = Colors.orange;
     }
 
@@ -462,23 +464,24 @@ class StudentAttendancePage extends ConsumerWidget {
 // -----------------------------------------------------------------------------
 // HERO OVERALL SUMMARY CARD
 // -----------------------------------------------------------------------------
-class _HeroSummaryCard extends StatelessWidget {
+class _HeroSummaryCard extends ConsumerWidget {
   final _AttendanceData data;
   const _HeroSummaryCard({required this.data});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final threshold = ref.watch(settingsProvider).attendanceThreshold;
     final colorScheme = Theme.of(context).colorScheme;
 
     List<Color> gradientColors;
     String statusText;
     IconData statusIcon;
 
-    if (data.overallPct >= 85) {
+    if (data.overallPct >= threshold + 10) {
       gradientColors = const [Color(0xFF0D9488), Color(0xFF059669)]; // Teal/Green
       statusText = 'Excellent standing';
       statusIcon = Icons.verified_rounded;
-    } else if (data.overallPct >= 75) {
+    } else if (data.overallPct >= threshold) {
       gradientColors = const [Color(0xFFD97706), Color(0xFFF59E0B)]; // Orange/Amber
       statusText = 'Requires attention';
       statusIcon = Icons.warning_amber_rounded;

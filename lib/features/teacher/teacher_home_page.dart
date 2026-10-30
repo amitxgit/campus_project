@@ -14,6 +14,7 @@ import '../../core/models/timetable_entry.dart';
 import '../../core/models/subject.dart';
 import '../../core/models/user.dart';
 import '../../core/utils/time_formatter.dart';
+import '../../data/settings_repository.dart';
 import '../../main.dart';
 
 // ✅ FIX: Corrected the import path to point to your common/widgets folder!
@@ -529,34 +530,32 @@ class _ModernClassCard extends StatelessWidget {
 // -----------------------------------------------------------------------------
 // TIMETABLE PREVIEW
 // -----------------------------------------------------------------------------
-class _TimetablePreview extends StatefulWidget {
+class _TimetablePreview extends ConsumerStatefulWidget {
   final TeacherDashboardVM vm;
   const _TimetablePreview({required this.vm});
 
   @override
-  State<_TimetablePreview> createState() => _TimetablePreviewState();
+  ConsumerState<_TimetablePreview> createState() => _TimetablePreviewState();
 }
 
-class _TimetablePreviewState extends State<_TimetablePreview> {
-  int _selectedDay = DateTime.now().weekday;
-  int? _selectedSemester;
+class _TimetablePreviewState extends ConsumerState<_TimetablePreview> {
+  static const _dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  String _selectedDay = _dayNames[DateTime.now().weekday - 1];
+  String? _selectedGroup;
 
   @override
   Widget build(BuildContext context) {
-    final dayMap = {1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat'};
-    final dayKey = dayMap[_selectedDay] ?? 'Mon';
+    final settings = ref.watch(settingsProvider);
+    final days = settings.workingDays;
+    final dayKey = days.contains(_selectedDay) ? _selectedDay : days.first;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderColor = isDark ? Colors.white30 : Colors.black26;
 
-    final filteredEntries = widget.vm.allEntries.where((e) {
-      if (_selectedSemester == null) return true;
-      if (_selectedSemester == 2 && e.section.startsWith('I-')) return true;
-      if (_selectedSemester == 4 && e.section.startsWith('II-')) return true;
-      if (_selectedSemester == 6 && e.section.startsWith('III-')) return true;
-      if (_selectedSemester == 8 && e.section.startsWith('IV-')) return true;
-      return false;
-    }).toList();
+    final groups = widget.vm.allEntries.map((e) => e.section).where((s) => s.isNotEmpty).toSet().toList()..sort();
+    final filteredEntries = widget.vm.allEntries
+        .where((e) => _selectedGroup == null || e.section == _selectedGroup)
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -566,15 +565,11 @@ class _TimetablePreviewState extends State<_TimetablePreview> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              _buildSemesterChip('All', null, borderColor),
-              const SizedBox(width: 8),
-              _buildSemesterChip('Sem 2', 2, borderColor),
-              const SizedBox(width: 8),
-              _buildSemesterChip('Sem 4', 4, borderColor),
-              const SizedBox(width: 8),
-              _buildSemesterChip('Sem 6', 6, borderColor),
-              const SizedBox(width: 8),
-              _buildSemesterChip('Sem 8', 8, borderColor),
+              _buildGroupChip('All', null, borderColor),
+              for (final g in groups) ...[
+                const SizedBox(width: 8),
+                _buildGroupChip(g, g, borderColor),
+              ],
             ],
           ),
         ),
@@ -583,12 +578,12 @@ class _TimetablePreviewState extends State<_TimetablePreview> {
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
-            children: [1, 2, 3, 4, 5, 6].map((d) {
+            children: days.map((d) {
               final isSel = d == _selectedDay;
               return Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: FilterChip(
-                  label: Text(dayMap[d]!),
+                  label: Text(d),
                   selected: isSel,
                   showCheckmark: false,
                   onSelected: (v) => setState(() => _selectedDay = d),
@@ -616,15 +611,15 @@ class _TimetablePreviewState extends State<_TimetablePreview> {
           ),
           child: Center(
             child: Text(
-              _selectedSemester == null ? 'No classes scheduled.' : 'No classes for Semester $_selectedSemester.',
+              _selectedGroup == null ? 'No classes scheduled.' : 'No classes for $_selectedGroup.',
               style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500),
             ),
           ),
         )
             : TimetableGrid(
           days: [dayKey],
-          periodStarts: const ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'],
-          periodLabels: const ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'],
+          periodStarts: settings.periodStarts,
+          periodLabels: settings.periodLabels,
           entries: filteredEntries,
           subjectCodes: {for (var k in widget.vm.subjectsMap.keys) k: widget.vm.subjectsMap[k]?.code ?? ''},
           subjectLeadTeacherId: {for (var k in widget.vm.subjectsMap.keys) k: widget.vm.subjectsMap[k]?.teacherId ?? ''},
@@ -637,13 +632,13 @@ class _TimetablePreviewState extends State<_TimetablePreview> {
     );
   }
 
-  Widget _buildSemesterChip(String label, int? semValue, Color borderColor) {
-    final isSelected = _selectedSemester == semValue;
+  Widget _buildGroupChip(String label, String? group, Color borderColor) {
+    final isSelected = _selectedGroup == group;
     return FilterChip(
       label: Text(label),
       selected: isSelected,
       showCheckmark: false,
-      onSelected: (bool selected) => setState(() => _selectedSemester = selected ? semValue : null),
+      onSelected: (bool selected) => setState(() => _selectedGroup = selected ? group : null),
       backgroundColor: Theme.of(context).colorScheme.surface,
       selectedColor: Theme.of(context).colorScheme.secondaryContainer,
       shape: RoundedRectangleBorder(

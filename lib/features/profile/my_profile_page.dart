@@ -11,6 +11,7 @@ import '../../core/models/attendance.dart';
 import '../../core/utils/firebase_error_parser.dart';
 import '../../main.dart';
 import '../common/widgets/async_error_widget.dart';
+import '../../data/settings_repository.dart';
 
 // -----------------------------------------------------------------------------
 // ROLE-SPECIFIC & PROFILE PROVIDERS
@@ -355,9 +356,10 @@ class _AttendanceSummaryCard extends ConsumerWidget {
             onRetry: () => ref.invalidate(studentProfileStatsProvider),
           ),
           data: (stats) {
-            final Color pctColor = stats.pct < 75
+            final threshold = ref.watch(settingsProvider).attendanceThreshold;
+            final Color pctColor = stats.pct < threshold
                 ? Colors.red
-                : (stats.pct < 85 ? Colors.orange : Colors.green);
+                : (stats.pct < threshold + 10 ? Colors.orange : Colors.green);
 
             return Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,

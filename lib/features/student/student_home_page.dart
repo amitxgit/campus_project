@@ -15,6 +15,7 @@ import '../../core/models/user.dart';
 import '../../core/models/attendance.dart';
 import '../../core/utils/time_formatter.dart';
 import '../../main.dart';
+import '../../data/settings_repository.dart';
 
 // -----------------------------------------------------------------------------
 // VIEW MODELS
@@ -367,21 +368,22 @@ class _StudentClassCard extends StatelessWidget {
 // -----------------------------------------------------------------------------
 // MODERN ATTENDANCE CARD
 // -----------------------------------------------------------------------------
-class _ModernAttendanceCard extends StatelessWidget {
+class _ModernAttendanceCard extends ConsumerWidget {
   final int pct;
   const _ModernAttendanceCard({required this.pct});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final threshold = ref.watch(settingsProvider).attendanceThreshold;
     List<Color> gradientColors;
     String statusText;
     IconData statusIcon;
 
-    if (pct >= 85) {
+    if (pct >= threshold + 10) {
       gradientColors = const [Color(0xFF0D9488), Color(0xFF059669)];
       statusText = 'Excellent standing';
       statusIcon = Icons.check_circle_outline_rounded;
-    } else if (pct >= 75) {
+    } else if (pct >= threshold) {
       gradientColors = const [Color(0xFFD97706), Color(0xFFF59E0B)];
       statusText = 'Requires attention';
       statusIcon = Icons.warning_amber_rounded;

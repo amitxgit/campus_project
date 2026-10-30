@@ -9,6 +9,8 @@ import '../common/widgets/async_error_widget.dart';
 import '../../core/models/role.dart';
 import '../../core/models/user.dart';
 import '../../core/utils/firebase_error_parser.dart';
+import '../../core/models/institution_settings.dart';
+import '../../data/settings_repository.dart';
 import '../../main.dart';
 
 // -----------------------------------------------------------------------------
@@ -238,11 +240,15 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
     final examCtrl = TextEditingController(text: u.examRollNo);
     final passCtrl = TextEditingController();
 
-    String section = u.section ?? 'IV-HE';
-    int? year = u.year ?? 4;
+    final settings = ref.read(settingsProvider);
+    final isCollege = settings.type == InstitutionType.college;
+    // Include the user's current group even if it was removed from settings.
+    final groups = <String>{...settings.groups, if (u.section?.isNotEmpty == true) u.section!}.toList();
+    String? section = u.section?.isNotEmpty == true ? u.section : (groups.isNotEmpty ? groups.first : null);
+    final sectionCtrl = TextEditingController(text: section ?? '');
+    int? year = u.year;
     UserRole role = u.role;
     bool adminPrivilege = u.isAdmin;
-    final existingSections = ['I-HE', 'II-HE', 'III-HE', 'IV-HE'];
 
     final updated = await showDialog<UserAccount>(
       context: context,
@@ -328,30 +334,43 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                            Expanded(child: TextFormField(controller: collegeCtrl, decoration: _buildInputDecoration('College Roll', Icons.tag_rounded))),
-                            const SizedBox(width: 12),
-                            Expanded(child: TextFormField(controller: examCtrl, decoration: _buildInputDecoration('Exam Roll', Icons.numbers_rounded))),
+                            Expanded(child: TextFormField(controller: collegeCtrl, decoration: _buildInputDecoration(isCollege ? 'College Roll' : 'Roll / Enrolment No.', Icons.tag_rounded))),
+                            if (isCollege) ...[
+                              const SizedBox(width: 12),
+                              Expanded(child: TextFormField(controller: examCtrl, decoration: _buildInputDecoration('Exam Roll', Icons.numbers_rounded))),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                            Expanded(
-                              child: DropdownButtonFormField<int>(
-                                initialValue: year,
-                                items: [1, 2, 3, 4].map((y) => DropdownMenuItem(value: y, child: Text('$y Year'))).toList(),
-                                onChanged: (v) => year = v,
-                                decoration: _buildInputDecoration('Current Year', Icons.calendar_today_rounded),
+                            if (isCollege) ...[
+                              Expanded(
+                                child: DropdownButtonFormField<int>(
+                                  initialValue: year,
+                                  items: [1, 2, 3, 4, 5].map((y) => DropdownMenuItem(value: y, child: Text('Year $y'))).toList(),
+                                  onChanged: (v) => year = v,
+                                  decoration: _buildInputDecoration('Current Year', Icons.calendar_today_rounded),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
+                              const SizedBox(width: 12),
+                            ],
                             Expanded(
-                              child: DropdownButtonFormField<String>(
-                                initialValue: existingSections.contains(section) ? section : null,
-                                items: existingSections.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                                onChanged: (v) => section = v!,
-                                decoration: _buildInputDecoration('Section', Icons.grid_view_rounded),
-                              ),
+                              child: groups.isEmpty
+                                  // No groups configured yet: let the admin type one.
+                                  ? TextFormField(
+                                      controller: sectionCtrl,
+                                      decoration: _buildInputDecoration(settings.groupLabel, Icons.grid_view_rounded),
+                                      onChanged: (v) => section = v.trim(),
+                                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                                    )
+                                  : DropdownButtonFormField<String>(
+                                      initialValue: section,
+                                      items: groups.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                                      onChanged: (v) => section = v,
+                                      decoration: _buildInputDecoration(settings.groupLabel, Icons.grid_view_rounded),
+                                      validator: (v) => v == null ? 'Required' : null,
+                                    ),
                             ),
                           ],
                         ),

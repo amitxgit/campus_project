@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/models/role.dart';
 import '../../../main.dart';
 import '../../../app_router.dart'; // Needed for sessionRoleProvider
+import '../../../core/models/institution_settings.dart';
+import '../../../data/settings_repository.dart';
 import 'animated_theme_switcher.dart';
 
 class AppDrawer extends ConsumerWidget {
@@ -28,10 +30,11 @@ class AppDrawer extends ConsumerWidget {
 
             // Determine effective role for menu generation
             final effectiveRole = sessionRole ?? user.role;
-            final roleMenu = _getMenuForRole(effectiveRole);
+            final settings = ref.watch(settingsProvider);
+            final roleMenu = _getMenuForRole(effectiveRole, settings);
 
             final commonMenu = [
-              const _DrawerItem('Campus Notices', Icons.campaign_outlined, '/notices'),
+              const _DrawerItem('Notices', Icons.campaign_outlined, '/notices'),
               const _DrawerItem('Assignments', Icons.assignment_outlined, '/assignments'),
               const _DrawerItem('Teachers', Icons.school_outlined, '/teachers/directory'),
               const _DrawerItem('My Profile', Icons.person_outline, '/profile'),
@@ -310,27 +313,32 @@ class AppDrawer extends ConsumerWidget {
   // ---------------------------------------------------------------------------
   // MENU CONFIGURATIONS
   // ---------------------------------------------------------------------------
-  _RoleMenu _getMenuForRole(UserRole role) {
+  /// Menu entries for features an institute has switched off are hidden.
+  _RoleMenu _getMenuForRole(UserRole role, InstitutionSettings s) {
     switch (role) {
       case UserRole.admin:
         return _RoleMenu('Admin Tools', [
           const _DrawerItem('Dashboard', Icons.dashboard_rounded, '/home/admin', isHome: true),
           const _DrawerItem('Users', Icons.people_rounded, '/admin/users'),
           const _DrawerItem('Students Directory', Icons.badge_rounded, '/students/directory'),
-          const _DrawerItem('Timetable Builder', Icons.calendar_month_rounded, '/admin/timetable'),
+          const _DrawerItem('Timetable & Subjects', Icons.calendar_month_rounded, '/admin/timetable'),
           const _DrawerItem('Query Tickets', Icons.support_agent_rounded, '/admin/query-management'),
           const _DrawerItem('Attendance Overrides', Icons.edit_calendar_rounded, '/admin/attendance-overrides'),
-          const _DrawerItem('Marks Overrides', Icons.edit_document, '/admin/internal-marks-overrides'),
+          if (s.internalMarksEnabled)
+            const _DrawerItem('Marks Overrides', Icons.edit_document, '/admin/internal-marks-overrides'),
           const _DrawerItem('Reset Passwords', Icons.lock_reset_rounded, '/admin/reset-passwords'),
           const _DrawerItem('Import Data', Icons.upload_file_rounded, '/admin/import-export'),
+          const _DrawerItem('Institute Settings', Icons.tune_rounded, '/admin/settings'),
         ]);
 
       case UserRole.teacher:
         return _RoleMenu('Faculty Tools', [
           const _DrawerItem('Dashboard', Icons.dashboard_rounded, '/home/teacher', isHome: true),
           const _DrawerItem('Students Directory', Icons.badge_rounded, '/students/directory'),
-          const _DrawerItem('Internal Marks', Icons.grading_rounded, '/teacher/internal-marks'),
-          const _DrawerItem('Remarks Board', Icons.label_important_rounded, '/teacher/remarks-board'),
+          if (s.internalMarksEnabled)
+            const _DrawerItem('Internal Marks', Icons.grading_rounded, '/teacher/internal-marks'),
+          if (s.remarksEnabled)
+            const _DrawerItem('Remarks Board', Icons.label_important_rounded, '/teacher/remarks-board'),
         ]);
 
       case UserRole.student:
@@ -338,7 +346,8 @@ class AppDrawer extends ConsumerWidget {
           const _DrawerItem('Dashboard', Icons.dashboard_rounded, '/home/student', isHome: true),
           const _DrawerItem('Scan QR', Icons.qr_code_scanner_rounded, '/student/scan-qr'),
           const _DrawerItem('Attendance', Icons.fact_check_rounded, '/student/attendance'),
-          const _DrawerItem('Marks', Icons.score_rounded, '/student/internal-marks'),
+          if (s.internalMarksEnabled)
+            const _DrawerItem('Internal Marks', Icons.score_rounded, '/student/internal-marks'),
           const _DrawerItem('Timetable', Icons.calendar_month_rounded, '/student/timetable'),
           const _DrawerItem('Raise Query', Icons.live_help_rounded, '/student/raise-query'),
         ]);

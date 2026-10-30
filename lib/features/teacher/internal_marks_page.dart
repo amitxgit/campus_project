@@ -10,6 +10,7 @@ import '../../core/models/user.dart';
 import '../../core/models/subject.dart';
 import '../../core/models/attendance.dart';
 import '../../core/models/internal_marks.dart';
+import '../../data/settings_repository.dart';
 import '../../main.dart';
 
 class SubjectGradingData {
@@ -30,15 +31,6 @@ class SubjectGradingData {
   });
 }
 
-int _calculateAttendanceMarks(int pct) {
-  if (pct <= 75) return 0;
-  if (pct <= 80) return 1;
-  if (pct <= 85) return 2;
-  if (pct <= 90) return 3;
-  if (pct <= 95) return 4;
-  if (pct <= 99) return 5;
-  return 6;
-}
 
 final subjectGradingProvider = FutureProvider.autoDispose.family<SubjectGradingData, String>((ref, subjectId) async {
   final authRepo = ref.read(authRepoProvider);
@@ -52,6 +44,7 @@ final subjectGradingProvider = FutureProvider.autoDispose.family<SubjectGradingD
   final subject = await ttRepo.subjectById(subjectId);
   if (subject == null) throw Exception('Subject not found');
 
+  final settings = await ref.watch(settingsFutureProvider.future);
   final students = await authRepo.studentsInSection(subject.section);
   final subjectAttendance = await attRepo.forSubject(subjectId);
   final existingMarks = await marksRepo.getMarksForSubject(subjectId);
@@ -71,7 +64,7 @@ final subjectGradingProvider = FutureProvider.autoDispose.family<SubjectGradingD
     final pct = total == 0 ? 100 : ((present * 100) / total).round();
 
     attendancePercentages[student.id] = pct;
-    final calculatedAttMarks = _calculateAttendanceMarks(pct);
+    final calculatedAttMarks = settings.attendanceMarksFor(pct);
 
     if (marksMap.containsKey(student.id)) {
       final m = marksMap[student.id]!;
@@ -269,7 +262,7 @@ class _GradingList extends ConsumerWidget {
   }
 
   Future<void> _saveMarks(WidgetRef ref, InternalMarks marks) async {
-    await ref.read(internalMarksRepoProvider).updateMarks(marks);
+    await ref.read(internalMarksRepoProvider).updateMarks(marks, ref.read(settingsProvider));
     // UI FIX: Do NOT invalidate the provider here. This prevents the list from
     // rebuilding and stealing focus, allowing smooth continuous grading.
     if (ref.context.mounted) {
@@ -281,7 +274,7 @@ class _GradingList extends ConsumerWidget {
   }
 }
 
-class _StudentMarkTile extends StatefulWidget {
+class _StudentMarkTile extends ConsumerStatefulWidget {
   final UserAccount student;
   final InternalMarks marks;
   final int attendancePct;
@@ -295,10 +288,10 @@ class _StudentMarkTile extends StatefulWidget {
   });
 
   @override
-  State<_StudentMarkTile> createState() => _StudentMarkTileState();
+  ConsumerState<_StudentMarkTile> createState() => _StudentMarkTileState();
 }
 
-class _StudentMarkTileState extends State<_StudentMarkTile> {
+class _StudentMarkTileState extends ConsumerState<_StudentMarkTile> {
   final TextEditingController _assignmentCtrl = TextEditingController();
   final TextEditingController _testCtrl = TextEditingController();
 
@@ -332,8 +325,9 @@ class _StudentMarkTileState extends State<_StudentMarkTile> {
 
   void _onSavePressed() {
     FocusScope.of(context).unfocus();
-    final assign = (double.tryParse(_assignmentCtrl.text) ?? 0.0).clamp(0.0, 12.0);
-    final test = (double.tryParse(_testCtrl.text) ?? 0.0).clamp(0.0, 12.0);
+    final scheme = ref.read(settingsProvider);
+    final assign = (double.tryParse(_assignmentCtrl.text) ?? 0.0).clamp(0.0, scheme.assignmentMax);
+    final test = (double.tryParse(_testCtrl.text) ?? 0.0).clamp(0.0, scheme.testMax);
 
     _assignmentCtrl.text = assign.toStringAsFixed(0);
     _testCtrl.text = test.toStringAsFixed(0);
@@ -362,7 +356,7 @@ class _StudentMarkTileState extends State<_StudentMarkTile> {
       title: Text(widget.student.name),
       subtitle: Text('CR: ${widget.student.collegeRollNo ?? 'N/A'}'),
       trailing: Text(
-        '${_localTotal.toStringAsFixed(0)} / 30',
+        '${_localTotal.toStringAsFixed(0)} / ${ref.watch(settingsProvider).totalMarksMax.toStringAsFixed(0)}',
         style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
       ),
       children: [
@@ -372,13 +366,13 @@ class _StudentMarkTileState extends State<_StudentMarkTile> {
             children: [
               Row(
                 children: [
-                  Expanded(child: _MarkInput(label: 'Assignment', max: 12, controller: _assignmentCtrl)),
+                  Expanded(child: _MarkInput(label: 'Assignment', max: ref.watch(settingsProvider).assignmentMax.round(), controller: _assignmentCtrl)),
                   const SizedBox(width: 12),
-                  Expanded(child: _MarkInput(label: 'Test/PPT', max: 12, controller: _testCtrl)),
+                  Expanded(child: _MarkInput(label: 'Test/PPT', max: ref.watch(settingsProvider).testMax.round(), controller: _testCtrl)),
                   const SizedBox(width: 12),
                   Expanded(child: _MarkInput(
                       label: 'Attendance',
-                      max: 6,
+                      max: ref.watch(settingsProvider).attendanceMax.round(),
                       value: '${widget.marks.attendanceMarks.toStringAsFixed(0)} (${widget.attendancePct}%)',
                       isReadOnly: true
                   )),

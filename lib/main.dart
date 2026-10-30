@@ -12,6 +12,7 @@ import 'core/models/user.dart';
 import 'core/services/local_storage.dart';
 import 'core/providers/theme_provider.dart';
 import 'app_router.dart';
+import 'data/settings_repository.dart';
 
 // --- Repositories ---
 import 'data/auth_repository.dart';
@@ -138,7 +139,7 @@ class _CampusTrackAppState extends ConsumerState<CampusTrackApp> {
     });
 
     return MaterialApp.router(
-      title: 'Campus Track',
+      title: ref.watch(settingsProvider).name,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

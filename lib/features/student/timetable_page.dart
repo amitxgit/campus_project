@@ -13,6 +13,7 @@ import '../../core/models/timetable_override.dart';
 import '../../core/models/subject.dart';
 import '../../core/models/user.dart';
 import '../../core/utils/time_formatter.dart';
+import '../../data/settings_repository.dart';
 import '../../main.dart';
 
 // -----------------------------------------------------------------------------
@@ -63,9 +64,10 @@ FutureProvider.autoDispose<TimetablePageVM>((ref) async {
   final user = await authRepo.currentUser();
   if (user == null) throw Exception('Not logged in');
 
-  final section = (user.section != null && user.section!.isNotEmpty)
-      ? user.section!
-      : _TimetableUtil.sectionForYear(user.year);
+  final section = user.section ?? '';
+  if (section.isEmpty) {
+    throw Exception("You haven't been added to a batch yet. Please ask your admin.");
+  }
 
   final ttRepo = ref.watch(timetableRepoProvider);
 
@@ -199,7 +201,7 @@ class TimetablePage extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          'Section ${vm.section}',
+                          '${ref.watch(settingsProvider).groupLabel} ${vm.section}',
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.onPrimaryContainer,
                             fontWeight: FontWeight.bold,
@@ -212,9 +214,9 @@ class TimetablePage extends ConsumerWidget {
                 ),
 
                 TimetableGrid(
-                  days: _TimetableUtil.days,
-                  periodStarts: _TimetableUtil.periodStarts,
-                  periodLabels: _TimetableUtil.periodLabels,
+                  days: ref.watch(settingsProvider).workingDays,
+                  periodStarts: ref.watch(settingsProvider).periodStarts,
+                  periodLabels: ref.watch(settingsProvider).periodLabels,
                   entries: vm.entries,
                   subjectCodes: subjectCodes,
                   subjectLeadTeacherId: subjectLeadMap,
@@ -436,23 +438,6 @@ class _CancelledBanner extends StatelessWidget {
 // -----------------------------------------------------------------------------
 
 class _TimetableUtil {
-  static const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  static const periodStarts = [
-    '09:00', '10:00', '11:00', '12:00',
-    '13:00', '14:00', '15:00', '16:00', '17:00',
-  ];
-
-  static const periodLabels = [
-    'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX',
-  ];
-
-  static String sectionForYear(int? year) => switch (year) {
-    1 => 'I-HE',
-    2 => 'II-HE',
-    3 => 'III-HE',
-    _ => 'IV-HE',
-  };
 
   static String dayStr(int weekday) {
     const map = {
