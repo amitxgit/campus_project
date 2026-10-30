@@ -570,3 +570,95 @@ exports.testWhatsApp = onCall(async (request) => {
   }
   return { ok: true };
 });
+
+
+// ---------------------------------------------------------------------------
+// BULK STUDENT IMPORT
+// ---------------------------------------------------------------------------
+// Students without an email sign in with their mobile number, which maps to
+// an internal address on this domain (see LoginId in the app).
+const PHONE_LOGIN_DOMAIN = "students.campustrack.app";
+const MAX_IMPORT_ROWS = 200;
+
+function generatePassword() {
+  // No look-alike characters (0/O, 1/l/I), easy to read out to a student.
+  const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.randomBytes(8);
+  return Array.from(bytes, (b) => chars[b % chars.length]).join("");
+}
+
+function loginEmailFor(email, phone) {
+  if (email && String(email).trim()) return String(email).trim().toLowerCase();
+  const p = normalizePhone(phone);
+  return p ? `${p.slice(-10)}@${PHONE_LOGIN_DOMAIN}` : null;
+}
+
+exports.bulkCreateStudents = onCall({ timeoutSeconds: 300 }, async (request) => {
+  const caller = await getCaller(request);
+  if (!isAdmin(caller)) throw new HttpsError("permission-denied", "Admins only.");
+  const rows = request.data && request.data.rows;
+  if (!Array.isArray(rows) || rows.length === 0 || rows.length > MAX_IMPORT_ROWS) {
+    throw new HttpsError("invalid-argument", `Send between 1 and ${MAX_IMPORT_ROWS} rows at a time.`);
+  }
+
+  const results = [];
+  // Sequential on purpose: Auth limits how fast accounts can be created.
+  for (const row of rows) {
+    const name = String(row.name || "").trim();
+    const section = String(row.section || "").trim();
+    const login = loginEmailFor(row.email, row.phone);
+    const provided = row.password ? String(row.password) : "";
+    if (!name || !section || !login) {
+      results.push({ ok: false, error: "Name, batch and an email or mobile number are required." });
+      continue;
+    }
+    if (provided && provided.length < 6) {
+      results.push({ ok: false, login, error: "Password must be at least 6 characters." });
+      continue;
+    }
+    const password = provided || generatePassword();
+    try {
+      const user = await admin.auth().createUser({ email: login, password, displayName: name });
+      await db.collection("users").doc(user.uid).set({
+        role: "student",
+        name,
+        email: login,
+        phone: String(row.phone || "").trim(),
+        section,
+        collegeRollNo: String(row.rollNo || "").trim() || null,
+        parentName: String(row.parentName || "").trim() || null,
+        parentPhone: String(row.parentPhone || "").trim() || null,
+        isActive: true,
+        isAdmin: false,
+        qualifications: [],
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      results.push({ ok: true, uid: user.uid, login, password: provided ? null : password });
+    } catch (e) {
+      const error = e.code === "auth/email-already-exists" ?
+        "An account with this email/mobile already exists." :
+        e.code === "auth/invalid-email" ? "Invalid email address." : String(e.message || e);
+      results.push({ ok: false, login, error });
+    }
+  }
+  return { results };
+});
+
+// Admins set a new password directly, e.g. for students who sign in with a
+// mobile number and so can't receive a reset email.
+exports.setUserPassword = onCall(async (request) => {
+  const caller = await getCaller(request);
+  if (!isAdmin(caller)) throw new HttpsError("permission-denied", "Admins only.");
+  const { uid, password } = request.data || {};
+  if (typeof uid !== "string" || !uid) throw new HttpsError("invalid-argument", "Missing uid.");
+  if (typeof password !== "string" || password.length < 6) {
+    throw new HttpsError("invalid-argument", "Password must be at least 6 characters.");
+  }
+  try {
+    await admin.auth().updateUser(uid, { password });
+  } catch (e) {
+    if (e.code === "auth/user-not-found") throw new HttpsError("not-found", "This user has no login.");
+    throw e;
+  }
+  return { ok: true };
+});

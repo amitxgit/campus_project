@@ -11,6 +11,7 @@ import '../../core/models/user.dart';
 import '../../core/utils/firebase_error_parser.dart';
 import '../../core/models/institution_settings.dart';
 import '../../data/settings_repository.dart';
+import '../../core/utils/login_id.dart';
 import '../../core/utils/phone.dart';
 import '../../main.dart';
 
@@ -311,7 +312,14 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
                         controller: emailCtrl,
                         decoration: _buildInputDecoration('Email Address', Icons.email_rounded),
                         keyboardType: TextInputType.emailAddress,
-                        validator: (v) => isNew && (v == null || !v.contains('@')) ? 'Email is required to sign in' : null,
+                        validator: (v) {
+                          final email = v?.trim() ?? '';
+                          if (email.isNotEmpty && !email.contains('@')) return 'Enter a valid email';
+                          if (isNew && email.isEmpty && PhoneNumber.normalize(phoneCtrl.text) == null) {
+                            return 'Email or mobile number is needed to sign in';
+                          }
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
@@ -451,7 +459,9 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
     if (updated != null) {
       try {
         if (isNew) {
-          await ref.read(authRepoProvider).createAccount(updated, passCtrl.text);
+          // No email: the student signs in with their mobile number.
+          final login = updated.email?.isNotEmpty == true ? updated.email! : LoginId.toEmail(updated.phone);
+          await ref.read(authRepoProvider).createAccount(updated.copyWith(email: login), passCtrl.text);
         } else {
           await ref.read(authRepoProvider).updateUser(updated);
         }

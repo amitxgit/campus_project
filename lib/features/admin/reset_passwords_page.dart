@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/role.dart';
 import '../../core/models/user.dart';
+import '../../core/utils/login_id.dart';
+import '../../core/utils/firebase_error_parser.dart';
 import '../../main.dart';
 import '../common/widgets/app_drawer.dart';
 import '../common/widgets/profile_avatar_action.dart';
@@ -145,6 +147,11 @@ class _ResetPasswordsPageState extends ConsumerState<ResetPasswordsPage> {
   }
 
   Future<void> _resetPassword(BuildContext context, UserAccount user) async {
+    // Mobile-number logins have no inbox, so set a new password directly.
+    if (LoginId.isPhoneLogin(user.email)) {
+      await _setPassword(context, user);
+      return;
+    }
     if (user.email == null || user.email!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No email available for this user')),
@@ -183,6 +190,44 @@ class _ResetPasswordsPageState extends ConsumerState<ResetPasswordsPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
         );
+      }
+    }
+  }
+}
+
+extension on _ResetPasswordsPageState {
+  Future<void> _setPassword(BuildContext context, UserAccount user) async {
+    final ctrl = TextEditingController();
+    final password = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('New password for ${user.name}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('${user.name} signs in with mobile number ${LoginId.display(user.email)}.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              decoration: const InputDecoration(labelText: 'New password (min 6 characters)', border: OutlineInputBorder()),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: const Text('Set password')),
+        ],
+      ),
+    );
+    if (password == null) return;
+    try {
+      await ref.read(authRepoProvider).setPassword(user.id, password);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Password updated. Share it with ${user.name}.')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(FirebaseErrorParser.getMessage(e))));
       }
     }
   }

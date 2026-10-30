@@ -231,11 +231,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           TextFormField(
                             controller: _emailCtrl,
                             keyboardType: TextInputType.emailAddress,
-                            autofillHints: const [AutofillHints.email],
+                            autofillHints: const [AutofillHints.email, AutofillHints.telephoneNumber],
                             textInputAction: TextInputAction.next,
                             style: const TextStyle(color: Colors.black87), // Dark text on white field
                             decoration: InputDecoration(
-                              hintText: "Email",
+                              hintText: "Email or mobile number",
                               hintStyle: TextStyle(color: Colors.grey[600]),
                               fillColor: Colors.white,
                               filled: true,

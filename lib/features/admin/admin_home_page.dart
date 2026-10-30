@@ -81,6 +81,7 @@ class AdminHomePage extends ConsumerWidget {
 
     final tools = [
       _AdminItem('Users', Icons.manage_accounts_rounded, '/admin/users', Colors.blue),
+      _AdminItem('Import Students', Icons.group_add_rounded, '/admin/import-students', Colors.cyan),
       if (settings.feesEnabled) _AdminItem('Fees', Icons.currency_rupee_rounded, '/admin/fees', Colors.green),
       if (settings.testsEnabled) _AdminItem('Tests', Icons.quiz_rounded, '/tests', Colors.deepPurple),
       if (settings.parentAlertsEnabled)

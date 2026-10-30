@@ -10,6 +10,7 @@ import '../core/models/user.dart';
 import '../core/models/role.dart';
 import '../core/services/local_storage.dart';
 import '../core/utils/firebase_error_parser.dart';
+import '../core/utils/login_id.dart';
 
 class AuthRepository {
   final LocalStorage _storage;
@@ -129,7 +130,7 @@ class AuthRepository {
   Future<void> loginWithEmail(String email, String password) async {
     try {
       final cred = await _auth.signInWithEmailAndPassword(
-        email: email.trim(),
+        email: LoginId.toEmail(email),
         password: password,
       );
 
@@ -266,6 +267,32 @@ class AuthRepository {
           .httpsCallable('createUserAccount')
           .call<Map<String, dynamic>>({'password': password, 'profile': profile});
       return res.data['uid'] as String;
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  // ============================
+  // 🔹 BULK IMPORT / SET PASSWORD (ADMIN, VIA CLOUD FUNCTION)
+  // ============================
+  /// Creates logins for up to 200 students. Each result has ok, login and,
+  /// when the server generated one, the password to hand to the student.
+  Future<List<Map<String, dynamic>>> bulkCreateStudents(List<Map<String, dynamic>> rows) async {
+    try {
+      final res = await FirebaseFunctions.instance
+          .httpsCallable('bulkCreateStudents', options: HttpsCallableOptions(timeout: const Duration(minutes: 5)))
+          .call<Map<String, dynamic>>({'rows': rows});
+      return (res.data['results'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  Future<void> setPassword(String uid, String password) async {
+    try {
+      await FirebaseFunctions.instance
+          .httpsCallable('setUserPassword')
+          .call<Map<String, dynamic>>({'uid': uid, 'password': password});
     } catch (e) {
       throw Exception(FirebaseErrorParser.getMessage(e));
     }

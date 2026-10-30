@@ -320,6 +320,7 @@ class AppDrawer extends ConsumerWidget {
         return _RoleMenu('Admin Tools', [
           const _DrawerItem('Dashboard', Icons.dashboard_rounded, '/home/admin', isHome: true),
           const _DrawerItem('Users', Icons.people_rounded, '/admin/users'),
+          const _DrawerItem('Import Students', Icons.group_add_rounded, '/admin/import-students'),
           if (s.feesEnabled) const _DrawerItem('Fees', Icons.currency_rupee_rounded, '/admin/fees'),
           if (s.parentAlertsEnabled) const _DrawerItem('Parent Alerts', Icons.family_restroom_rounded, '/admin/parent-alerts'),
           if (s.testsEnabled) const _DrawerItem('Tests & Results', Icons.quiz_rounded, '/tests'),
@@ -330,7 +331,7 @@ class AppDrawer extends ConsumerWidget {
           if (s.internalMarksEnabled)
             const _DrawerItem('Marks Overrides', Icons.edit_document, '/admin/internal-marks-overrides'),
           const _DrawerItem('Reset Passwords', Icons.lock_reset_rounded, '/admin/reset-passwords'),
-          const _DrawerItem('Import Data', Icons.upload_file_rounded, '/admin/import-export'),
+          const _DrawerItem('Raw Data (advanced)', Icons.upload_file_rounded, '/admin/import-export'),
           const _DrawerItem('Institute Settings', Icons.tune_rounded, '/admin/settings'),
         ]);
 

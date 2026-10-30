@@ -44,6 +44,7 @@ import 'features/admin/import_export_page.dart';
 import 'features/admin/reset_passwords_page.dart';
 import 'features/admin/query_management_page.dart';
 import 'features/admin/institution_settings_page.dart';
+import 'features/admin/import_students_page.dart';
 import 'features/fees/fees_admin_page.dart';
 import 'features/fees/fee_detail_page.dart';
 import 'features/fees/my_fees_page.dart';
@@ -239,6 +240,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/admin/query-management', builder: (_, __) => const QueryManagementPage()),
       GoRoute(path: '/admin/settings', builder: (_, __) => const InstitutionSettingsPage()),
       GoRoute(path: '/admin/fees', builder: (_, __) => const FeesAdminPage()),
+      GoRoute(path: '/admin/import-students', builder: (_, __) => const ImportStudentsPage()),
       GoRoute(path: '/admin/parent-alerts', builder: (_, __) => const ParentAlertsPage()),
       GoRoute(
         path: '/admin/fees/:studentId',
