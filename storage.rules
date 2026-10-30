@@ -1,0 +1,23 @@
+rules_version = '2';
+
+// Assignment files. Students upload into their own folder; staff can read
+// everything. Roles come from the same Firestore user profile the database
+// rules use.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isStaff() {
+      let u = firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+      return u.role in ['teacher', 'admin'] || u.get('isAdmin', false) == true;
+    }
+
+    match /submissions/{assignmentId}/{studentId}/{fileName} {
+      allow read: if request.auth != null
+        && (request.auth.uid == studentId || isStaff());
+      // Must match AssignmentRepository.maxFileBytes.
+      allow create, update: if request.auth != null
+        && request.auth.uid == studentId
+        && request.resource.size <= 20 * 1024 * 1024;
+      allow delete: if request.auth != null && request.auth.uid == studentId;
+    }
+  }
+}

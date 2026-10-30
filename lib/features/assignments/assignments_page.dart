@@ -1,7 +1,8 @@
 // lib/features/assignments/assignments_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/services/api_service.dart';
+import 'package:intl/intl.dart';
+import '../../core/models/assignment.dart';
 import '../../core/models/role.dart';
 import '../../core/models/subject.dart';
 import '../../main.dart';
@@ -27,76 +28,27 @@ final teacherSubjectsProvider = FutureProvider.autoDispose<List<Subject>>((ref) 
   return allSubjects.where((s) => s.teacherId == user.id || myTimetableSubjectIds.contains(s.id)).toList();
 });
 
-final assignmentsProvider = FutureProvider.autoDispose<List<dynamic>>((ref) async {
+final assignmentsProvider = FutureProvider.autoDispose<List<Assignment>>((ref) async {
   final user = await ref.watch(authRepoProvider).currentUser();
   if (user == null) return [];
 
-  final allAssignments = await ref.watch(apiServiceProvider).getAssignments();
-  final ttRepo = ref.watch(timetableRepoProvider);
-  final allSubjects = await ttRepo.allSubjects();
+  final repo = ref.watch(assignmentRepoProvider);
 
-  // Helper to normalize strings (removes ALL spaces and makes uppercase)
-  String normalizeStr(String? val) => (val ?? '').replaceAll(RegExp(r'\s+'), '').toUpperCase();
-
-  // ---------------------------------------------------------
-  // 🟢 FOOLPROOF STUDENT FILTERING
-  // ---------------------------------------------------------
   if (user.role == UserRole.student) {
-    final studentSection = normalizeStr(user.section);
-
-    final mySubjectIds = allSubjects
-        .where((s) => normalizeStr(s.section) == studentSection)
-        .map((s) => s.id)
-        .toSet();
-
-    final allEntries = await ttRepo.allEntries();
-    final myTimetableSubjectIds = allEntries
-        .where((e) => normalizeStr(e.section) == studentSection)
-        .map((e) => e.subjectId)
-        .toSet();
-
-    final validSubjectIds = mySubjectIds.union(myTimetableSubjectIds);
-
-    return allAssignments.where((a) {
-      // ✅ FIX: Check both 'section' and 'class_id'
-      final rawSection = a['section'] ?? a['class_id'] ?? '';
-      final dbSection = normalizeStr(rawSection.toString());
-
-      // ✅ FIX: Check both 'subjectId' and 'subject_id'
-      final dbSubjectId = (a['subjectId'] ?? a['subject_id'])?.toString();
-
-      final matchSection = studentSection.isNotEmpty && dbSection == studentSection;
-      final matchSubject = dbSubjectId != null && validSubjectIds.contains(dbSubjectId);
-
-      return matchSection || matchSubject;
-    }).toList();
+    final section = user.section;
+    if (section == null || section.isEmpty) return [];
+    return repo.forSection(section);
   }
 
-  // ---------------------------------------------------------
-  // 🟢 FOOLPROOF TEACHER FILTERING
-  // ---------------------------------------------------------
-  else if (user.role == UserRole.teacher) {
-    final allEntries = await ttRepo.allEntries();
-    final myTimetableSubjectIds = allEntries.where((e) => e.teacherIds.contains(user.id)).map((e) => e.subjectId).toSet();
-
-    final mySubjectIds = allSubjects
-        .where((s) => s.teacherId == user.id || myTimetableSubjectIds.contains(s.id))
-        .map((s) => s.id)
-        .toSet();
-
-    return allAssignments.where((a) {
-      final dbTeacherId = (a['teacherId'] ?? a['teacher_id'] ?? a['createdBy'] ?? a['uploaded_by'])?.toString();
-      final dbSubjectId = (a['subjectId'] ?? a['subject_id'])?.toString();
-
-      final isCreator = dbTeacherId == user.id;
-      final isMySubject = mySubjectIds.contains(dbSubjectId);
-
-      return isCreator || isMySubject;
-    }).toList();
+  final all = await repo.recent();
+  if (user.role == UserRole.teacher) {
+    // Assignments the teacher created, plus any for subjects they teach.
+    final mySubjectIds = (await ref.watch(teacherSubjectsProvider.future)).map((s) => s.id).toSet();
+    return all.where((a) => a.teacherId == user.id || mySubjectIds.contains(a.subjectId)).toList();
   }
 
   // Admin sees everything
-  return allAssignments;
+  return all;
 });
 
 // -----------------------------------------------------------------------------
@@ -156,9 +108,9 @@ class AssignmentsPage extends ConsumerWidget {
                     itemCount: assignments.length,
                     itemBuilder: (ctx, i) {
                       final assgn = assignments[i];
-                      // ✅ FIX: Read from both camelCase and snake_case
-                      final displayTitle = assgn['title'] ?? 'Untitled Assignment';
-                      final displaySubject = assgn['subjectName'] ?? assgn['subject_name'] ?? 'General Subject';
+                      final displayTitle = assgn.title;
+                      final displaySubject = '${assgn.subjectName} • ${assgn.section}';
+                      final dueStr = 'Due ${DateFormat('MMM d, h:mm a').format(assgn.dueDate)}';
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -194,6 +146,14 @@ class AssignmentsPage extends ConsumerWidget {
                                         Text(displayTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                                         const SizedBox(height: 4),
                                         Text(displaySubject, style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w600)),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          dueStr,
+                                          style: TextStyle(
+                                            color: assgn.isOverdue ? colorScheme.error : colorScheme.onSurfaceVariant,
+                                            fontSize: 12,
+                                          ),
+                                        ),
                                       ],
                                     ),
                                   ),
@@ -266,7 +226,20 @@ class _CreateAssignmentDialogState extends ConsumerState<_CreateAssignmentDialog
   final titleCtrl = TextEditingController();
   final descCtrl = TextEditingController();
   Subject? selectedSubject;
+  DateTime dueDate = DateTime.now().add(const Duration(days: 7));
   bool isLoading = false;
+
+  Future<void> _pickDueDate() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: dueDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (date == null) return;
+    // Due at the end of the chosen day.
+    setState(() => dueDate = DateTime(date.year, date.month, date.day, 23, 59));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -314,6 +287,13 @@ class _CreateAssignmentDialogState extends ConsumerState<_CreateAssignmentDialog
                 maxLines: 4,
                 decoration: InputDecoration(labelText: 'Instructions', alignLabelWithHint: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))
             ),
+            const SizedBox(height: 8),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.event_rounded),
+              title: Text('Due ${DateFormat('EEE, MMM d').format(dueDate)}'),
+              trailing: TextButton(onPressed: _pickDueDate, child: const Text('Change')),
+            ),
           ],
         ),
       ),
@@ -335,25 +315,17 @@ class _CreateAssignmentDialogState extends ConsumerState<_CreateAssignmentDialog
 
     setState(() => isLoading = true);
     try {
-      final dueDateStr = DateTime.now().add(const Duration(days: 7)).toIso8601String();
-
-      // ✅ FIX: Send BOTH camelCase and snake_case to satisfy any backend
-      await ref.read(apiServiceProvider).createAssignment({
-        'title': titleCtrl.text.trim(),
-        'description': descCtrl.text.trim(),
-        'teacherId': widget.teacherId,
-        'teacher_id': widget.teacherId,
-        'uploaded_by': widget.teacherId,
-        'subjectId': selectedSubject!.id,
-        'subject_id': selectedSubject!.id,
-        'subjectName': selectedSubject!.name,
-        'subject_name': selectedSubject!.name,
-        'section': selectedSubject!.section,
-        'class_id': selectedSubject!.section,
-        'dueDate': dueDateStr,
-        'due_date': dueDateStr,
-        'semester': int.tryParse(selectedSubject!.semester) ?? 0,
-      });
+      await ref.read(assignmentRepoProvider).create(Assignment(
+        id: '',
+        title: titleCtrl.text.trim(),
+        description: descCtrl.text.trim(),
+        teacherId: widget.teacherId,
+        subjectId: selectedSubject!.id,
+        subjectName: selectedSubject!.name,
+        section: selectedSubject!.section,
+        dueDate: dueDate,
+        createdAt: DateTime.now(),
+      ));
 
       ref.invalidate(assignmentsProvider);
       if (mounted) {

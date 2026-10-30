@@ -2,28 +2,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../../core/services/api_service.dart';
+import '../../core/models/notice.dart';
 import '../../core/models/role.dart';
 import '../../core/models/user.dart';
 import '../../main.dart';
 
 // --- PROVIDER ---
-final noticesProvider = FutureProvider.autoDispose<List<dynamic>>((ref) async {
+final noticesProvider = FutureProvider.autoDispose<List<Notice>>((ref) async {
   final user = await ref.watch(authRepoProvider).currentUser();
   if (user == null) return [];
 
-  final allNotices = await ref.watch(apiServiceProvider).getNotices();
-
-  // 🔴 FILTERING LOGIC: Students only see notices meant for them or everyone.
-  if (user.role == UserRole.student) {
-    return allNotices.where((n) {
-      final target = (n['targetAudience'] ?? n['target_audience'])?.toString() ?? 'all';
-      return target == 'all' || target == 'students';
-    }).toList();
-  }
-
-  // Teachers and Admins can see all notices
-  return allNotices;
+  // Students only receive notices meant for them or everyone.
+  return ref.watch(noticeRepoProvider).visibleTo(user.role);
 });
 
 // --- MAIN PAGE ---
@@ -66,7 +56,13 @@ class NoticesPage extends ConsumerWidget {
               itemCount: notices.length,
               itemBuilder: (ctx, i) {
                 final notice = notices[i];
-                return _NoticeCard(notice: notice);
+                final user = userAsync.valueOrNull;
+                final canDelete = user != null &&
+                    (user.role == UserRole.admin || user.isAdmin || notice.authorId == user.id);
+                return _NoticeCard(
+                  notice: notice,
+                  onDelete: canDelete ? () => _confirmDelete(context, ref, notice) : null,
+                );
               },
             ),
           );
@@ -90,6 +86,29 @@ class NoticesPage extends ConsumerWidget {
     );
   }
 
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref, Notice notice) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete notice?'),
+        content: Text('"${notice.title}" will be removed for everyone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(noticeRepoProvider).delete(notice.id);
+      ref.invalidate(noticesProvider);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      }
+    }
+  }
+
   void _showAddNoticeDialog(BuildContext context, UserAccount currentUser) {
     showDialog(
       context: context,
@@ -100,46 +119,24 @@ class NoticesPage extends ConsumerWidget {
 
 // --- PROFESSIONAL NOTICE CARD UI ---
 class _NoticeCard extends StatelessWidget {
-  final dynamic notice;
-  const _NoticeCard({required this.notice});
+  final Notice notice;
+  final VoidCallback? onDelete;
+  const _NoticeCard({required this.notice, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
-    final title = notice['title'] ?? 'Untitled Notice';
-    final content = notice['content'] ?? 'No content provided.';
-    final authorName = notice['authorName'] ?? notice['author_name'] ?? 'Admin';
-    final authorRole = notice['authorRole'] ?? notice['author_role'] ?? 'Staff';
-    final target = notice['targetAudience'] ?? notice['target_audience'] ?? 'all';
-
-    // 🟢 FOOLPROOF DATE PARSING
-    final rawDate = notice['createdAt'] ?? notice['created_at'];
-    String dateStr = 'Recently';
-
-    if (rawDate != null) {
-      try {
-        // Attempt 1: Standard ISO-8601 (e.g. 2026-03-23T05:53:40Z)
-        final dt = DateTime.parse(rawDate.toString());
-        dateStr = DateFormat('MMM d, yyyy').format(dt);
-      } catch (_) {
-        try {
-          // Attempt 2: Flask/HTTP Format (e.g. Mon, 23 Mar 2026 05:53:40 GMT)
-          final dt = DateFormat("E, d MMM yyyy HH:mm:ss 'GMT'").parse(rawDate.toString(), true);
-          dateStr = DateFormat('MMM d, yyyy').format(dt.toLocal());
-        } catch (_) {
-          // Attempt 3: If both fail, safely show a piece of the raw string without crashing
-          dateStr = rawDate.toString().length > 12
-              ? rawDate.toString().substring(0, 12)
-              : rawDate.toString();
-        }
-      }
-    }
+    final title = notice.title;
+    final content = notice.content;
+    final authorName = notice.authorName;
+    final authorRole = notice.authorRole;
+    final dateStr = DateFormat('MMM d, yyyy').format(notice.createdAt);
 
     Color badgeColor = Colors.grey;
     String badgeText = 'All Users';
-    if (target == 'students') {
+    if (notice.audience == NoticeAudience.students) {
       badgeColor = Colors.blue;
       badgeText = 'Students Only';
-    } else if (target == 'teachers') {
+    } else if (notice.audience == NoticeAudience.teachers) {
       badgeColor = Colors.orange;
       badgeText = 'Teachers Only';
     }
@@ -179,9 +176,9 @@ class _NoticeCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: badgeColor.withOpacity(0.1),
+                    color: badgeColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: badgeColor.withOpacity(0.5)),
+                    border: Border.all(color: badgeColor.withValues(alpha: 0.5)),
                   ),
                   child: Text(
                     badgeText,
@@ -203,6 +200,15 @@ class _NoticeCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                if (onDelete != null) ...[
+                  IconButton(
+                    onPressed: onDelete,
+                    icon: Icon(Icons.delete_outline, size: 18, color: Colors.grey.shade500),
+                    tooltip: 'Delete notice',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  const Spacer(),
+                ],
                 Icon(Icons.access_time, size: 14, color: Colors.grey.shade500),
                 const SizedBox(width: 4),
                 Text(dateStr, style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
@@ -227,7 +233,7 @@ class _AddNoticeDialog extends ConsumerStatefulWidget {
 class _AddNoticeDialogState extends ConsumerState<_AddNoticeDialog> {
   final titleCtrl = TextEditingController();
   final contentCtrl = TextEditingController();
-  String _selectedTarget = 'all';
+  NoticeAudience _selectedTarget = NoticeAudience.all;
   bool _isLoading = false;
 
   @override
@@ -242,13 +248,13 @@ class _AddNoticeDialogState extends ConsumerState<_AddNoticeDialog> {
           children: [
             const Text('Send to:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
+            DropdownButtonFormField<NoticeAudience>(
               decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12)),
               initialValue: _selectedTarget,
               items: const [
-                DropdownMenuItem(value: 'all', child: Text('Everyone (All Users)')),
-                DropdownMenuItem(value: 'students', child: Text('Students Only')),
-                DropdownMenuItem(value: 'teachers', child: Text('Teachers Only')),
+                DropdownMenuItem(value: NoticeAudience.all, child: Text('Everyone (All Users)')),
+                DropdownMenuItem(value: NoticeAudience.students, child: Text('Students Only')),
+                DropdownMenuItem(value: NoticeAudience.teachers, child: Text('Teachers Only')),
               ],
               onChanged: (val) => setState(() => _selectedTarget = val!),
             ),
@@ -282,14 +288,16 @@ class _AddNoticeDialogState extends ConsumerState<_AddNoticeDialog> {
 
     setState(() => _isLoading = true);
     try {
-      await ref.read(apiServiceProvider).createNotice({
-        'title': titleCtrl.text.trim(),
-        'content': contentCtrl.text.trim(),
-        'targetAudience': _selectedTarget,
-        'authorName': widget.currentUser.name,
-        'authorRole': widget.currentUser.role.key,
-        'createdAt': DateTime.now().toIso8601String(),
-      });
+      await ref.read(noticeRepoProvider).create(Notice(
+        id: '',
+        title: titleCtrl.text.trim(),
+        content: contentCtrl.text.trim(),
+        audience: _selectedTarget,
+        authorId: widget.currentUser.id,
+        authorName: widget.currentUser.name,
+        authorRole: widget.currentUser.role.key,
+        createdAt: DateTime.now(),
+      ));
 
       ref.invalidate(noticesProvider);
       if (mounted) {

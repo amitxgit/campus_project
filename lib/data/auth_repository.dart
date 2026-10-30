@@ -198,6 +198,26 @@ class AuthRepository {
   }
 
   // ============================
+  // 🔹 CONTACT DETAILS (SELF-EDITABLE)
+  // ============================
+  Future<({String bio, String phone})> contactDetails(String uid) async {
+    try {
+      final data = (await _db.collection('users').doc(uid).get()).data() ?? {};
+      return (bio: data['bio']?.toString() ?? '', phone: data['phone']?.toString() ?? '');
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  Future<void> updateContactDetails(String uid, {required String bio, required String phone}) async {
+    try {
+      await _db.collection('users').doc(uid).update({'bio': bio, 'phone': phone});
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  // ============================
   // 🔹 PASSWORD RESET
   // ============================
   Future<void> requestPasswordReset(String email) async {

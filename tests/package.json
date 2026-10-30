@@ -1,0 +1,14 @@
+{
+  "name": "campus-track-emulator-tests",
+  "private": true,
+  "description": "End-to-end checks for Cloud Functions, firestore.rules and storage.rules against the Firebase emulators.",
+  "scripts": {
+    "test": "firebase emulators:exec --only auth,firestore,functions,storage --project demo-campus \"node emulator.test.js ../firestore.rules ../storage.rules\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
+    "firebase": "^10.14.1",
+    "firebase-admin": "^12.6.0",
+    "firebase-tools": "^13.35.1"
+  }
+}

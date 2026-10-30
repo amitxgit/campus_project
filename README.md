@@ -13,6 +13,8 @@ A comprehensive Flutter application designed to modernize the campus experience.
 * **Attendance History:** A detailed, filterable list of all past attendance records with subject-wise percentages.
 * **Internal Marks:** View published internal marks (assignments, tests, attendance) from all teachers in one place.
 * **Timetable:** View a full weekly timetable with offline support.
+* **Assignments:** See coursework for your section and turn it in with text, links or a file attachment (up to 20 MB). Resubmit any time.
+* **Notices:** Announcements addressed to students or everyone.
 * **Raise Query:** A simple form to submit academic or administrative queries to the admin.
 * **Teacher Directory:** Browse a list of all teachers, their contact info, and their qualifications.
 
@@ -21,6 +23,8 @@ A comprehensive Flutter application designed to modernize the campus experience.
 * **Generate QR:** Generate a unique, time-limited QR code for a class to take attendance.
 * **Review Attendance:** A live-updating list of students who have scanned in, with the ability to manually override/edit marks (Present, Absent, Late, Excused).
 * **Internal Marks System:** A complete grading page to select a subject, enter marks (Assignment/Test), and see auto-calculated attendance marks. Includes a switch to publish/unpublish grades to students.
+* **Assignments:** Create assignments with a due date, then review every submission (late ones flagged) and download attached files.
+* **Notices:** Post announcements to students, teachers, or everyone.
 * **My Qualifications:** Teachers can add, edit, or remove their academic qualifications from their profile.
 * **Student Remarks:** Add private, filterable tags (e.g., "Good," "Needs Improvement") to students, visible only to the teacher.
 
@@ -41,7 +45,9 @@ A comprehensive Flutter application designed to modernize the campus experience.
 * **Backend:** Firebase
     * **Authentication:** For secure email/password login.
     * **Firestore:** Real-time database for all app data.
-    * **Firestore Security Rules:** Secures all database collections based on user roles.
+    * **Firestore & Storage Security Rules:** Secure all data and uploaded files based on user roles.
+    * **Cloud Functions:** Server-verified QR attendance, account creation, notification delivery.
+    * **Cloud Storage:** Assignment file uploads.
 * **State Management:** Flutter Riverpod
 * **Navigation:** GoRouter
 * **QR & Scanning:** `qr_flutter` & `mobile_scanner`
@@ -87,19 +93,27 @@ This project is fully integrated with Firebase. To run it, you must connect it t
 
 QR attendance, creating user logins, and in-app notifications run as Cloud
 Functions, which require the Firebase **Blaze** (pay-as-you-go) plan.
+Assignment file uploads use **Cloud Storage** (enable it in the console first).
 
 ```bash
 cd firebase_functions && npm ci && cd ..
-firebase deploy --only firestore,functions
+firebase deploy --only firestore,functions,storage
 ```
 
-This publishes `firestore.rules`, `firestore.indexes.json` and the functions in
-`firebase_functions/`.
+This publishes `firestore.rules`, `firestore.indexes.json`, `storage.rules` and
+the functions in `firebase_functions/`. The first time, the CLI asks to let
+Storage rules read Firestore (they check the user's role) — answer **Yes**.
 
 To try everything locally first:
 
 ```bash
 firebase emulators:start --project demo-campus
+```
+
+To run the automated checks for the functions and security rules (needs Java):
+
+```bash
+cd tests && npm ci && npm test
 ```
 
 ### 3. Seed the Database (CRITICAL)

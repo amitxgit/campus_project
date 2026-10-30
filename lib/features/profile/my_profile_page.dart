@@ -1,6 +1,7 @@
 // lib/features/profile/my_profile_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
@@ -646,6 +647,17 @@ class _CommonSettingsSection extends ConsumerWidget {
       icon: Icons.settings_outlined,
       padding: EdgeInsets.zero,
       children: [
+        ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          leading: const Icon(Icons.edit_note_rounded),
+          title: const Text('Edit Bio & Phone', style: TextStyle(fontWeight: FontWeight.w600)),
+          trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+          onTap: () async {
+            await GoRouter.of(context).push('/profile/update');
+            ref.invalidate(profileUserProvider);
+          },
+        ),
+        const Divider(height: 1),
         ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
           leading: const Icon(Icons.lock_outline),

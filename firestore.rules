@@ -53,7 +53,7 @@ service cloud.firestore {
       allow create: if isAdmin();
       allow update: if isAdmin()
         || (isSelf(uid) && active() && onlyChanges(
-             ['name', 'phone', 'qualifications', 'gender', 'date_of_birth', 'idCardPhotoPath']));
+             ['name', 'phone', 'bio', 'qualifications', 'gender', 'date_of_birth', 'idCardPhotoPath']));
       allow delete: if isAdmin();
     }
 
@@ -104,6 +104,38 @@ service cloud.firestore {
             && resource.data.studentId == request.auth.uid
             && resource.data.isVisibleToStudent == true);
       allow write: if isStaff();
+    }
+
+    // ------------------------------------------------------------------ notices
+    match /notices/{id} {
+      allow read: if isStaff()
+        || (active() && resource.data.targetAudience in ['all', 'students']);
+      allow create: if isStaff()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.targetAudience in ['all', 'students', 'teachers'];
+      allow delete: if isAdmin()
+        || (isStaff() && resource.data.authorId == request.auth.uid);
+    }
+
+    // -------------------------------------------------------------- assignments
+    match /assignments/{assignmentId} {
+      allow read: if isStaff()
+        || (active() && resource.data.section == me().get('section', null));
+      allow create: if isAdmin()
+        || (isTeacher() && request.resource.data.teacherId == request.auth.uid);
+      allow update, delete: if isAdmin()
+        || (isTeacher() && resource.data.teacherId == request.auth.uid);
+
+      // One doc per student, keyed by their uid. Students may only turn in
+      // work for assignments given to their own section.
+      match /submissions/{studentId} {
+        allow read: if isStaff() || (isSelf(studentId) && active());
+        allow create, update: if isSelf(studentId) && active()
+          && request.resource.data.studentId == studentId
+          && get(/databases/$(database)/documents/assignments/$(assignmentId)).data.section
+             == me().get('section', null);
+        allow delete: if isAdmin();
+      }
     }
 
     // ------------------------------------------------------------------ remarks

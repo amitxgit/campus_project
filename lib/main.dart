@@ -21,6 +21,8 @@ import 'data/internal_marks_repository.dart';
 import 'data/remark_repository.dart';
 import 'data/query_repository.dart';
 import 'data/notification_repository.dart';
+import 'data/notice_repository.dart';
+import 'data/assignment_repository.dart';
 
 // --- Services ---
 import 'core/services/notification_service.dart';
@@ -60,6 +62,8 @@ final queryRepoProvider = Provider<QueryRepository>((ref) {
 });
 
 final notifRepoProvider = Provider<NotificationRepository>((ref) => NotificationRepository());
+final noticeRepoProvider = Provider<NoticeRepository>((ref) => NoticeRepository());
+final assignmentRepoProvider = Provider<AssignmentRepository>((ref) => AssignmentRepository());
 
 final notificationSyncServiceProvider = Provider<NotificationSyncService>((ref) {
   return NotificationSyncService(ref, FirebaseFirestore.instance);

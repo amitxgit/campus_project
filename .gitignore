@@ -74,3 +74,6 @@ campus_track_android.iml
 # Generated pubspec.lock
 pubspec.lock
 
+
+# Emulator test deps
+/tests/node_modules/
