@@ -77,3 +77,6 @@ pubspec.lock
 
 # Emulator test deps
 /tests/node_modules/
+
+# Local build outputs handed to people (not source)
+/deliverables/

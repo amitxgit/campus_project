@@ -182,7 +182,7 @@ class _TestDetailPageState extends ConsumerState<TestDetailPage> {
                                   ),
                                   Expanded(child: Text(s.name, style: const TextStyle(fontWeight: FontWeight.w600))),
                                   SizedBox(
-                                    width: 90,
+                                    width: 120,
                                     child: TextField(
                                       controller: _ctrls[s.id],
                                       enabled: !absent,

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/settings_repository.dart';
 import '../../main.dart';
 import '../../core/utils/firebase_error_parser.dart';
+import '../../core/utils/phone.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -93,6 +94,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             FilledButton(
               onPressed: () async {
                 final email = resetEmailCtrl.text.trim();
+                if (!email.contains('@') && PhoneNumber.normalize(email) != null) {
+                  // Mobile-number logins have no inbox to send a reset link to.
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('You sign in with your mobile number. Please ask your institute to reset your password.')),
+                  );
+                  return;
+                }
                 if (email.isEmpty || !email.contains('@')) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
                     const SnackBar(content: Text('Please enter a valid email.')),
@@ -247,8 +255,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                             ),
                             validator: (v) {
-                              if (v == null || v.trim().isEmpty) return 'Email is required';
-                              if (!v.contains('@')) return 'Enter a valid email';
+                              if (v == null || v.trim().isEmpty) return 'Enter your email or mobile number';
+                              if (!v.contains('@') && PhoneNumber.normalize(v) == null) {
+                                return 'Enter a valid email or 10-digit mobile number';
+                              }
                               return null;
                             },
                           ),

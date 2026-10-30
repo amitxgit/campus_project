@@ -87,9 +87,9 @@ class AboutPage extends ConsumerWidget {
                             color: Colors.black.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          child: Text(
+                          child: const Text(
                             'Version $appVersion',
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Colors.white,
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
@@ -153,7 +153,7 @@ class AboutPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
 
-                  _ModernFeatureCard(
+                  const _ModernFeatureCard(
                     icon: Icons.qr_code_scanner_rounded,
                     title: 'Secure QR Attendance',
                     subtitle: 'Time-boxed, dynamically generated QR codes by faculty ensure secure and proxy-free student attendance logging.',
@@ -161,7 +161,7 @@ class AboutPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
 
-                  _ModernFeatureCard(
+                  const _ModernFeatureCard(
                     icon: Icons.edit_calendar_rounded,
                     title: 'Dynamic Timetable & Overrides',
                     subtitle: 'Live master schedules built by Admins, with real-time class cancellation and rescheduling powers for Teachers. Instant push notifications sync to Student dashboards.',
@@ -169,7 +169,7 @@ class AboutPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
 
-                  _ModernFeatureCard(
+                  const _ModernFeatureCard(
                     icon: Icons.assessment_rounded,
                     title: 'Automated Internal Marks',
                     subtitle: 'Intelligent aggregation of attendance thresholds, assignments, and exam scores into a unified internal marks ledger.',
@@ -177,7 +177,7 @@ class AboutPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
 
-                  _ModernFeatureCard(
+                  const _ModernFeatureCard(
                     icon: Icons.admin_panel_settings_rounded,
                     title: 'Role-Based Workspace Switching',
                     subtitle: 'Enterprise-grade security allowing Administrators to seamlessly toggle between Admin and Faculty workspaces without logging out.',
@@ -185,7 +185,7 @@ class AboutPage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
 
-                  _ModernFeatureCard(
+                  const _ModernFeatureCard(
                     icon: Icons.support_agent_rounded,
                     title: 'Integrated Help Desk',
                     subtitle: 'A centralized query resolution system bridging the gap between student issues and administrative action.',

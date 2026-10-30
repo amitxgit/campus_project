@@ -57,7 +57,7 @@ final teacherDashboardProvider = FutureProvider.autoDispose<TeacherDashboardVM>(
   final results = await Future.wait([
     ttRepo.forTeacher(user.id),
     ttRepo.allSubjects(),
-    authRepo.allUsers(),
+    authRepo.allTeachers(),
   ]);
 
   final rawEntries = results[0] as List<TimetableEntry>;

@@ -13,7 +13,8 @@ jobs:
         with:
           flutter-version: '3.38.7'
       - run: flutter pub get
-      - run: flutter analyze --no-fatal-infos
+      - run: flutter analyze
+      - run: flutter test
 
   firebase:
     runs-on: ubuntu-latest

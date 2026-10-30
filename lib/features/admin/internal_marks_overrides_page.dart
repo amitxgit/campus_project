@@ -436,7 +436,7 @@ class _InternalMarksOverridesPageState
       });
       ref.invalidate(adminMarksProvider);
 
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Academic records updated successfully!'),
@@ -447,7 +447,7 @@ class _InternalMarksOverridesPageState
       }
     } catch (e) {
       setState(() => _isSaving = false);
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );

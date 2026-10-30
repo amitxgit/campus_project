@@ -104,7 +104,7 @@ class _RaiseQueryPageState extends ConsumerState<RaiseQueryPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Premium Input Decoration for all fields
-    InputDecoration _buildInputDecoration(String label, IconData icon) {
+    InputDecoration buildInputDecoration(String label, IconData icon) {
       return InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: colorScheme.primary),
@@ -256,7 +256,7 @@ class _RaiseQueryPageState extends ConsumerState<RaiseQueryPage> {
                             ),
                           ],
                           onChanged: (v) => setState(() => _subjectId = v),
-                          decoration: _buildInputDecoration('Category / Subject (Optional)', Icons.category_rounded),
+                          decoration: buildInputDecoration('Category / Subject (Optional)', Icons.category_rounded),
                         ),
                       ),
 
@@ -265,7 +265,7 @@ class _RaiseQueryPageState extends ConsumerState<RaiseQueryPage> {
                       // --- TITLE FIELD ---
                       TextFormField(
                         controller: _titleCtrl,
-                        decoration: _buildInputDecoration('Issue Title', Icons.title_rounded).copyWith(
+                        decoration: buildInputDecoration('Issue Title', Icons.title_rounded).copyWith(
                           hintText: 'e.g. Attendance not marked',
                         ),
                         validator: (v) => (v == null || v.trim().isEmpty) ? 'Please provide a title' : null,
@@ -277,7 +277,7 @@ class _RaiseQueryPageState extends ConsumerState<RaiseQueryPage> {
                       TextFormField(
                         controller: _msgCtrl,
                         maxLines: 5,
-                        decoration: _buildInputDecoration('Detailed Description', Icons.description_rounded).copyWith(
+                        decoration: buildInputDecoration('Detailed Description', Icons.description_rounded).copyWith(
                           alignLabelWithHint: true,
                           hintText: 'Please describe your issue in detail so we can resolve it quickly...',
                         ),

@@ -15,6 +15,7 @@ import '../../core/models/user.dart';
 import '../../core/models/attendance.dart';
 import '../../core/utils/time_formatter.dart';
 import '../../main.dart';
+import '../../core/models/institution_settings.dart';
 import '../../data/settings_repository.dart';
 
 // -----------------------------------------------------------------------------
@@ -76,7 +77,8 @@ final studentDashboardProvider = FutureProvider.autoDispose<StudentDashboardVM>(
   final todayDateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
   final overridesSnap = await db.collection('timetable_overrides')
       .where('date', isEqualTo: todayDateStr)
-      .get(); // We fetch all for today, since we filter entries locally
+      .where('section', isEqualTo: section)
+      .get();
 
   final cancelledEntryIds = <String>{};
   final rescheduledEntries = <String, Map<String, dynamic>>{};
@@ -214,13 +216,17 @@ class StudentHomePage extends ConsumerWidget {
 // -----------------------------------------------------------------------------
 // HEADER (SEMESTER ONLY)
 // -----------------------------------------------------------------------------
-class _Header extends StatelessWidget {
+class _Header extends ConsumerWidget {
   final StudentDashboardVM vm;
   const _Header({required this.vm});
 
   @override
-  Widget build(BuildContext context) {
-    final semesterText = vm.student.semester != null ? 'Semester ${vm.student.semester}' : 'Year ${vm.student.year ?? 1}';
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Show the student's batch/section; semesters only mean something at colleges.
+    final s = vm.student;
+    final semesterText = s.semester != null && ref.watch(settingsProvider).type == InstitutionType.college
+        ? 'Semester ${s.semester}'
+        : (s.section?.isNotEmpty == true ? s.section! : ref.watch(settingsProvider).groupLabel);
 
     return Container(
       width: double.infinity,

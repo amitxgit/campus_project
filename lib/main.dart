@@ -1,5 +1,8 @@
 // lib/main.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -95,6 +98,17 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // `flutter run --dart-define=USE_EMULATORS=true` talks to the local
+  // Firebase emulators (firebase emulators:start) instead of production.
+  const useEmulators = bool.fromEnvironment('USE_EMULATORS');
+  if (useEmulators) {
+    const host = String.fromEnvironment('EMULATOR_HOST', defaultValue: 'localhost');
+    await FirebaseAuth.instance.useAuthEmulator(host, 9099);
+    FirebaseFirestore.instance.useFirestoreEmulator(host, 8080);
+    FirebaseFunctions.instance.useFunctionsEmulator(host, 5001);
+    await FirebaseStorage.instance.useStorageEmulator(host, 9199);
+  }
 
   final prefs = await SharedPreferences.getInstance();
   final localStorage = LocalStorage(prefs);

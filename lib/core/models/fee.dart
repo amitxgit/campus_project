@@ -109,7 +109,7 @@ class FeeAccount {
 
   double overdueAmount([DateTime? now]) => statuses(now)
       .where((s) => s.state == InstalmentState.overdue)
-      .fold(0.0, (sum, s) => sum + s.outstanding);
+      .fold(0.0, (total, s) => total + s.outstanding);
 
   /// The first instalment that still has money owing, if any.
   InstalmentStatus? nextDue([DateTime? now]) {

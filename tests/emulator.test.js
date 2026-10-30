@@ -286,6 +286,182 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await check("another student cannot download it", () =>
     assertFails(env.authenticatedContext("student2").storage().ref("submissions/a_mine/student1/hw.pdf").getMetadata()));
 
+  console.log("Institute settings");
+  const adminDb = as("admin1");
+  await check("anyone (even signed out) can read settings", () =>
+    assertSucceeds(env.unauthenticatedContext().firestore().doc("settings/institution").get()));
+  await check("admin saves settings", () =>
+    assertSucceeds(adminDb.doc("settings/institution").set({ name: "Apex Classes", type: "coaching", groups: ["IV-HE"] })));
+  await check("teacher cannot change settings", () => assertFails(teacher.doc("settings/institution").update({ name: "X" })));
+
+  console.log("Fees");
+  await check("admin creates fee plan", () =>
+    assertSucceeds(adminDb.doc("fee_accounts/student1").set({ studentName: "student1", totalFee: 30000, discount: 0, instalments: [], paidAmount: 0 })));
+  await check("admin records payment with receipt counter (transaction)", () =>
+    assertSucceeds(adminDb.runTransaction(async (tx) => {
+      const c = await tx.get(adminDb.doc("meta/counters"));
+      const next = ((c.exists && c.data().receiptSeq) || 0) + 1;
+      tx.set(adminDb.doc("meta/counters"), { receiptSeq: next }, { merge: true });
+      tx.set(adminDb.doc("fee_accounts/student1/payments/p1"), { amount: 5000, receiptNo: next, voided: false });
+      tx.update(adminDb.doc("fee_accounts/student1"), { paidAmount: 5000 });
+    })));
+  await check("student reads own fees and receipts", async () => {
+    await assertSucceeds(student.doc("fee_accounts/student1").get());
+    await assertSucceeds(student.collection("fee_accounts/student1/payments").get());
+  });
+  await check("student cannot edit own fees", () => assertFails(student.doc("fee_accounts/student1").update({ paidAmount: 30000 })));
+  await check("student cannot add a payment", () =>
+    assertFails(student.doc("fee_accounts/student1/payments/fake").set({ amount: 99999 })));
+  await check("student cannot read another's fees", () => assertFails(as("student2").doc("fee_accounts/student1").get()));
+  await check("teacher cannot see fees", () => assertFails(teacher.doc("fee_accounts/student1").get()));
+  await check("students cannot touch receipt counter", () => assertFails(student.doc("meta/counters").get()));
+
+  console.log("Tests & results");
+  await check("teacher creates a test as self", () =>
+    assertSucceeds(teacher.doc("tests/t1").set({ name: "WT1", section: "IV-HE", maxMarks: 100, createdBy: "teacher1" })));
+  await check("teacher enters marks", () => assertSucceeds(teacher.doc("tests/t1/marks/all").set({ scores: { student1: 80 }, absent: [] })));
+  await check("teacher publishes a result", () =>
+    assertSucceeds(teacher.doc("student_results/student1").set({ results: { t1: { marks: 80, rank: 1 } } }, { merge: true })));
+  await check("student reads own results", () => assertSucceeds(student.doc("student_results/student1").get()));
+  await check("student cannot read raw marks or tests", async () => {
+    await assertFails(student.doc("tests/t1/marks/all").get());
+    await assertFails(student.doc("tests/t1").get());
+  });
+  await check("student cannot read another's results", () => assertFails(as("student2").doc("student_results/student1").get()));
+  await check("student cannot write results", () => assertFails(student.doc("student_results/student1").set({ results: {} })));
+
+  console.log("Parent alerts");
+  // A stand-in for the WhatsApp Cloud API that records what it was sent.
+  const http = require("http");
+  const received = [];
+  const mock = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      received.push({ url: req.url, auth: req.headers.authorization, body: JSON.parse(body) });
+      const fail = req.url.includes("/BADID/");
+      res.writeHead(fail ? 400 : 200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(fail ? { error: { message: "Invalid phone number id" } } : { messages: [{ id: "wamid.1" }] }));
+    });
+  });
+  await new Promise((r) => mock.listen(0, "127.0.0.1", r));
+  const mockBase = `http://127.0.0.1:${mock.address().port}`;
+  const waitStatus = async (ref) => {
+    for (let i = 0; i < 40; i++) {
+      const st = (await ref.get()).data().status;
+      if (st !== "pending") return st;
+      await sleep(250);
+    }
+    return "pending";
+  };
+  const queue = (data) => db.collection("parent_alerts").add({ status: "pending", createdAt: new Date(), ...data });
+  await db.doc("users/student1").update({ parentPhone: "98123 45678", name: "Asha" });
+
+  await check("alert without WhatsApp configured is marked notConfigured", async () => {
+    const ref = await queue({ studentId: "student1", kind: "feeReminder", params: ["a", "b", "c", "d"], requestedBy: "admin1" });
+    assert.strictEqual(await waitStatus(ref), "notConfigured");
+  });
+  await check("students cannot read or write WhatsApp secrets", async () => {
+    await assertFails(student.doc("secrets/whatsapp").set({ token: "x" }));
+    await assertFails(adminDb.doc("secrets/whatsapp").get());
+  });
+  await check("admin saves WhatsApp credentials (write-only)", () =>
+    assertSucceeds(adminDb.doc("secrets/whatsapp").set({ phoneNumberId: "PNID", token: "tok123", apiBase: mockBase })));
+  await check("queued alert is sent as the right template to the parent", async () => {
+    const ref = await queue({ studentId: "student1", kind: "testResult", params: ["Asha", "80/100", "WT1", "Apex"], requestedBy: "teacher1" });
+    assert.strictEqual(await waitStatus(ref), "sent");
+    const msg = received[received.length - 1];
+    assert.strictEqual(msg.url, "/PNID/messages");
+    assert.strictEqual(msg.auth, "Bearer tok123");
+    assert.strictEqual(msg.body.to, "919812345678");
+    assert.strictEqual(msg.body.template.name, "test_result");
+    assert.deepStrictEqual(msg.body.template.components[0].parameters.map((p) => p.text), ["Asha", "80/100", "WT1", "Apex"]);
+  });
+  await check("student without a parent number is marked noPhone", async () => {
+    const ref = await queue({ studentId: "student2", kind: "absence", params: ["x", "y", "z"], requestedBy: "teacher1" });
+    assert.strictEqual(await waitStatus(ref), "noPhone");
+  });
+  await check("wrong number of template values is rejected", async () => {
+    const ref = await queue({ studentId: "student1", kind: "absence", params: ["only one"], requestedBy: "teacher1" });
+    assert.strictEqual(await waitStatus(ref), "rejected");
+  });
+  await check("alert queued as a student is rejected by the function", async () => {
+    const ref = await queue({ studentId: "student1", kind: "absence", params: ["a", "b", "c"], requestedBy: "student1" });
+    assert.strictEqual(await waitStatus(ref), "rejected");
+  });
+  await check("WhatsApp API errors are recorded as failed", async () => {
+    await db.doc("secrets/whatsapp").update({ phoneNumberId: "BADID" });
+    const ref = await queue({ studentId: "student1", kind: "absence", params: ["a", "b", "c"], requestedBy: "teacher1" });
+    assert.strictEqual(await waitStatus(ref), "failed");
+    assert.match((await ref.get()).data().error, /Invalid phone number id/);
+    await db.doc("secrets/whatsapp").update({ phoneNumberId: "PNID" });
+  });
+  await check("staff can queue alerts but students cannot", async () => {
+    const ok = { studentId: "student1", kind: "absence", params: ["a", "b", "c"], status: "pending" };
+    await assertSucceeds(teacher.collection("parent_alerts").add({ ...ok, requestedBy: "teacher1" }));
+    await assertFails(student.collection("parent_alerts").add({ ...ok, requestedBy: "student1" }));
+    await assertFails(teacher.collection("parent_alerts").add({ ...ok, requestedBy: "system" }));
+  });
+  await check("automatic absence alert: once per student per day", async () => {
+    await db.doc("settings/institution").set({ name: "Apex", parentAlertsEnabled: true, autoAbsenceAlerts: true, whatsappSender: "+91..." });
+    const before = received.length;
+    const day = new Date("2026-11-03T05:00:00Z");
+    await db.doc("attendance/s1_student1").set({ studentId: "student1", status: "absent", date: day });
+    await db.doc("attendance/s2_student1").set({ studentId: "student1", status: "absent", date: day });
+    await sleep(4000);
+    const alerts = await db.collection("parent_alerts").where("kind", "==", "absence").where("requestedBy", "==", "system").get();
+    assert.strictEqual(alerts.size, 1);
+    assert.strictEqual(alerts.docs[0].id, "absence_student1_2026-11-03");
+    assert.deepStrictEqual(alerts.docs[0].data().params, ["Asha", "3 Nov 2026", "Apex"]);
+    const sentForDay = received.slice(before).filter((m) =>
+      m.body.template.name === "absence_alert" && m.body.template.components[0].parameters[1].text === "3 Nov 2026");
+    assert.strictEqual(sentForDay.length, 1);
+  });
+  await check("no automatic alert when the setting is off", async () => {
+    await db.doc("settings/institution").update({ autoAbsenceAlerts: false });
+    await db.doc("attendance/s3_student1").set({ studentId: "student1", status: "absent", date: new Date("2026-11-04T05:00:00Z") });
+    await sleep(3000);
+    assert.strictEqual((await db.doc("parent_alerts/absence_student1_2026-11-04").get()).exists, false);
+  });
+  await check("WhatsApp test send works for admins only", async () => {
+    await expectError(call("testWhatsApp", { to: "9812345678" }, tTeacher), "PERMISSION_DENIED");
+    await call("testWhatsApp", { to: "9812345678" }, tAdmin);
+    assert.strictEqual(received[received.length - 1].body.template.name, "hello_world");
+  });
+  mock.close();
+
+  console.log("Bulk import & mobile sign-in");
+  let imported;
+  await check("teacher cannot bulk import", () =>
+    expectError(call("bulkCreateStudents", { rows: [{ name: "x", section: "A", phone: "9000000001" }] }, tTeacher), "PERMISSION_DENIED"));
+  await check("admin imports mixed rows; bad rows reported, good rows created", async () => {
+    const res = await call("bulkCreateStudents", { rows: [
+      { name: "Phone Kid", section: "IV-HE", phone: "+91 90000 00001", parentPhone: "9811111111", rollNo: "7" },
+      { name: "Email Kid", section: "IV-HE", email: "Email.Kid@test.edu", password: "chosen1" },
+      { name: "", section: "IV-HE", phone: "9000000002" },
+      { name: "Dup", section: "IV-HE", email: "email.kid@test.edu" },
+    ] }, tAdmin);
+    imported = res.results;
+    assert.deepStrictEqual(imported.map((r) => r.ok), [true, true, false, false]);
+    assert.strictEqual(imported[0].login, "9000000001@students.campustrack.app");
+    assert.strictEqual(imported[0].password.length, 8);
+    assert.strictEqual(imported[1].password, null);
+    const doc = (await db.doc(`users/${imported[0].uid}`).get()).data();
+    assert.strictEqual(doc.role, "student");
+    assert.strictEqual(doc.section, "IV-HE");
+    assert.strictEqual(doc.parentPhone, "9811111111");
+  });
+  await check("imported students can sign in (mobile and email)", async () => {
+    await signIn("9000000001@students.campustrack.app", imported[0].password);
+    await signIn("email.kid@test.edu", "chosen1");
+  });
+  await check("admin sets a new password for a mobile-login student", async () => {
+    await call("setUserPassword", { uid: imported[0].uid, password: "newpass9" }, tAdmin);
+    await signIn("9000000001@students.campustrack.app", "newpass9");
+    await expectError(call("setUserPassword", { uid: imported[0].uid, password: "x" }, tAdmin), "INVALID_ARGUMENT");
+    await expectError(call("setUserPassword", { uid: imported[0].uid, password: "hacked1" }, tTeacher), "PERMISSION_DENIED");
+  });
+
   await env.cleanup();
   console.log(`\n${passed} checks passed${process.exitCode ? ", some FAILED" : ""}`);
 })().catch((e) => {

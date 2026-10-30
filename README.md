@@ -60,6 +60,9 @@ A comprehensive Flutter application designed to modernize the campus experience.
 
 ---
 
+> **Setting up for a real institute?** Follow [docs/SETUP.md](docs/SETUP.md):
+> Firebase plan, first admin, demo data, APK download, and WhatsApp parent alerts.
+
 ## 🏁 Getting Started
 
 ### 1. Firebase Setup

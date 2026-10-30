@@ -41,9 +41,16 @@ class AuthRepository {
     return _auth.authStateChanges().asyncMap(_mapFirebaseUserToAppUser);
   }
 
+  /// The signed-in user's profile, kept from the last read so the many
+  /// screens that call [currentUser] don't each fetch it again.
+  UserAccount? _cachedUser;
+
   Future<UserAccount?> _mapFirebaseUserToAppUser(
       fb_auth.User? firebaseUser) async {
-    if (firebaseUser == null) return null;
+    if (firebaseUser == null) {
+      _cachedUser = null;
+      return null;
+    }
 
     try {
       final doc = await _usersRef.doc(firebaseUser.uid).get();
@@ -54,6 +61,7 @@ class AuthRepository {
       }
 
       final user = doc.data();
+      _cachedUser = user;
       if (user != null) {
         await _storage.writeString('session_user_id', user.id);
       }
@@ -69,7 +77,10 @@ class AuthRepository {
   // 🔹 CURRENT USER
   // ============================
   Future<UserAccount?> currentUser() async {
-    return _mapFirebaseUserToAppUser(_auth.currentUser);
+    final fbUser = _auth.currentUser;
+    final cached = _cachedUser;
+    if (fbUser != null && cached != null && cached.id == fbUser.uid) return cached;
+    return _mapFirebaseUserToAppUser(fbUser);
   }
 
   // ============================
@@ -180,6 +191,7 @@ class AuthRepository {
   // ============================
   Future<void> logout() async {
     try {
+      _cachedUser = null;
       await Future.wait([
         _storage.clearSession(),
         _auth.signOut(),
@@ -198,6 +210,7 @@ class AuthRepository {
         user,
         SetOptions(merge: true),
       );
+      if (user.id == _cachedUser?.id) _cachedUser = user;
     } catch (e) {
       throw Exception(FirebaseErrorParser.getMessage(e));
     }
@@ -218,6 +231,7 @@ class AuthRepository {
   Future<void> updateContactDetails(String uid, {required String bio, required String phone}) async {
     try {
       await _db.collection('users').doc(uid).update({'bio': bio, 'phone': phone});
+      if (uid == _cachedUser?.id) _cachedUser = _cachedUser!.copyWith(phone: phone);
     } catch (e) {
       throw Exception(FirebaseErrorParser.getMessage(e));
     }
