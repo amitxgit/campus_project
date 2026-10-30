@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:secure_application/secure_application.dart';
-import 'package:uuid/uuid.dart';
 import 'package:crypto/crypto.dart';
 
 import '../../core/models/attendance_session.dart';
@@ -27,7 +26,12 @@ class GenerateQRPage extends ConsumerStatefulWidget {
 }
 
 class _GenerateQRPageState extends ConsumerState<GenerateQRPage> {
+  // Must match QR_STEP_MS in firebase_functions/index.js
+  static const _qrStep = Duration(seconds: 5);
+
   AttendanceSession? _session;
+  String? _secret;
+  final Stopwatch _sinceStart = Stopwatch();
   Object? _error;
   bool _loading = true;
 
@@ -59,11 +63,14 @@ class _GenerateQRPageState extends ConsumerState<GenerateQRPage> {
       final entry = await ttRepo.entryById(widget.entryId);
       if (entry == null) throw Exception('Timetable entry not found');
 
-      final sessionId = const Uuid().v4();
+      final started = await attRepo.startSession(widget.entryId);
+      _sinceStart
+        ..reset()
+        ..start();
       final now = DateTime.now();
 
       final newSession = AttendanceSession(
-        id: sessionId,
+        id: started.sessionId,
         teacherId: me.id,
         subjectId: entry.subjectId,
         section: entry.section,
@@ -72,11 +79,10 @@ class _GenerateQRPageState extends ConsumerState<GenerateQRPage> {
         isActive: true,
       );
 
-      await attRepo.sessionsRef.doc(sessionId).set(newSession);
-
       if (mounted) {
         setState(() {
           _session = newSession;
+          _secret = started.secret;
           _loading = false;
         });
         _startTimers();
@@ -97,8 +103,8 @@ class _GenerateQRPageState extends ConsumerState<GenerateQRPage> {
       if (!mounted) return;
       setState(() {
         _secondsElapsed++;
-        // Rotate QR code data every 5 seconds to prevent static screenshot sharing
-        if (_secondsElapsed % 5 == 0) {
+        // Rotate QR code data to prevent static screenshot sharing
+        if (_secondsElapsed % _qrStep.inSeconds == 0) {
           _generateDynamicQrData();
         }
       });
@@ -106,23 +112,31 @@ class _GenerateQRPageState extends ConsumerState<GenerateQRPage> {
   }
 
   void _generateDynamicQrData() {
-    if (_session == null) return;
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    if (_session == null || _secret == null) return;
 
-    // Server-side secret validation prevents payload tampering
-    final secret = 'campus_track_secret_${_session!.teacherId}';
-    final payload = '${_session!.id}:$timestamp';
-    final signature = sha256.convert(utf8.encode('$payload:$secret')).toString();
+    // Sign a step counter rather than a wall-clock timestamp, so a wrong clock
+    // on the teacher's phone doesn't invalidate codes. The server derives the
+    // expected step from the session's createdAt and checks the HMAC.
+    final step = _sinceStart.elapsedMilliseconds ~/ _qrStep.inMilliseconds;
+    final hmac = Hmac(sha256, utf8.encode(_secret!));
+    final signature = hmac.convert(utf8.encode('${_session!.id}:$step')).toString();
 
     _qrData = jsonEncode({
       'sId': _session!.id,
-      'ts': timestamp,
-      'sig': signature.substring(0, 16),
+      'n': step,
+      'sig': signature.substring(0, 32),
     });
   }
 
-  void _finishAndReview() {
+  Future<void> _finishAndReview() async {
     if (_session == null) return;
+    _timer?.cancel();
+    try {
+      await ref.read(attendanceRepoProvider).endSession(_session!.id);
+    } catch (_) {
+      // The server also stops accepting scans once the session is old enough.
+    }
+    if (!mounted) return;
     context.pushReplacement('/teacher/review-attendance/${_session!.id}');
   }
 
@@ -147,8 +161,6 @@ class _GenerateQRPageState extends ConsumerState<GenerateQRPage> {
         ),
       );
     }
-
-    final session = _session!;
 
     return SecureApplication(
       nativeRemoveDelay: 100,

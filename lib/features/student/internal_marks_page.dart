@@ -24,7 +24,7 @@ final studentMarksProvider = FutureProvider.autoDispose((ref) async {
   final results = await Future.wait([
     marksRepo.getVisibleMarksForStudent(user.id),
     ttRepo.allSubjects(),
-    authRepo.allUsers(), // To get teacher names
+    authRepo.allTeachers(), // To get teacher names
   ]);
 
   final marks = results[0] as List<InternalMarks>;

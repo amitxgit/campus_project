@@ -1,22 +1,12 @@
 module.exports = {
+  root: true,
   env: {
-    es6: true,
+    es2020: true,
     node: true,
   },
   parserOptions: {
-    "ecmaVersion": 2018,
+    "ecmaVersion": 2020,
   },
-  {
-    "root": true,
-    "env": { "node": true, "es2020": true },
-    "extends": ["eslint:recommended", "google"],
-    "parserOptions": { "ecmaVersion": 2020 },
-    "rules": {
-      "quotes": ["error", "double"],
-      "max-len": "off",
-      "indent": "off"
-    }
-  }
   extends: [
     "eslint:recommended",
     "google",
@@ -25,6 +15,10 @@ module.exports = {
     "no-restricted-globals": ["error", "name", "length"],
     "prefer-arrow-callback": "error",
     "quotes": ["error", "double", {"allowTemplateLiterals": true}],
+    "max-len": "off",
+    "indent": "off",
+    "require-jsdoc": "off",
+    "object-curly-spacing": "off",
   },
   overrides: [
     {

@@ -53,15 +53,15 @@ final subjectGradingProvider = FutureProvider.autoDispose.family<SubjectGradingD
   if (subject == null) throw Exception('Subject not found');
 
   final students = await authRepo.studentsInSection(subject.section);
-  final allAttendance = await attRepo.allRecords();
+  final subjectAttendance = await attRepo.forSubject(subjectId);
   final existingMarks = await marksRepo.getMarksForSubject(subjectId);
 
   final marksMap = {for (var m in existingMarks) m.studentId: m};
   final attendancePercentages = <String, int>{};
 
   for (final student in students) {
-    final studentRecords = allAttendance
-        .where((r) => r.studentId == student.id && r.subjectId == subjectId)
+    final studentRecords = subjectAttendance
+        .where((r) => r.studentId == student.id)
         .toList();
 
     final total = studentRecords.length;

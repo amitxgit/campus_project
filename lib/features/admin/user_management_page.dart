@@ -301,6 +301,8 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
                       TextFormField(
                         controller: emailCtrl,
                         decoration: _buildInputDecoration('Email Address', Icons.email_rounded),
+                        keyboardType: TextInputType.emailAddress,
+                        validator: (v) => isNew && (v == null || !v.contains('@')) ? 'Email is required to sign in' : null,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
@@ -404,12 +406,22 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
     );
 
     if (updated != null) {
-      final currentContext = context;
-      if (isNew) {
-        if (!currentContext.mounted) return;
-        ScaffoldMessenger.of(currentContext).showSnackBar(const SnackBar(content: Text('Profile created.')));
+      try {
+        if (isNew) {
+          await ref.read(authRepoProvider).createAccount(updated, passCtrl.text);
+        } else {
+          await ref.read(authRepoProvider).updateUser(updated);
+        }
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(isNew ? 'Account created. They can now sign in.' : 'Profile updated.')),
+        );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red),
+        );
       }
-      await ref.read(authRepoProvider).updateUser(updated);
       ref.invalidate(allUsersProvider);
     }
   }

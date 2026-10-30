@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:flutter/foundation.dart';
 
@@ -76,6 +77,17 @@ class AuthRepository {
   Future<List<UserAccount>> allUsers({int limit = 1000}) async {
     final snapshot = await _usersRef.orderBy('name').limit(limit).get();
     return snapshot.docs.map((doc) => doc.data()).toList();
+  }
+
+  /// Teacher profiles only. Use this from screens students can open, so they
+  /// never download other students' personal details.
+  Future<List<UserAccount>> allTeachers() async {
+    final snapshot = await _usersRef
+        .where('role', isEqualTo: UserRole.teacher.key)
+        .get();
+
+    return snapshot.docs.map((doc) => doc.data()).toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
   }
 
   Future<List<UserAccount>> allStudents({int limit = 1000}) async {
@@ -218,24 +230,32 @@ class AuthRepository {
   }
 
   // ============================
-  // 🔹 DELETE (ADMIN SAFE)
+  // 🔹 CREATE (ADMIN, VIA CLOUD FUNCTION)
   // ============================
+  /// Creates the Firebase Auth login and the Firestore profile under the same
+  /// UID. Returns the new UID.
+  Future<String> createAccount(UserAccount user, String password) async {
+    final profile = user.toMap()..remove('createdAt');
+    try {
+      final res = await FirebaseFunctions.instance
+          .httpsCallable('createUserAccount')
+          .call<Map<String, dynamic>>({'password': password, 'profile': profile});
+      return res.data['uid'] as String;
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  // ============================
+  // 🔹 DELETE (ADMIN, VIA CLOUD FUNCTION)
+  // ============================
+  /// Removes both the login and the profile. Permission checks happen
+  /// server-side.
   Future<void> deleteAccount(String userId) async {
     try {
-      final currentUserRecord = await currentUser();
-
-      if (currentUserRecord == null) {
-        throw Exception('Not logged in');
-      }
-
-      final isSelf = currentUserRecord.id == userId;
-      final isAdmin = currentUserRecord.role.isAdmin;
-
-      if (!isAdmin && !isSelf) {
-        throw Exception('Insufficient permissions');
-      }
-
-      await _usersRef.doc(userId).delete();
+      await FirebaseFunctions.instance
+          .httpsCallable('deleteUserAccount')
+          .call<Map<String, dynamic>>({'uid': userId});
     } catch (e) {
       throw Exception(FirebaseErrorParser.getMessage(e));
     }

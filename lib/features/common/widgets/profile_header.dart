@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/role.dart';
-import '../../../core/models/user.dart';
 import '../../../main.dart';
 
 class ProfileHeader extends ConsumerWidget {

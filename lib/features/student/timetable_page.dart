@@ -75,7 +75,7 @@ FutureProvider.autoDispose<TimetablePageVM>((ref) async {
   final results = await Future.wait([
     ttRepo.forSection(section),
     ttRepo.allSubjects(),
-    authRepo.allUsers(),
+    authRepo.allTeachers(),
     ttRepo.getOverridesForDate(section, dateString),
   ]);
 

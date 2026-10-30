@@ -1,0 +1,146 @@
+rules_version = '2';
+
+// Role-based access for Campus Track.
+//
+// Writes that need to be trusted (QR attendance, creating/deleting logins,
+// fanning out notifications) go through Cloud Functions, which use the Admin
+// SDK and bypass these rules. Everything else is checked here.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------ helpers
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function me() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function active() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && me().get('isActive', true) != false;
+    }
+
+    function isAdmin() {
+      return active() && (me().role == 'admin' || me().get('isAdmin', false) == true);
+    }
+
+    function isTeacher() {
+      return active() && me().role == 'teacher';
+    }
+
+    function isStaff() {
+      return isTeacher() || isAdmin();
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // -------------------------------------------------------------------- users
+    match /users/{uid} {
+      // Students may see their own profile and teacher profiles (directory,
+      // timetable names) but not other students' personal details.
+      allow read: if isSelf(uid) || isStaff()
+        || (active() && resource.data.role == 'teacher');
+
+      allow create: if isAdmin();
+      allow update: if isAdmin()
+        || (isSelf(uid) && active() && onlyChanges(
+             ['name', 'phone', 'qualifications', 'gender', 'date_of_birth', 'idCardPhotoPath']));
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------- timetable & subjects
+    match /subjects/{id} {
+      allow read: if active();
+      allow write: if isAdmin();
+    }
+
+    match /timetable/{id} {
+      allow read: if active();
+      allow write: if isAdmin();
+    }
+
+    match /timetable_overrides/{id} {
+      allow read: if active();
+      allow write: if isStaff();
+    }
+
+    // --------------------------------------------------------------- attendance
+    match /attendance_sessions/{sessionId} {
+      allow read: if isStaff();
+      // Sessions are created by the startAttendanceSession function. The
+      // owning teacher may only close their own session.
+      allow update: if isAdmin()
+        || (isTeacher() && resource.data.teacherId == request.auth.uid && onlyChanges(['isActive']));
+      allow create, delete: if isAdmin();
+
+      // Holds the QR signing secret. Server-only.
+      match /private/{doc} {
+        allow read, write: if false;
+      }
+    }
+
+    match /attendance/{id} {
+      allow read: if isStaff()
+        || (active() && resource.data.studentId == request.auth.uid);
+      // Students mark themselves present only via the markAttendance function.
+      allow create, update: if isAdmin()
+        || (isTeacher() && request.resource.data.markedByTeacherId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // ----------------------------------------------------------- internal marks
+    match /internal_marks/{id} {
+      allow read: if isStaff()
+        || (active()
+            && resource.data.studentId == request.auth.uid
+            && resource.data.isVisibleToStudent == true);
+      allow write: if isStaff();
+    }
+
+    // ------------------------------------------------------------------ remarks
+    // Private to the teacher who wrote them (admins can audit).
+    match /remarks/{id} {
+      allow read: if isAdmin()
+        || (isTeacher() && resource.data.teacherId == request.auth.uid);
+      allow create, update: if isAdmin()
+        || (isTeacher() && request.resource.data.teacherId == request.auth.uid);
+      allow delete: if isAdmin()
+        || (isTeacher() && resource.data.teacherId == request.auth.uid);
+    }
+
+    // ------------------------------------------------------------------ queries
+    match /queries/{id} {
+      allow read: if isAdmin()
+        || (active() && resource.data.raisedByStudentId == request.auth.uid)
+        || (isTeacher() && resource.data.get('assignedToTeacherId', null) == request.auth.uid);
+      allow create: if active()
+        && request.resource.data.raisedByStudentId == request.auth.uid
+        && request.resource.data.status == 'open';
+      allow update, delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------ notifications
+    match /notifications/{id} {
+      // Created only by the processNotificationRequest function.
+      allow read, delete: if signedIn() && resource.data.userId == request.auth.uid;
+      allow update: if signedIn() && resource.data.userId == request.auth.uid
+        && onlyChanges(['read']);
+    }
+
+    match /notification_requests/{id} {
+      allow create: if isStaff() && request.resource.data.requestedBy == request.auth.uid;
+    }
+
+    // Device tokens are managed by Cloud Functions only. Anything not matched
+    // above is denied by default.
+  }
+}

@@ -1,5 +1,6 @@
 // lib/data/attendance_repository.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 import '../core/models/attendance.dart';
 import '../core/models/attendance_session.dart';
@@ -7,6 +8,7 @@ import '../core/utils/firebase_error_parser.dart';
 
 class AttendanceRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFunctions _functions = FirebaseFunctions.instance;
 
   // ---------------------------------------------------------------------------
   // COLLECTION REFERENCES
@@ -26,13 +28,36 @@ class AttendanceRepository {
   // ---------------------------------------------------------------------------
   // WRITE METHODS
   // ---------------------------------------------------------------------------
-  Future<void> markPresentSecure({
-    required String sessionId,
-    required String studentId,
-  }) async {
+
+  /// Creates a session on the server and returns its id plus the secret the
+  /// teacher's device uses to sign the rotating QR code.
+  Future<({String sessionId, String secret})> startSession(String entryId) async {
     try {
-      // Implementation assumes Secure Application verification happens here
-      // Call Cloud Function in real env, but leaving stub as requested in source
+      final res = await _functions
+          .httpsCallable('startAttendanceSession')
+          .call<Map<String, dynamic>>({'entryId': entryId});
+      return (
+        sessionId: res.data['sessionId'] as String,
+        secret: res.data['secret'] as String,
+      );
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  Future<void> endSession(String sessionId) async {
+    await sessionsRef.doc(sessionId).update({'isActive': false});
+  }
+
+  /// Sends a scanned QR payload to the server, which verifies the signature,
+  /// freshness and section before writing the attendance record.
+  /// Returns true if the student had already been marked for this session.
+  Future<bool> markPresentFromQr(Map<String, dynamic> payload) async {
+    try {
+      final res = await _functions
+          .httpsCallable('markAttendance')
+          .call<Map<String, dynamic>>(payload);
+      return res.data['alreadyMarked'] == true;
     } catch (e) {
       throw Exception(FirebaseErrorParser.getMessage(e));
     }
@@ -78,6 +103,15 @@ class AttendanceRepository {
   Future<List<AttendanceRecord>> getRecordsForSession(String sessionId) async {
     try {
       final snapshot = await _attRef.where('sessionId', isEqualTo: sessionId).get();
+      return snapshot.docs.map((e) => e.data()).toList();
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  Future<List<AttendanceRecord>> forSubject(String subjectId) async {
+    try {
+      final snapshot = await _attRef.where('subjectId', isEqualTo: subjectId).get();
       return snapshot.docs.map((e) => e.data()).toList();
     } catch (e) {
       throw Exception(FirebaseErrorParser.getMessage(e));

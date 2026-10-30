@@ -83,13 +83,24 @@ This project is fully integrated with Firebase. To run it, you must connect it t
     > **Note:** Select your new project. When it asks to overwrite files, say **Yes**.
 7.  Manually update the Firebase config in `web/firebase-messaging-sw.js` with the one from your Firebase project settings.
 
-### 2. Add Firestore Security Rules
+### 2. Deploy Security Rules, Indexes and Cloud Functions
 
-Your app will not work without security rules.
+QR attendance, creating user logins, and in-app notifications run as Cloud
+Functions, which require the Firebase **Blaze** (pay-as-you-go) plan.
 
-1.  In the Firebase console, go to **Firestore Database** > **Rules**.
-2.  Copy the entire content of the `firestore.rules` file (included in this repo or provided separately) and paste it into the editor.
-3.  Click **Publish**.
+```bash
+cd firebase_functions && npm ci && cd ..
+firebase deploy --only firestore,functions
+```
+
+This publishes `firestore.rules`, `firestore.indexes.json` and the functions in
+`firebase_functions/`.
+
+To try everything locally first:
+
+```bash
+firebase emulators:start --project demo-campus
+```
 
 ### 3. Seed the Database (CRITICAL)
 

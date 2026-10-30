@@ -7,7 +7,6 @@ import '../common/widgets/profile_avatar_action.dart';
 import '../common/widgets/app_drawer.dart';
 import '../common/widgets/async_error_widget.dart';
 
-import '../../core/models/role.dart';
 import '../../core/models/subject.dart';
 import '../../core/models/user.dart';
 import '../../main.dart';
@@ -15,15 +14,13 @@ import '../../main.dart';
 // Provider to fetch teachers and subjects
 final teacherDirectoryProvider = FutureProvider.autoDispose((ref) async {
   final results = await Future.wait([
-    ref.watch(authRepoProvider).allUsers(),
+    ref.watch(authRepoProvider).allTeachers(),
     ref.watch(timetableRepoProvider).allSubjects(),
   ]);
 
-  final allUsers = results[0] as List<UserAccount>;
+  final teachers = results[0] as List<UserAccount>;
   final allSubjects = results[1] as List<Subject>;
 
-  final teachers = allUsers.where((u) => u.role == UserRole.teacher).toList()
-    ..sort((a, b) => a.name.compareTo(b.name));
 
   return (teachers: teachers, allSubjects: allSubjects);
 });

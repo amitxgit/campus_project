@@ -756,7 +756,7 @@ class _SecureDeleteDialogState extends ConsumerState<_SecureDeleteDialog> {
     if (!_canDelete) return;
     setState(() => _isProcessing = true);
     try {
-      await ref.read(authRepoProvider).deleteAccount(widget.user.id);
+      await ref.read(authRepoProvider).deleteCurrentUserAccount();
       await ref.read(authRepoProvider).logout();
     } catch (e) {
       if (mounted) {
