@@ -10,6 +10,8 @@ import '../../core/utils/money.dart';
 import '../../data/settings_repository.dart';
 import '../../main.dart';
 import '../common/widgets/async_error_widget.dart';
+import '../../core/models/parent_alert.dart';
+import '../parent_alerts/parent_messenger.dart';
 import 'fee_plan_dialog.dart';
 import 'fee_widgets.dart';
 
@@ -44,6 +46,18 @@ class FeeDetailPage extends ConsumerWidget {
       appBar: AppBar(
         title: Text(async.valueOrNull?.student?.name ?? 'Student fees'),
         actions: [
+          if (async.valueOrNull?.account?.nextDue() != null && async.value!.student != null)
+            IconButton(
+              tooltip: 'Remind parent',
+              icon: const Icon(Icons.notifications_active_outlined),
+              onPressed: () {
+                final d = async.value!;
+                final next = d.account!.nextDue()!;
+                ParentMessenger.send(context, ref, kind: ParentAlertKind.feeReminder, messages: [
+                  ParentMessage(d.student!, feeReminderParams(ref, d.student!.name, next)),
+                ]);
+              },
+            ),
           if (async.hasValue)
             IconButton(
               tooltip: 'Edit fee plan',
@@ -280,7 +294,22 @@ class FeeDetailPage extends ConsumerWidget {
       account: d.account!,
       currency: settings.currencySymbol,
     );
-    return showReceiptDialog(context, text: text, extraActions: receiptShareActions(context, d.student, text));
+    final student = d.student;
+    return showReceiptDialog(context, text: text, extraActions: [
+      if (student != null && !p.voided && settings.parentAlertsEnabled)
+        TextButton.icon(
+          icon: const Icon(Icons.chat_rounded, size: 18),
+          label: const Text('Send to parent'),
+          onPressed: () => ParentMessenger.send(context, ref, kind: ParentAlertKind.feeReceipt, messages: [
+            ParentMessage(student, [
+              formatMoney(p.amount, settings.currencySymbol),
+              student.name,
+              '${p.receiptNo}',
+              settings.name,
+            ]),
+          ]),
+        ),
+    ]);
   }
 
   Future<void> _voidPayment(BuildContext context, WidgetRef ref, FeePayment p) async {
@@ -313,5 +342,13 @@ class FeeDetailPage extends ConsumerWidget {
   }
 }
 
-/// Extra receipt buttons. Filled in by the parent-alerts feature.
-List<Widget> receiptShareActions(BuildContext context, UserAccount? student, String text) => const [];
+/// Values for the fee_reminder template: amount, student, due date, institute.
+List<String> feeReminderParams(WidgetRef ref, String studentName, InstalmentStatus due) {
+  final s = ref.read(settingsProvider);
+  return [
+    formatMoney(due.outstanding, s.currencySymbol),
+    studentName,
+    DateFormat('d MMM yyyy').format(due.instalment.dueDate),
+    s.name,
+  ];
+}

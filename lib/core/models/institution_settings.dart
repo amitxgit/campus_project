@@ -41,6 +41,15 @@ class InstitutionSettings {
   final bool testsEnabled;
   final bool parentAlertsEnabled;
 
+  /// Message parents automatically when a student is marked absent
+  /// (needs WhatsApp connected).
+  final bool autoAbsenceAlerts;
+
+  /// Non-secret description of the connected WhatsApp sender, e.g.
+  /// "+91 98xxxx4321". Empty when not connected. The token itself is stored in
+  /// a write-only doc that clients can't read.
+  final String whatsappSender;
+
   final String currencySymbol;
 
   const InstitutionSettings({
@@ -60,8 +69,12 @@ class InstitutionSettings {
     required this.feesEnabled,
     required this.testsEnabled,
     required this.parentAlertsEnabled,
+    this.autoAbsenceAlerts = false,
+    this.whatsappSender = '',
     required this.currencySymbol,
   });
+
+  bool get whatsappConnected => whatsappSender.isNotEmpty;
 
   static const allDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -182,6 +195,8 @@ class InstitutionSettings {
         'feesEnabled': feesEnabled,
         'testsEnabled': testsEnabled,
         'parentAlertsEnabled': parentAlertsEnabled,
+        'autoAbsenceAlerts': autoAbsenceAlerts,
+        'whatsappSender': whatsappSender,
         'currencySymbol': currencySymbol,
       };
 
@@ -215,6 +230,8 @@ class InstitutionSettings {
       feesEnabled: flag(map['feesEnabled'], base.feesEnabled),
       testsEnabled: flag(map['testsEnabled'], base.testsEnabled),
       parentAlertsEnabled: flag(map['parentAlertsEnabled'], base.parentAlertsEnabled),
+      autoAbsenceAlerts: flag(map['autoAbsenceAlerts'], false),
+      whatsappSender: (map['whatsappSender'] as String?) ?? '',
       currencySymbol: (map['currencySymbol'] as String?) ?? base.currencySymbol,
     );
   }
@@ -236,6 +253,8 @@ class InstitutionSettings {
     bool? feesEnabled,
     bool? testsEnabled,
     bool? parentAlertsEnabled,
+    bool? autoAbsenceAlerts,
+    String? whatsappSender,
     String? currencySymbol,
   }) {
     return InstitutionSettings(
@@ -255,6 +274,8 @@ class InstitutionSettings {
       feesEnabled: feesEnabled ?? this.feesEnabled,
       testsEnabled: testsEnabled ?? this.testsEnabled,
       parentAlertsEnabled: parentAlertsEnabled ?? this.parentAlertsEnabled,
+      autoAbsenceAlerts: autoAbsenceAlerts ?? this.autoAbsenceAlerts,
+      whatsappSender: whatsappSender ?? this.whatsappSender,
       currencySymbol: currencySymbol ?? this.currencySymbol,
     );
   }

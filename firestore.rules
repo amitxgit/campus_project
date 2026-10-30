@@ -157,6 +157,24 @@ service cloud.firestore {
       }
     }
 
+    // ------------------------------------------------------------ parent alerts
+    // Queued by staff, sent by the processParentAlert function.
+    match /parent_alerts/{id} {
+      allow read: if isAdmin();
+      allow create: if isStaff()
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.kind in ['absence', 'feeReminder', 'feeReceipt', 'testResult']
+        && request.resource.data.params is list
+        && request.resource.data.params.size() <= 5;
+    }
+
+    // Integration credentials (WhatsApp token). Admins can set or remove
+    // them but nobody can read them back; only Cloud Functions do.
+    match /secrets/{doc} {
+      allow create, update, delete: if isAdmin();
+    }
+
     // Receipt numbering and other internal counters.
     match /meta/{doc} {
       allow read, write: if isAdmin();

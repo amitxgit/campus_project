@@ -11,6 +11,7 @@ import '../../core/models/user.dart';
 import '../../core/utils/firebase_error_parser.dart';
 import '../../core/models/institution_settings.dart';
 import '../../data/settings_repository.dart';
+import '../../core/utils/phone.dart';
 import '../../main.dart';
 
 // -----------------------------------------------------------------------------
@@ -236,6 +237,8 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
     final nameCtrl = TextEditingController(text: u.name);
     final emailCtrl = TextEditingController(text: u.email);
     final phoneCtrl = TextEditingController(text: u.phone);
+    final parentNameCtrl = TextEditingController(text: u.parentName);
+    final parentPhoneCtrl = TextEditingController(text: u.parentPhone);
     final collegeCtrl = TextEditingController(text: u.collegeRollNo);
     final examCtrl = TextEditingController(text: u.examRollNo);
     final passCtrl = TextEditingController();
@@ -330,6 +333,25 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
 
                       if (role == UserRole.student) ...[
                         const SizedBox(height: 24),
+                        _buildSectionHeader(colorScheme, 'Parent / Guardian'),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(child: TextFormField(controller: parentNameCtrl, decoration: _buildInputDecoration('Parent name', Icons.family_restroom_rounded))),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: parentPhoneCtrl,
+                                keyboardType: TextInputType.phone,
+                                decoration: _buildInputDecoration('Parent WhatsApp no.', Icons.phone_android_rounded),
+                                validator: (v) => (v == null || v.trim().isEmpty || PhoneNumber.normalize(v) != null)
+                                    ? null
+                                    : 'Enter a valid mobile number',
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
                         _buildSectionHeader(colorScheme, 'Academic Records'),
                         const SizedBox(height: 12),
                         Row(
@@ -407,6 +429,8 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
                                   examRollNo: examCtrl.text.trim().isEmpty ? null : examCtrl.text.trim(),
                                   section: role == UserRole.student ? section : null,
                                   year: role == UserRole.student ? year : null,
+                                  parentName: role == UserRole.student ? parentNameCtrl.text.trim() : null,
+                                  parentPhone: role == UserRole.student ? parentPhoneCtrl.text.trim() : null,
                                 ),
                               );
                             },

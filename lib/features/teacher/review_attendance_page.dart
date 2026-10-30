@@ -9,7 +9,13 @@ import '../common/widgets/profile_avatar_action.dart';
 import '../common/widgets/async_error_widget.dart';
 import '../../core/models/attendance.dart';
 import '../../core/models/attendance_session.dart';
+import 'package:intl/intl.dart';
+
+import '../../core/models/parent_alert.dart';
+import '../../core/models/user.dart';
+import '../../data/settings_repository.dart';
 import '../../main.dart';
+import '../parent_alerts/parent_messenger.dart';
 
 // -----------------------------------------------------------------------------
 // PROVIDER
@@ -239,6 +245,34 @@ class _ReviewAttendancePageState extends ConsumerState<ReviewAttendancePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Attendance saved successfully')),
       );
+
+      // Offer to tell parents of absentees, unless the server already does it.
+      final settings = ref.read(settingsProvider);
+      final absentees = students
+          .cast<UserAccount>()
+          .where((s) => (_overrides[s.id] ?? initialMap[s.id]) == AttendanceStatus.absent)
+          .toList();
+      final automatic = settings.whatsappConnected && settings.autoAbsenceAlerts;
+      if (absentees.isNotEmpty && settings.parentAlertsEnabled && !automatic) {
+        final notify = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text('${absentees.length} absent'),
+            content: const Text('Send a WhatsApp message to their parents?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Not now')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Notify parents')),
+            ],
+          ),
+        );
+        if (notify == true && mounted) {
+          final day = DateFormat('d MMM yyyy').format(session.createdAt);
+          await ParentMessenger.send(context, ref, kind: ParentAlertKind.absence, messages: [
+            for (final s in absentees) ParentMessage(s, [s.name, day, settings.name]),
+          ]);
+        }
+        if (!mounted) return;
+      }
 
       // Navigate back to teacher home
       context.go('/home/teacher');

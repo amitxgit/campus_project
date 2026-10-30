@@ -1,7 +1,7 @@
 // functions/index.js
 // Cloud Functions v2 (Node 18/20/22)
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { setGlobalOptions } = require("firebase-functions/v2/options");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
@@ -307,7 +307,7 @@ exports.markAttendance = onCall(async (request) => {
 const PROFILE_FIELDS = [
   "role", "name", "email", "phone", "isActive", "collegeRollNo", "examRollNo",
   "section", "year", "qualifications", "idCardPhotoPath", "gender",
-  "date_of_birth", "course", "semester", "isAdmin",
+  "date_of_birth", "course", "semester", "isAdmin", "parentName", "parentPhone",
 ];
 
 exports.createUserAccount = onCall(async (request) => {
@@ -424,3 +424,149 @@ exports.processNotificationRequest = onDocumentCreated(
     await snap.ref.update({ status: "sent", sentCount: targets.length });
   },
 );
+
+
+// ---------------------------------------------------------------------------
+// PARENT ALERTS (WhatsApp Cloud API)
+// ---------------------------------------------------------------------------
+// The app queues docs in parent_alerts; this sends each one as a pre-approved
+// WhatsApp template and records the outcome. Credentials live in
+// secrets/whatsapp, which clients can write but never read.
+
+const ALERT_TEMPLATES = {
+  absence: { name: "absence_alert", params: 3 },
+  feeReminder: { name: "fee_reminder", params: 4 },
+  feeReceipt: { name: "fee_receipt", params: 4 },
+  testResult: { name: "test_result", params: 4 },
+};
+const IST = "Asia/Kolkata";
+
+// Same rules as PhoneNumber.normalize in the app.
+function normalizePhone(input) {
+  if (!input) return null;
+  let digits = String(input).replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.substring(2);
+  if (digits.length === 11 && digits.startsWith("0")) digits = digits.substring(1);
+  if (digits.length === 10) digits = `91${digits}`;
+  if (digits.length < 11 || digits.length > 15) return null;
+  return digits;
+}
+
+async function whatsappConfig() {
+  const snap = await db.collection("secrets").doc("whatsapp").get();
+  const cfg = snap.exists ? snap.data() : null;
+  if (!cfg || !cfg.token || !cfg.phoneNumberId) return null;
+  return cfg;
+}
+
+async function sendWhatsAppTemplate(cfg, to, templateName, params, language) {
+  // apiBase is only overridden by the emulator tests.
+  const base = cfg.apiBase || "https://graph.facebook.com/v21.0";
+  const res = await fetch(`${base}/${cfg.phoneNumberId}/messages`, {
+    method: "POST",
+    headers: { "Authorization": `Bearer ${cfg.token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to,
+      type: "template",
+      template: {
+        name: templateName,
+        language: { code: language || cfg.language || "en" },
+        components: params.length ?
+          [{ type: "body", parameters: params.map((t) => ({ type: "text", text: String(t) })) }] :
+          [],
+      },
+    }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error((body.error && body.error.message) || `WhatsApp API error ${res.status}`);
+  }
+  return body.messages && body.messages[0] && body.messages[0].id;
+}
+
+exports.processParentAlert = onDocumentCreated("parent_alerts/{alertId}", async (event) => {
+  const snap = event.data;
+  if (!snap) return;
+  const alert = snap.data();
+  const done = (fields) => snap.ref.update({ ...fields, processedAt: FieldValue.serverTimestamp() });
+
+  // Only staff (or the server's own absence trigger) may message parents.
+  if (alert.requestedBy !== "system") {
+    const requester = await db.collection("users").doc(alert.requestedBy || "_").get();
+    const r = requester.exists ? requester.data() : null;
+    if (!r || r.isActive === false || !(r.role === "teacher" || isAdmin(r))) {
+      return done({ status: "rejected" });
+    }
+  }
+
+  const template = ALERT_TEMPLATES[alert.kind];
+  const params = Array.isArray(alert.params) ? alert.params.map(String) : [];
+  if (!template || params.length !== template.params) {
+    return done({ status: "rejected", error: "Unknown alert type or wrong number of values." });
+  }
+
+  const student = await db.collection("users").doc(alert.studentId || "_").get();
+  const to = normalizePhone(student.exists && student.data().parentPhone);
+  if (!to) return done({ status: "noPhone" });
+
+  const cfg = await whatsappConfig();
+  if (!cfg) return done({ status: "notConfigured" });
+
+  try {
+    const messageId = await sendWhatsAppTemplate(cfg, to, template.name, params);
+    return done({ status: "sent", messageId: messageId || null });
+  } catch (e) {
+    logger.warn("WhatsApp send failed", { alert: snap.id, error: String(e) });
+    return done({ status: "failed", error: String(e.message || e) });
+  }
+});
+
+// Automatically tells parents when a student is marked absent, at most once
+// per student per day, if the institute has switched this on.
+exports.autoAbsenceAlert = onDocumentWritten("attendance/{recordId}", async (event) => {
+  const after = event.data.after.exists ? event.data.after.data() : null;
+  const before = event.data.before.exists ? event.data.before.data() : null;
+  if (!after || after.status !== "absent" || (before && before.status === "absent")) return;
+
+  const settingsSnap = await db.collection("settings").doc("institution").get();
+  const settings = settingsSnap.exists ? settingsSnap.data() : {};
+  if (!settings.parentAlertsEnabled || !settings.autoAbsenceAlerts || !settings.whatsappSender) return;
+
+  const student = await db.collection("users").doc(after.studentId).get();
+  if (!student.exists) return;
+
+  const date = after.date && after.date.toDate ? after.date.toDate() : new Date();
+  const dayKey = date.toLocaleDateString("en-CA", { timeZone: IST }); // YYYY-MM-DD
+  const dayLabel = date.toLocaleDateString("en-IN", { timeZone: IST, day: "numeric", month: "short", year: "numeric" });
+
+  try {
+    await db.collection("parent_alerts").doc(`absence_${after.studentId}_${dayKey}`).create({
+      studentId: after.studentId,
+      studentName: student.data().name || "",
+      kind: "absence",
+      params: [student.data().name || "Your child", dayLabel, settings.name || "the institute"],
+      requestedBy: "system",
+      status: "pending",
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  } catch (e) {
+    if (e.code !== 6) throw e; // ALREADY_EXISTS: parent was already told today
+  }
+});
+
+// Lets an admin check their WhatsApp setup with Meta's built-in template.
+exports.testWhatsApp = onCall(async (request) => {
+  const caller = await getCaller(request);
+  if (!isAdmin(caller)) throw new HttpsError("permission-denied", "Admins only.");
+  const to = normalizePhone(request.data && request.data.to);
+  if (!to) throw new HttpsError("invalid-argument", "Enter a valid mobile number.");
+  const cfg = await whatsappConfig();
+  if (!cfg) throw new HttpsError("failed-precondition", "Save your WhatsApp credentials first.");
+  try {
+    await sendWhatsAppTemplate(cfg, to, "hello_world", [], "en_US");
+  } catch (e) {
+    throw new HttpsError("failed-precondition", `WhatsApp rejected the message: ${e.message}`);
+  }
+  return { ok: true };
+});

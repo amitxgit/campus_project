@@ -321,6 +321,7 @@ class AppDrawer extends ConsumerWidget {
           const _DrawerItem('Dashboard', Icons.dashboard_rounded, '/home/admin', isHome: true),
           const _DrawerItem('Users', Icons.people_rounded, '/admin/users'),
           if (s.feesEnabled) const _DrawerItem('Fees', Icons.currency_rupee_rounded, '/admin/fees'),
+          if (s.parentAlertsEnabled) const _DrawerItem('Parent Alerts', Icons.family_restroom_rounded, '/admin/parent-alerts'),
           const _DrawerItem('Students Directory', Icons.badge_rounded, '/students/directory'),
           const _DrawerItem('Timetable & Subjects', Icons.calendar_month_rounded, '/admin/timetable'),
           const _DrawerItem('Query Tickets', Icons.support_agent_rounded, '/admin/query-management'),

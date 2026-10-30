@@ -11,6 +11,9 @@ import '../../data/settings_repository.dart';
 import '../../main.dart';
 import '../common/widgets/app_drawer.dart';
 import '../common/widgets/async_error_widget.dart';
+import '../../core/models/parent_alert.dart';
+import '../parent_alerts/parent_messenger.dart';
+import 'fee_detail_page.dart';
 import 'fee_plan_dialog.dart';
 
 class FeeRow {
@@ -67,6 +70,12 @@ class _FeesAdminPageState extends ConsumerState<FeesAdminPage> {
       appBar: AppBar(
         title: const Text('Fees'),
         actions: [
+          if (settings.parentAlertsEnabled)
+            IconButton(
+              tooltip: 'Remind parents of overdue fees',
+              icon: const Icon(Icons.notifications_active_outlined),
+              onPressed: () => _remindOverdue(async.valueOrNull ?? []),
+            ),
           TextButton.icon(
             onPressed: () => _applyToGroup(async.valueOrNull ?? []),
             icon: const Icon(Icons.playlist_add_rounded),
@@ -206,6 +215,29 @@ class _FeesAdminPageState extends ConsumerState<FeesAdminPage> {
         },
       ),
     );
+  }
+
+  Future<void> _remindOverdue(List<FeeRow> rows) async {
+    final overdue = rows.where((r) => _group == null || r.student.section == _group).where((r) {
+      final a = r.account;
+      return a != null && a.overdueAmount() > 0;
+    }).toList();
+    if (overdue.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No overdue fees. 🎉')));
+      return;
+    }
+    await ParentMessenger.send(context, ref, kind: ParentAlertKind.feeReminder, messages: [
+      for (final r in overdue)
+        ParentMessage(
+          r.student,
+          // Remind about the whole overdue amount, dated by the oldest unpaid instalment.
+          () {
+            final p = feeReminderParams(ref, r.student.name, r.account!.nextDue()!);
+            p[0] = formatMoney(r.account!.overdueAmount(), ref.read(settingsProvider).currencySymbol);
+            return p;
+          }(),
+        ),
+    ]);
   }
 
   /// Gives every student in a batch the same fee plan in one go.
