@@ -579,7 +579,7 @@ exports.testWhatsApp = onCall(async (request) => {
 // ---------------------------------------------------------------------------
 // Students without an email sign in with their mobile number, which maps to
 // an internal address on this domain (see LoginId in the app).
-const PHONE_LOGIN_DOMAIN = "students.campustrack.app";
+const PHONE_LOGIN_DOMAIN = "students.batchwise.app";
 const MAX_IMPORT_ROWS = 200;
 
 function generatePassword() {

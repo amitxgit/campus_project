@@ -5,9 +5,9 @@ import 'phone.dart';
 /// needs an email, so a phone login maps to an internal address on this
 /// domain. Must match PHONE_LOGIN_DOMAIN in firebase_functions/index.js.
 class LoginId {
-  static const phoneDomain = 'students.campustrack.app';
+  static const phoneDomain = 'students.batchwise.app';
 
-  /// "9876543210" -> "9876543210@students.campustrack.app"; emails pass through.
+  /// "9876543210" -> "9876543210@students.batchwise.app"; emails pass through.
   static String toEmail(String input) {
     final trimmed = input.trim();
     if (trimmed.contains('@')) return trimmed.toLowerCase();

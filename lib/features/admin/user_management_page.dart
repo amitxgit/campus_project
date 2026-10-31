@@ -181,7 +181,9 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
   Future<void> _showEditDialog(UserAccount u, {bool isNew = false}) async {
     final form = GlobalKey<FormState>();
     final nameCtrl = TextEditingController(text: u.name);
-    final emailCtrl = TextEditingController(text: u.email);
+    // Mobile-number logins use an internal address; don't show it as an email.
+    // Leaving the field empty keeps it (copyWith ignores null).
+    final emailCtrl = TextEditingController(text: LoginId.isPhoneLogin(u.email) ? '' : u.email);
     final phoneCtrl = TextEditingController(text: u.phone);
     final parentNameCtrl = TextEditingController(text: u.parentName);
     final parentPhoneCtrl = TextEditingController(text: u.parentPhone);
@@ -401,6 +403,7 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
 
     if (updated != null) {
       try {
+        if (mounted) showMessage(context, isNew ? 'Creating account…' : 'Saving…');
         if (isNew) {
           // No email: the student signs in with their mobile number.
           final login = updated.email?.isNotEmpty == true ? updated.email! : LoginId.toEmail(updated.phone);

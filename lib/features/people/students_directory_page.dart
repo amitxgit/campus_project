@@ -114,7 +114,12 @@ class _StudentsDirectoryPageState extends ConsumerState<StudentsDirectoryPage> {
                 ),
               Expanded(
                 child: filtered.isEmpty
-                    ? const Center(child: EmptyNote(icon: Icons.person_search_outlined, text: 'No students match.'))
+                    ? Center(
+                        child: EmptyNote(
+                          icon: Icons.person_search_outlined,
+                          text: students.isEmpty ? 'No students yet. Add them from Users or Import students.' : 'No students match.',
+                        ),
+                      )
                     : ListView.builder(
                         padding: const EdgeInsets.only(top: 4, bottom: 32),
                         itemCount: filtered.length,

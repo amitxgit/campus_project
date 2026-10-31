@@ -112,7 +112,7 @@ const day = (offset) => {
     const mobile = `97${String(10000000 + i * 37311).slice(0, 8)}`;
     const uid = `demo_s_${i + 1}`;
     // Mobile-number login, like most coaching students.
-    await upsertUser(uid, `${mobile}@students.campustrack.app`, {
+    await upsertUser(uid, `${mobile}@students.batchwise.app`, {
       role: "student", name, phone: mobile, section: b, collegeRollNo: String(101 + i),
       parentName: `Mr./Mrs. ${name.split(" ")[1]}`, parentPhone: `96${String(20000000 + i * 51123).slice(0, 8)}`,
     });

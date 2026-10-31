@@ -443,7 +443,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     ] }, tAdmin);
     imported = res.results;
     assert.deepStrictEqual(imported.map((r) => r.ok), [true, true, false, false]);
-    assert.strictEqual(imported[0].login, "9000000001@students.campustrack.app");
+    assert.strictEqual(imported[0].login, "9000000001@students.batchwise.app");
     assert.strictEqual(imported[0].password.length, 8);
     assert.strictEqual(imported[1].password, null);
     const doc = (await db.doc(`users/${imported[0].uid}`).get()).data();
@@ -452,12 +452,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     assert.strictEqual(doc.parentPhone, "9811111111");
   });
   await check("imported students can sign in (mobile and email)", async () => {
-    await signIn("9000000001@students.campustrack.app", imported[0].password);
+    await signIn("9000000001@students.batchwise.app", imported[0].password);
     await signIn("email.kid@test.edu", "chosen1");
   });
   await check("admin sets a new password for a mobile-login student", async () => {
     await call("setUserPassword", { uid: imported[0].uid, password: "newpass9" }, tAdmin);
-    await signIn("9000000001@students.campustrack.app", "newpass9");
+    await signIn("9000000001@students.batchwise.app", "newpass9");
     await expectError(call("setUserPassword", { uid: imported[0].uid, password: "x" }, tAdmin), "INVALID_ARGUMENT");
     await expectError(call("setUserPassword", { uid: imported[0].uid, password: "hacked1" }, tTeacher), "PERMISSION_DENIED");
   });
