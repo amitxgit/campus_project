@@ -58,10 +58,7 @@ final firestoreNotifierProvider = Provider<FirestoreNotifier>((ref) {
   return FirestoreNotifier(localService: local);
 });
 
-final remarkRepoProvider = Provider<RemarkRepository>((ref) {
-  final notifier = ref.watch(firestoreNotifierProvider);
-  return RemarkRepository(notifier);
-});
+final remarkRepoProvider = Provider<RemarkRepository>((ref) => RemarkRepository());
 
 final queryRepoProvider = Provider<QueryRepository>((ref) {
   final notifier = ref.watch(firestoreNotifierProvider);
