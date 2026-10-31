@@ -55,41 +55,12 @@ class _InstitutionSettingsPageState extends ConsumerState<InstitutionSettingsPag
       appBar: AppBar(title: const Text('Settings')),
       drawer: const AppDrawer(),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: AnimatedSlide(
-        offset: _dirty ? Offset.zero : const Offset(0, 2),
-        duration: Motion.medium,
-        curve: Motion.curve,
-        child: AnimatedOpacity(
-          opacity: _dirty ? 1 : 0,
-          duration: Motion.fast,
-          child: Container(
-            width: MediaQuery.sizeOf(context).width - 32,
-            padding: const EdgeInsets.fromLTRB(18, 8, 8, 8),
-            decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(18)),
-            child: Row(children: [
-              Expanded(
-                child: Text('Unsaved changes', style: TextStyle(color: p.background, fontWeight: FontWeight.w600)),
-              ),
-              TextButton(
-                style: TextButton.styleFrom(foregroundColor: p.background.withValues(alpha: 0.7)),
-                onPressed: _saving ? null : _discard,
-                child: const Text('Discard'),
-              ),
-              const SizedBox(width: 4),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: p.accent,
-                  foregroundColor: p.onAccent,
-                  minimumSize: const Size(88, 44),
-                ),
-                onPressed: _saving ? null : _save,
-                child: _saving
-                    ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: p.onAccent))
-                    : const Text('Save'),
-              ),
-            ]),
-          ),
-        ),
+      floatingActionButton: UnsavedChangesBar(
+        visible: _dirty,
+        label: 'Unsaved changes',
+        saving: _saving,
+        onDiscard: _discard,
+        onSave: _save,
       ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),

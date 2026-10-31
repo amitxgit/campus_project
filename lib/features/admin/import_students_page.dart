@@ -13,6 +13,8 @@ import '../../core/utils/phone.dart';
 import '../../data/settings_repository.dart';
 import '../../main.dart';
 import '../common/widgets/app_drawer.dart';
+import '../../theme.dart';
+import '../common/widgets/ui_kit.dart';
 
 /// One CSV row, validated before anything is sent to the server.
 class ImportRow {
@@ -173,7 +175,7 @@ class _ImportStudentsPageState extends ConsumerState<ImportStudentsPage> {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
-    final cs = Theme.of(context).colorScheme;
+    final p = context.palette;
     final valid = _rows.where((r) => r.errors.isEmpty).length;
     final created = _results.where((r) => r.result['ok'] == true).length;
 
@@ -181,33 +183,33 @@ class _ImportStudentsPageState extends ConsumerState<ImportStudentsPage> {
       appBar: AppBar(title: const Text('Import students')),
       drawer: const AppDrawer(),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.only(bottom: 32),
         children: [
-          Card(
+          _Panel(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('1. Prepare a spreadsheet', style: TextStyle(fontWeight: FontWeight.w800)),
+                  const Text('1 · Prepare a spreadsheet', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
                   const SizedBox(height: 6),
                   Text(
                     'Columns: name, mobile, email, batch, roll_no, parent_name, parent_phone, password. '
                     'Only name and batch are required, plus a mobile or email for signing in. '
                     'Students without an email sign in with their mobile number. '
                     'Leave password blank to generate one.',
-                    style: TextStyle(color: cs.onSurfaceVariant),
+                    style: TextStyle(color: p.inkMuted),
                   ),
                   if (settings.groups.isNotEmpty) ...[
                     const SizedBox(height: 6),
                     Text('Valid ${settings.groupLabelPlural.toLowerCase()}: ${settings.groups.join(', ')}',
-                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
+                        style: TextStyle(color: p.inkMuted, fontSize: 13)),
                   ],
                   const SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: () {
                       Clipboard.setData(const ClipboardData(text: templateCsv));
-                      _snack('Template copied — paste it into Excel or Google Sheets.');
+                      _snack('Template copied. Paste it into Excel or Google Sheets.');
                     },
                     icon: const Icon(Icons.copy_rounded),
                     label: const Text('Copy template'),
@@ -216,13 +218,13 @@ class _ImportStudentsPageState extends ConsumerState<ImportStudentsPage> {
               ),
             ),
           ),
-          Card(
+          _Panel(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('2. Upload the CSV or paste the rows', style: TextStyle(fontWeight: FontWeight.w800)),
+                  const Text('2 · Upload the CSV or paste the rows', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(onPressed: _importing ? null : _pickFile, icon: const Icon(Icons.upload_file_rounded), label: const Text('Choose CSV file')),
                   const SizedBox(height: 8),
@@ -231,26 +233,26 @@ class _ImportStudentsPageState extends ConsumerState<ImportStudentsPage> {
                     maxLines: 6,
                     enabled: !_importing,
                     style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-                    decoration: const InputDecoration(hintText: '...or paste here (including the heading row)', border: OutlineInputBorder()),
+                    decoration: InputDecoration(hintText: '…or paste here, including the heading row', fillColor: p.background),
                     onChanged: _parse,
                   ),
                   if (_parseError != null) ...[
                     const SizedBox(height: 8),
-                    Text(_parseError!, style: TextStyle(color: cs.error)),
+                    Text(_parseError!, style: TextStyle(color: p.danger)),
                   ],
                 ],
               ),
             ),
           ),
           if (_rows.isNotEmpty)
-            Card(
+            _Panel(
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('3. Check and import — $valid of ${_rows.length} rows ready',
-                        style: const TextStyle(fontWeight: FontWeight.w800)),
+                    const Text('3 · Check and import', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                    Text('$valid of ${_rows.length} rows ready', style: TextStyle(color: p.inkMuted)),
                     const SizedBox(height: 8),
                     ..._rows.take(300).map((r) {
                       final result = _results.where((x) => identical(x.row, r)).firstOrNull?.result;
@@ -262,16 +264,16 @@ class _ImportStudentsPageState extends ConsumerState<ImportStudentsPage> {
                           result != null
                               ? (ok ? Icons.check_circle_rounded : Icons.error_rounded)
                               : (r.errors.isEmpty ? Icons.radio_button_unchecked : Icons.warning_amber_rounded),
-                          color: result != null ? (ok ? Colors.green : cs.error) : (r.errors.isEmpty ? null : Colors.orange),
+                          color: result != null ? (ok ? p.success : p.danger) : (r.errors.isEmpty ? p.inkFaint : p.warning),
                         ),
-                        title: Text('${r.name.isEmpty ? '(no name)' : r.name} • ${r.values['section'] ?? '?'}'),
+                        title: Text('${r.name.isEmpty ? '(no name)' : r.name} · ${r.values['section'] ?? '?'}'),
                         subtitle: Text(
                           result != null
                               ? (ok
-                                  ? 'Login ${LoginId.display(result['login'] as String?)}${result['password'] != null ? ' • password ${result['password']}' : ''}'
+                                  ? 'Login ${LoginId.display(result['login'] as String?)}${result['password'] != null ? ' · password ${result['password']}' : ''}'
                                   : '${result['error']}')
                               : (r.errors.isEmpty ? 'Line ${r.line}' : 'Line ${r.line}: ${r.errors.join(', ')}'),
-                          style: TextStyle(color: r.errors.isNotEmpty || (result != null && !ok) ? cs.error : null),
+                          style: TextStyle(color: r.errors.isNotEmpty || (result != null && !ok) ? p.danger : null),
                         ),
                       );
                     }),
@@ -289,7 +291,7 @@ class _ImportStudentsPageState extends ConsumerState<ImportStudentsPage> {
                       )
                     else ...[
                       Text('$created created, ${_results.length - created} failed.',
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
                       FilledButton.icon(
                         onPressed: created == 0
@@ -303,7 +305,7 @@ class _ImportStudentsPageState extends ConsumerState<ImportStudentsPage> {
                       ),
                       const SizedBox(height: 4),
                       Text('Generated passwords are shown only now. Copy them before leaving this page.',
-                          style: TextStyle(color: cs.error, fontSize: 12)),
+                          style: TextStyle(color: p.danger, fontSize: 12)),
                     ],
                   ],
                 ),
@@ -315,6 +317,21 @@ class _ImportStudentsPageState extends ConsumerState<ImportStudentsPage> {
   }
 
   void _snack(String text) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    if (mounted) showMessage(context, text);
+  }
+}
+
+/// Soft rounded panel with page margins, used for the three steps.
+class _Panel extends StatelessWidget {
+  final Widget child;
+  const _Panel({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(20)),
+      child: child,
+    );
   }
 }

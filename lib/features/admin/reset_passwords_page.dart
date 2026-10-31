@@ -10,8 +10,10 @@ import '../../main.dart';
 import '../common/widgets/app_drawer.dart';
 import '../common/widgets/profile_avatar_action.dart';
 import '../common/widgets/async_error_widget.dart';
+import '../../theme.dart';
+import '../common/widgets/ui_kit.dart';
+import '../common/widgets/class_card.dart' show EmptyNote;
 
-// DEFINED HERE TO FIX "Undefined name" ERROR
 final allUsersProvider = FutureProvider.autoDispose<List<UserAccount>>((ref) async {
   return ref.watch(authRepoProvider).allUsers();
 });
@@ -25,68 +27,45 @@ class ResetPasswordsPage extends ConsumerStatefulWidget {
 
 class _ResetPasswordsPageState extends ConsumerState<ResetPasswordsPage> {
   String _query = '';
+  String? _batch;
 
   @override
   Widget build(BuildContext context) {
     final asyncUsers = ref.watch(allUsersProvider);
 
-    const tabs = [
-      Tab(text: '1st Year'),
-      Tab(text: '2nd Year'),
-      Tab(text: '3rd Year'),
-      Tab(text: '4th Year'),
-      Tab(text: 'Teachers'),
-      Tab(text: 'Admins'),
-    ];
-
     return DefaultTabController(
-      length: tabs.length,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
-          leading: Builder(
-            builder: (ctx) => IconButton(
-              icon: const Icon(Icons.menu),
-              onPressed: () => Scaffold.of(ctx).openDrawer(),
-            ),
-          ),
           title: const Text('Reset passwords'),
-          bottom: const TabBar(isScrollable: true, tabs: tabs),
+          bottom: const TabBar(tabs: [Tab(text: 'Students'), Tab(text: 'Teachers'), Tab(text: 'Admins')]),
           actions: const [ProfileAvatarAction()],
         ),
         drawer: const AppDrawer(),
         body: asyncUsers.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (err, _) => AsyncErrorWidget(
-            // FIXED: Removed 'const' keyword
-            message: err.toString(),
+            message: FirebaseErrorParser.getMessage(err),
             onRetry: () => ref.invalidate(allUsersProvider),
           ),
           data: (users) {
-            List<UserAccount> studentsByYear(int year) => users
-                .where((u) => u.role == UserRole.student && u.year == year)
-                .toList()
-              ..sort((a, b) =>
-                  (a.collegeRollNo ?? '').compareTo(b.collegeRollNo ?? ''));
-
-            final teachers = users
-                .where((u) => u.role == UserRole.teacher)
-                .toList()
+            // Grouped by batch rather than college year, so every institute
+            // type finds its students.
+            final students = users.where((u) => u.role == UserRole.student).toList()
               ..sort((a, b) => a.name.compareTo(b.name));
-
-            final admins = users
-                .where((u) => u.role == UserRole.admin)
-                .toList()
-              ..sort((a, b) => a.name.compareTo(b.name));
+            final batches = students.map((u) => u.section ?? '').where((b) => b.isNotEmpty).toSet().toList()..sort();
+            final teachers = users.where((u) => u.role == UserRole.teacher).toList()..sort((a, b) => a.name.compareTo(b.name));
+            final admins = users.where((u) => u.role == UserRole.admin).toList()..sort((a, b) => a.name.compareTo(b.name));
 
             return Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                   child: TextField(
                     decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.search),
-                      hintText: 'Search by name, roll, email, phone',
-                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.search_rounded),
+                      hintText: 'Search name, phone or email',
+                      isDense: true,
                     ),
                     onChanged: (v) => setState(() => _query = v),
                   ),
@@ -94,30 +73,36 @@ class _ResetPasswordsPageState extends ConsumerState<ResetPasswordsPage> {
                 Expanded(
                   child: TabBarView(
                     children: [
-                      _ResetList(
-                        list: _filter(studentsByYear(1)),
-                        onReset: _resetPassword,
-                      ),
-                      _ResetList(
-                        list: _filter(studentsByYear(2)),
-                        onReset: _resetPassword,
-                      ),
-                      _ResetList(
-                        list: _filter(studentsByYear(3)),
-                        onReset: _resetPassword,
-                      ),
-                      _ResetList(
-                        list: _filter(studentsByYear(4)),
-                        onReset: _resetPassword,
-                      ),
-                      _ResetList(
-                        list: _filter(teachers),
-                        onReset: _resetPassword,
-                      ),
-                      _ResetList(
-                        list: _filter(admins),
-                        onReset: _resetPassword,
-                      ),
+                      Column(children: [
+                        if (batches.length > 1)
+                          SizedBox(
+                            height: 48,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                              children: [
+                                for (final b in <String?>[null, ...batches])
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 6),
+                                    child: ChoiceChip(
+                                      label: Text(b ?? 'All'),
+                                      selected: _batch == b,
+                                      showCheckmark: false,
+                                      onSelected: (_) => setState(() => _batch = b),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        Expanded(
+                          child: _ResetList(
+                            list: _filter(students.where((u) => _batch == null || u.section == _batch).toList()),
+                            onReset: _resetPassword,
+                          ),
+                        ),
+                      ]),
+                      _ResetList(list: _filter(teachers), onReset: _resetPassword),
+                      _ResetList(list: _filter(admins), onReset: _resetPassword),
                     ],
                   ),
                 ),
@@ -153,9 +138,7 @@ class _ResetPasswordsPageState extends ConsumerState<ResetPasswordsPage> {
       return;
     }
     if (user.email == null || user.email!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No email available for this user')),
-      );
+      showMessage(context, '${user.name} has no email or mobile login.', error: true);
       return;
     }
 
@@ -163,7 +146,7 @@ class _ResetPasswordsPageState extends ConsumerState<ResetPasswordsPage> {
       context: context,
       builder: (_) => AlertDialog(
         title: Text('Reset ${user.name}\'s password?'),
-        content: Text('A password reset link will be sent to:\n${user.email}'),
+        content: Text('A reset link goes to ${user.email}.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -171,7 +154,7 @@ class _ResetPasswordsPageState extends ConsumerState<ResetPasswordsPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Send Link'),
+            child: const Text('Send link'),
           ),
         ],
       ),
@@ -180,16 +163,11 @@ class _ResetPasswordsPageState extends ConsumerState<ResetPasswordsPage> {
     if (ok == true) {
       try {
         await ref.read(authRepoProvider).requestPasswordReset(user.email!);
-        // FIXED: Use context.mounted
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password reset link sent')),
-        );
+        showMessage(context, 'Reset link sent.', success: true);
       } catch (e) {
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     }
   }
@@ -209,7 +187,7 @@ extension on _ResetPasswordsPageState {
             const SizedBox(height: 12),
             TextField(
               controller: ctrl,
-              decoration: const InputDecoration(labelText: 'New password (min 6 characters)', border: OutlineInputBorder()),
+              decoration: const InputDecoration(labelText: 'New password', helperText: 'At least 6 characters'),
             ),
           ],
         ),
@@ -223,11 +201,11 @@ extension on _ResetPasswordsPageState {
     try {
       await ref.read(authRepoProvider).setPassword(user.id, password);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Password updated. Share it with ${user.name}.')));
+        showMessage(context, 'Password updated. Share it with ${user.name}.', success: true);
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(FirebaseErrorParser.getMessage(e))));
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     }
   }
@@ -248,29 +226,36 @@ class _ResetList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     if (list.isEmpty) {
-      return const Center(child: Text('No users found'));
+      return const Center(child: EmptyNote(icon: Icons.person_search_outlined, text: 'No one here.'));
     }
-
-    return ListView.separated(
+    return ListView.builder(
+      padding: const EdgeInsets.only(top: 4, bottom: 24),
       itemCount: list.length,
-      separatorBuilder: (_, __) => const Divider(height: 0),
       itemBuilder: (_, i) {
         final u = list[i];
-        final ids = [
-          if (u.collegeRollNo != null) 'CR: ${u.collegeRollNo}',
-          if (u.examRollNo != null) 'ER: ${u.examRollNo}',
-        ].join(' • ');
-
-        return ListTile(
-          leading: const Icon(Icons.lock_reset),
-          title: Text(u.name),
-          subtitle: Text(
-            '${u.role.label} • ${u.email ?? u.phone}'
-                '${ids.isNotEmpty ? ' • $ids' : ''}',
-          ),
-          trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        final login = LoginId.isPhoneLogin(u.email) ? u.phone : (u.email ?? u.phone);
+        return InkWell(
           onTap: () => onReset(context, u),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
+            child: Row(children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(u.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                    Text(
+                      [login, if ((u.section ?? '').isNotEmpty) u.section!].join(' · '),
+                      style: TextStyle(color: p.inkMuted, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.key_outlined, color: p.inkMuted, size: 20),
+            ]),
+          ),
         );
       },
     );

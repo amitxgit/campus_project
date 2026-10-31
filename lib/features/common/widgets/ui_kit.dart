@@ -288,6 +288,64 @@ class ProgressLine extends StatelessWidget {
   }
 }
 
+/// Ink bar with Discard / Save that slides up while there are unsaved
+/// edits. Put it in a Scaffold's floatingActionButton slot with
+/// FloatingActionButtonLocation.centerFloat.
+class UnsavedChangesBar extends StatelessWidget {
+  final bool visible;
+  final String label;
+  final bool saving;
+  final VoidCallback onDiscard;
+  final VoidCallback onSave;
+
+  const UnsavedChangesBar({
+    super.key,
+    required this.visible,
+    required this.label,
+    required this.saving,
+    required this.onDiscard,
+    required this.onSave,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedSlide(
+        offset: visible ? Offset.zero : const Offset(0, 2),
+        duration: Motion.medium,
+        curve: Motion.curve,
+        child: AnimatedOpacity(
+          opacity: visible ? 1 : 0,
+          duration: Motion.fast,
+          child: Container(
+            width: MediaQuery.sizeOf(context).width - 32,
+            padding: const EdgeInsets.fromLTRB(18, 8, 8, 8),
+            decoration: BoxDecoration(color: p.ink, borderRadius: BorderRadius.circular(18)),
+            child: Row(children: [
+              Expanded(child: Text(label, style: TextStyle(color: p.background, fontWeight: FontWeight.w600))),
+              TextButton(
+                style: TextButton.styleFrom(foregroundColor: p.background.withValues(alpha: 0.7)),
+                onPressed: saving ? null : onDiscard,
+                child: const Text('Discard'),
+              ),
+              const SizedBox(width: 4),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: p.accent, foregroundColor: p.onAccent, minimumSize: const Size(88, 44)),
+                onPressed: saving ? null : onSave,
+                child: saving
+                    ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: p.onAccent))
+                    : const Text('Save'),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Floating message. [error] / [success] tint it; plain messages stay ink.
 void showMessage(BuildContext context, String text, {bool error = false, bool success = false}) {
   final p = context.palette;
