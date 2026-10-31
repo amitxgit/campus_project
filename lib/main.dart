@@ -122,19 +122,19 @@ Future<void> main() async {
         localStorageProvider.overrideWithValue(localStorage),
         notifServiceProvider.overrideWithValue(notifService),
       ],
-      child: const CampusTrackApp(),
+      child: const BatchwiseApp(),
     ),
   );
 }
 
-class CampusTrackApp extends ConsumerStatefulWidget {
-  const CampusTrackApp({super.key});
+class BatchwiseApp extends ConsumerStatefulWidget {
+  const BatchwiseApp({super.key});
 
   @override
-  ConsumerState<CampusTrackApp> createState() => _CampusTrackAppState();
+  ConsumerState<BatchwiseApp> createState() => _BatchwiseAppState();
 }
 
-class _CampusTrackAppState extends ConsumerState<CampusTrackApp> {
+class _BatchwiseAppState extends ConsumerState<BatchwiseApp> {
   late NotificationSyncService _notifSync;
 
   @override

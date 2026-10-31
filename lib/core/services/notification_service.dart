@@ -80,7 +80,7 @@ class NotificationService {
 
     const androidDetails = AndroidNotificationDetails(
       'campustrack_local',
-      'CampusTrack Notifications',
+      'Batchwise notifications',
       channelDescription: 'Alerts for attendance and timetable changes',
       importance: Importance.max,
       priority: Priority.high,

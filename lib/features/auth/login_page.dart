@@ -5,6 +5,8 @@ import '../../data/settings_repository.dart';
 import '../../main.dart';
 import '../../core/utils/firebase_error_parser.dart';
 import '../../core/utils/phone.dart';
+import '../../theme.dart';
+import '../common/widgets/ui_kit.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -53,7 +55,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(msg),
-          backgroundColor: Colors.red,
+          backgroundColor: context.palette.danger,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -69,7 +71,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: const Text('Reset Password'),
+          title: const Text('Reset password'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -80,7 +82,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(
                   labelText: 'Email',
-                  border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.email_outlined),
                 ),
               ),
@@ -120,12 +121,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                       content: Text(FirebaseErrorParser.getMessage(e)),
-                      backgroundColor: Colors.red,
+                      backgroundColor: context.palette.danger,
                     ));
                   }
                 }
               },
-              child: const Text('Send Link'),
+              child: const Text('Send link'),
             ),
           ],
         );
@@ -141,216 +142,113 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Specific color palette for the requested theme
-    const darkCardColor = Color(0xFF2D232C); // Deep Plum/Dark Lavender
-    const lavenderAccent = Color(0xFFE6E6FA); // Light Lavender for text/icons on dark
+    final p = context.palette;
+    final instituteName = ref.watch(settingsProvider).name;
 
-    // Determine background brightness to ensure text is visible outside the card
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDarkMode ? Colors.white : Colors.black87;
+    final children = <Widget>[
+      Row(
+        children: [
+          const BrandMark(size: 32),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              instituteName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: -0.4, color: p.ink),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 56),
+      Text('Sign in', style: Theme.of(context).textTheme.headlineLarge),
+      const SizedBox(height: 32),
+      TextFormField(
+        controller: _emailCtrl,
+        keyboardType: TextInputType.emailAddress,
+        autofillHints: const [AutofillHints.email, AutofillHints.telephoneNumber],
+        textInputAction: TextInputAction.next,
+        decoration: const InputDecoration(
+          labelText: 'Email or mobile number',
+          prefixIcon: Icon(Icons.person_outline_rounded),
+        ),
+        validator: (v) {
+          if (v == null || v.trim().isEmpty) return 'Enter your email or mobile number';
+          if (!v.contains('@') && PhoneNumber.normalize(v) == null) {
+            return 'Enter a valid email or 10-digit mobile number';
+          }
+          return null;
+        },
+      ),
+      const SizedBox(height: 12),
+      TextFormField(
+        controller: _passCtrl,
+        obscureText: _obscurePassword,
+        textInputAction: TextInputAction.done,
+        autofillHints: const [AutofillHints.password],
+        onFieldSubmitted: (_) => _onLogin(),
+        decoration: InputDecoration(
+          labelText: 'Password',
+          prefixIcon: const Icon(Icons.lock_outline_rounded),
+          suffixIcon: IconButton(
+            tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+            icon: AnimatedSwitcher(
+              duration: Motion.fast,
+              child: Icon(
+                _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                key: ValueKey(_obscurePassword),
+              ),
+            ),
+            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+          ),
+        ),
+        validator: (v) => (v == null || v.length < 6) ? 'Min 6 characters required' : null,
+      ),
+      Align(
+        alignment: Alignment.centerRight,
+        child: TextButton(
+          onPressed: _showForgotDialog,
+          child: const Text('Forgot password?'),
+        ),
+      ),
+      const SizedBox(height: 16),
+      SizedBox(
+        height: 54,
+        child: FilledButton(
+          onPressed: _isLoading ? null : _onLogin,
+          child: AnimatedSwitcher(
+            duration: Motion.fast,
+            child: _isLoading
+                ? SizedBox(
+                    key: const ValueKey('loading'),
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.4, color: p.inkMuted),
+                  )
+                : const Text('Sign in', key: ValueKey('label')),
+          ),
+        ),
+      ),
+    ];
 
     return Scaffold(
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // 1. Top Left Badge (institute name)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: darkCardColor,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        )
-                      ],
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.school_rounded, color: lavenderAccent, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          ref.watch(settingsProvider).name.toUpperCase(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 60),
-
-                // 2. Large Title
-                Text(
-                  "Welcome Back",
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "Login to manage your campus life",
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: textColor.withValues(alpha: 0.7),
-                  ),
-                ),
-
-                const SizedBox(height: 40),
-
-                // 3. Login Card (Dark Theme)
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  width: double.infinity,
-                  constraints: const BoxConstraints(maxWidth: 400),
-                  decoration: BoxDecoration(
-                    color: darkCardColor,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 15,
-                        offset: const Offset(0, 8),
-                      ),
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Form(
+                key: _formKey,
+                child: AutofillGroup(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (var i = 0; i < children.length; i++) FadeSlideIn(index: i, child: children[i]),
                     ],
                   ),
-                  child: Form(
-                    key: _formKey,
-                    child: AutofillGroup(
-                      child: Column(
-                        children: [
-                          // Email Input
-                          TextFormField(
-                            controller: _emailCtrl,
-                            keyboardType: TextInputType.emailAddress,
-                            autofillHints: const [AutofillHints.email, AutofillHints.telephoneNumber],
-                            textInputAction: TextInputAction.next,
-                            style: const TextStyle(color: Colors.black87), // Dark text on white field
-                            decoration: InputDecoration(
-                              hintText: "Email or mobile number",
-                              hintStyle: TextStyle(color: Colors.grey[600]),
-                              fillColor: Colors.white,
-                              filled: true,
-                              prefixIcon: Icon(Icons.email_outlined, color: Colors.grey[700]),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                            ),
-                            validator: (v) {
-                              if (v == null || v.trim().isEmpty) return 'Enter your email or mobile number';
-                              if (!v.contains('@') && PhoneNumber.normalize(v) == null) {
-                                return 'Enter a valid email or 10-digit mobile number';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 20),
-
-                          // Password Input
-                          TextFormField(
-                            controller: _passCtrl,
-                            obscureText: _obscurePassword,
-                            textInputAction: TextInputAction.done,
-                            autofillHints: const [AutofillHints.password],
-                            onFieldSubmitted: (_) => _onLogin(),
-                            style: const TextStyle(color: Colors.black87), // Dark text on white field
-                            decoration: InputDecoration(
-                              hintText: "Password",
-                              hintStyle: TextStyle(color: Colors.grey[600]),
-                              fillColor: Colors.white,
-                              filled: true,
-                              prefixIcon: Icon(Icons.lock_outline, color: Colors.grey[700]),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                                  color: Colors.grey[700],
-                                ),
-                                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                              ),
-                            ),
-                            validator: (v) =>
-                            (v == null || v.length < 6) ? 'Min 6 characters required' : null,
-                          ),
-
-                          const SizedBox(height: 12),
-
-                          // Forgot Password
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton(
-                              onPressed: _showForgotDialog,
-                              style: TextButton.styleFrom(
-                                foregroundColor: lavenderAccent,
-                              ),
-                              child: const Text('Forgot password?'),
-                            ),
-                          ),
-
-                          const SizedBox(height: 24),
-
-                          // Login Button
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: _isLoading ? null : _onLogin,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: lavenderAccent,
-                                foregroundColor: darkCardColor,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                elevation: 0,
-                              ),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                height: 24,
-                                width: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  valueColor: AlwaysStoppedAnimation<Color>(darkCardColor),
-                                ),
-                              )
-                                  : const Text(
-                                "LOGIN",
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.0,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
                 ),
-                const SizedBox(height: 24),
-              ],
+              ),
             ),
           ),
         ),

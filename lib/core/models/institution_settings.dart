@@ -79,7 +79,7 @@ class InstitutionSettings {
   static const allDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   /// Starting point for each kind of institution. Admins can change anything.
-  factory InstitutionSettings.preset(InstitutionType type, {String name = 'Campus Track'}) {
+  factory InstitutionSettings.preset(InstitutionType type, {String name = 'Batchwise'}) {
     switch (type) {
       case InstitutionType.coaching:
         return InstitutionSettings(
