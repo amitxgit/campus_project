@@ -87,6 +87,9 @@ class NotificationRepository {
     await batch.commit();
   }
 
+  /// Deletes one of the signed-in user's notifications (rules enforce owner).
+  Future<void> delete(String notificationId) => _notifRef.doc(notificationId).delete();
+
   Future<void> clearForUser(String userId) async {
     _verifyIdentity(userId);
     final snapshot = await _notifRef.where('userId', isEqualTo: userId).get();
