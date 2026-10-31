@@ -27,7 +27,7 @@ class NoticesPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Campus Notices'),
+        title: const Text('Notices'),
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
       ),
@@ -239,7 +239,7 @@ class _AddNoticeDialogState extends ConsumerState<_AddNoticeDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Post New Notice'),
+      title: const Text('New notice'),
       content: SizedBox(
         width: double.maxFinite,
         child: Column(

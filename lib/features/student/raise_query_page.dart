@@ -132,21 +132,15 @@ class _RaiseQueryPageState extends ConsumerState<RaiseQueryPage> {
     }
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
         leading: Builder(
           builder: (ctx) => IconButton(
             tooltip: 'Menu',
-            icon: const Icon(Icons.menu_rounded, color: Colors.white),
+            icon: const Icon(Icons.menu_rounded),
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
-        title: const Text(
-          'Help Desk',
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-        ),
+        title: const Text('Ask a question'),
         actions: const [ProfileAvatarAction()],
       ),
       drawer: const AppDrawer(),
@@ -155,162 +149,99 @@ class _RaiseQueryPageState extends ConsumerState<RaiseQueryPage> {
         child: Column(
           children: [
             // -----------------------------------------------------------------
-            // 1. HERO HEADER
-            // -----------------------------------------------------------------
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 100, 20, 60),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [colorScheme.primary, colorScheme.tertiary.withValues(alpha: 0.8)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.support_agent_rounded, size: 56, color: Colors.white),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'How can we help you?',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      letterSpacing: -0.5,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Raise a ticket and our administrative team will assist you shortly.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white.withValues(alpha: 0.8),
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-
-            // -----------------------------------------------------------------
             // 2. FLOATING FORM CARD
             // -----------------------------------------------------------------
-            Transform.translate(
-              offset: const Offset(0, -30),
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20),
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: isDark ? Colors.white24 : Colors.black12, width: 1.5),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Ticket Details',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // --- SUBJECT DROPDOWN ---
+                    subjectsAsync.when(
+                      loading: () => const Center(child: CircularProgressIndicator()),
+                      error: (err, _) => Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: colorScheme.errorContainer, borderRadius: BorderRadius.circular(12)),
+                        child: Text('Failed to load subjects', style: TextStyle(color: colorScheme.onErrorContainer)),
+                      ),
+                      data: (subjects) => DropdownButtonFormField<String?>(
+                        initialValue: _subjectId,
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('General Query', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                          ...subjects.map(
+                            (s) => DropdownMenuItem<String>(
+                              value: s.id,
+                              child: Text(s.name, overflow: TextOverflow.ellipsis),
+                            ),
+                          ),
+                        ],
+                        onChanged: (v) => setState(() => _subjectId = v),
+                        decoration: buildInputDecoration('Category / Subject (Optional)', Icons.category_rounded),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // --- TITLE FIELD ---
+                    TextFormField(
+                      controller: _titleCtrl,
+                      decoration: buildInputDecoration('Issue Title', Icons.title_rounded).copyWith(
+                        hintText: 'e.g. Attendance not marked',
+                      ),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Please provide a title' : null,
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // --- MESSAGE FIELD ---
+                    TextFormField(
+                      controller: _msgCtrl,
+                      maxLines: 5,
+                      decoration: buildInputDecoration('Detailed Description', Icons.description_rounded).copyWith(
+                        alignLabelWithHint: true,
+                        hintText: 'Please describe your issue in detail so we can resolve it quickly...',
+                      ),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Please provide a description' : null,
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    // --- SUBMIT BUTTON ---
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: FilledButton.icon(
+                        onPressed: _isLoading ? null : _submit,
+                        style: FilledButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          elevation: 0,
+                        ),
+                        icon: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : const Icon(Icons.send_rounded),
+                        label: Text(
+                          _isLoading ? 'Submitting...' : 'Submit Ticket',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ),
                     ),
                   ],
-                ),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Ticket Details',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // --- SUBJECT DROPDOWN ---
-                      subjectsAsync.when(
-                        loading: () => const Center(child: CircularProgressIndicator()),
-                        error: (err, _) => Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: colorScheme.errorContainer, borderRadius: BorderRadius.circular(12)),
-                          child: Text('Failed to load subjects', style: TextStyle(color: colorScheme.onErrorContainer)),
-                        ),
-                        data: (subjects) => DropdownButtonFormField<String?>(
-                          initialValue: _subjectId,
-                          icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                          items: [
-                            const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text('General Query', style: TextStyle(fontWeight: FontWeight.bold)),
-                            ),
-                            ...subjects.map(
-                                  (s) => DropdownMenuItem<String>(
-                                value: s.id,
-                                child: Text(s.name, overflow: TextOverflow.ellipsis),
-                              ),
-                            ),
-                          ],
-                          onChanged: (v) => setState(() => _subjectId = v),
-                          decoration: buildInputDecoration('Category / Subject (Optional)', Icons.category_rounded),
-                        ),
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      // --- TITLE FIELD ---
-                      TextFormField(
-                        controller: _titleCtrl,
-                        decoration: buildInputDecoration('Issue Title', Icons.title_rounded).copyWith(
-                          hintText: 'e.g. Attendance not marked',
-                        ),
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Please provide a title' : null,
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      // --- MESSAGE FIELD ---
-                      TextFormField(
-                        controller: _msgCtrl,
-                        maxLines: 5,
-                        decoration: buildInputDecoration('Detailed Description', Icons.description_rounded).copyWith(
-                          alignLabelWithHint: true,
-                          hintText: 'Please describe your issue in detail so we can resolve it quickly...',
-                        ),
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Please provide a description' : null,
-                      ),
-
-                      const SizedBox(height: 32),
-
-                      // --- SUBMIT BUTTON ---
-                      SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: FilledButton.icon(
-                          onPressed: _isLoading ? null : _submit,
-                          style: FilledButton.styleFrom(
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            elevation: 0,
-                          ),
-                          icon: _isLoading
-                              ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                              : const Icon(Icons.send_rounded),
-                          label: Text(
-                            _isLoading ? 'Submitting...' : 'Submit Ticket',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
             ),

@@ -59,14 +59,10 @@ class _InternalMarksOverridesPageState
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
         leading: Builder(
           builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu_rounded, color: Colors.white),
+            icon: const Icon(Icons.menu_rounded),
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
@@ -109,38 +105,15 @@ class _InternalMarksOverridesPageState
                   // --- PREMIUM HEADER ---
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(20, 100, 20, 32),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [colorScheme.primary, colorScheme.tertiary],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(32),
-                        bottomRight: Radius.circular(32),
-                      ),
-                    ),
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Internal Marks Ledger',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
                         TextField(
-                          style: const TextStyle(color: Colors.black87),
                           decoration: InputDecoration(
-                            hintText: 'Search student name or roll number...',
-                            hintStyle: const TextStyle(color: Colors.black54),
-                            prefixIcon: const Icon(Icons.search_rounded, color: Colors.black54),
+                            hintText: 'Search student or roll no',
+                            prefixIcon: const Icon(Icons.search_rounded),
                             filled: true,
-                            fillColor: Colors.white.withValues(alpha: 0.9),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
                               borderSide: BorderSide.none,

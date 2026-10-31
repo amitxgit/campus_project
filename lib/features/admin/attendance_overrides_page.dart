@@ -68,18 +68,14 @@ class _AttendanceOverridesPageState extends ConsumerState<AttendanceOverridesPag
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
         leading: Builder(
           builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu_rounded, color: Colors.white),
+            icon: const Icon(Icons.menu_rounded),
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
-        title: const Text('Attendance Log', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Attendance'),
         actions: const [ProfileAvatarAction()],
       ),
       drawer: const AppDrawer(),
@@ -116,47 +112,14 @@ class _AttendanceOverridesPageState extends ConsumerState<AttendanceOverridesPag
                   // -----------------------------------------------------------
                   // 1. PREMIUM SEARCH HEADER
                   // -----------------------------------------------------------
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(20, 100, 20, 24),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [colorScheme.primary, colorScheme.tertiary.withValues(alpha: 0.8)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search student, roll no or subject',
+                        prefixIcon: Icon(Icons.search_rounded),
                       ),
-                      borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(32),
-                        bottomRight: Radius.circular(32),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Master Records',
-                          style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Select any record to manually override its status.',
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.w500),
-                        ),
-                        const SizedBox(height: 20),
-                        TextField(
-                          style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w500),
-                          decoration: InputDecoration(
-                            hintText: 'Search by Student, Roll No, or Subject...',
-                            hintStyle: const TextStyle(color: Colors.black54),
-                            prefixIcon: const Icon(Icons.search_rounded, color: Colors.black54),
-                            filled: true,
-                            fillColor: Colors.white.withValues(alpha: 0.95),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                          ),
-                          onChanged: (v) => setState(() => _searchQuery = v),
-                        ),
-                      ],
+                      onChanged: (v) => setState(() => _searchQuery = v),
                     ),
                   ),
 

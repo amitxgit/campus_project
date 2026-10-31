@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../common/widgets/profile_avatar_action.dart';
@@ -40,18 +41,14 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
         leading: Builder(
           builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu_rounded, color: Colors.white),
+            icon: const Icon(Icons.menu_rounded),
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
-        title: const Text('Data Migration', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Backup & raw data'),
         actions: const [ProfileAvatarAction()],
       ),
       drawer: const AppDrawer(),
@@ -62,57 +59,25 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
           // -------------------------------------------------------------------
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 100, 20, 24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [colorScheme.primary, colorScheme.tertiary.withValues(alpha: 0.8)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(32),
-                bottomRight: Radius.circular(32),
-              ),
-            ),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
-                      child: const Icon(Icons.data_object_rounded, color: Colors.white, size: 28),
-                    ),
-                    const SizedBox(width: 16),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('JSON Import Engine', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
-                          Text('Batch execute records directly into Firestore.', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
                 // Warning Banner
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.redAccent.withValues(alpha: 0.2),
+                    color: context.palette.warningSoft,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
-                      SizedBox(width: 12),
-                      Expanded(
+                      Icon(Icons.warning_amber_rounded, size: 20, color: context.palette.warning),
+                      const SizedBox(width: 12),
+                      const Expanded(
                         child: Text(
-                          'Warning: Raw database tool. Malformed JSON or incorrect schemas will cause app failures.',
-                          style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold, height: 1.3),
+                          'Advanced tool. Wrongly formatted data can break the app — use Import students for everyday imports.',
+                          style: TextStyle(fontSize: 13, height: 1.35),
                         ),
                       ),
                     ],

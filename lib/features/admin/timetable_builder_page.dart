@@ -87,7 +87,7 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Timetable & Subjects', style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text('Timetable', style: TextStyle(fontWeight: FontWeight.bold)),
           centerTitle: true,
           actions: const [ProfileAvatarAction()],
           elevation: 0,
@@ -238,7 +238,6 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
   Widget _buildTimelineCard(TimetableEntry entry, Subject subj, List<Subject> groupSubjects,
       List<UserAccount> teachers, String group, String day, InstitutionSettings settings) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final names = teachers.where((t) => entry.teacherIds.contains(t.id)).map((t) => t.name).join(', ');
 
     return Padding(
@@ -261,9 +260,8 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: colorScheme.surface,
+                color: colorScheme.surfaceContainerLow,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: isDark ? Colors.white24 : Colors.black12, width: 1.5),
               ),
               padding: const EdgeInsets.all(16),
               child: Column(

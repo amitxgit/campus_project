@@ -178,7 +178,7 @@ class _ImportStudentsPageState extends ConsumerState<ImportStudentsPage> {
     final created = _results.where((r) => r.result['ok'] == true).length;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Import Students')),
+      appBar: AppBar(title: const Text('Import students')),
       drawer: const AppDrawer(),
       body: ListView(
         padding: const EdgeInsets.all(16),

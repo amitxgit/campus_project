@@ -32,7 +32,7 @@ class MyFeesPage extends ConsumerWidget {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My Fees')),
+      appBar: AppBar(title: const Text('Fees')),
       drawer: const AppDrawer(),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),

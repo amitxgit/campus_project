@@ -50,21 +50,16 @@ class _QueryManagementPageState extends ConsumerState<QueryManagementPage> {
   Widget build(BuildContext context) {
     final asyncData = ref.watch(queryManagementProvider);
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
         leading: Builder(
           builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu_rounded, color: Colors.white),
+            icon: const Icon(Icons.menu_rounded),
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
-        title: const Text('Help Desk Dashboard', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Queries'),
         actions: [
           IconButton(
             tooltip: 'Refresh',
@@ -124,14 +119,7 @@ class _QueryManagementPageState extends ConsumerState<QueryManagementPage> {
                 // --- PREMIUM HEADER & FILTER BAR ---
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(20, 100, 20, 16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [colorScheme.primary, colorScheme.tertiary.withValues(alpha: 0.8)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                   child: Column(
                     children: [
                       Row(
@@ -139,16 +127,12 @@ class _QueryManagementPageState extends ConsumerState<QueryManagementPage> {
                           Expanded(
                             flex: 3,
                             child: TextField(
-                              style: const TextStyle(color: Colors.black87), // Force dark text on white bg
-                              decoration: InputDecoration(
-                                hintText: 'Search tickets or students...',
-                                hintStyle: const TextStyle(color: Colors.black54),
-                                prefixIcon: const Icon(Icons.search_rounded, color: Colors.black54),
+                              decoration: const InputDecoration(
+                                hintText: 'Search',
+                                prefixIcon: Icon(Icons.search_rounded),
                                 filled: true,
-                                fillColor: Colors.white.withValues(alpha: 0.95),
                                 isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                                contentPadding: EdgeInsets.symmetric(vertical: 12),
                               ),
                               onChanged: (v) => setState(() => _searchQuery = v),
                             ),
@@ -160,16 +144,16 @@ class _QueryManagementPageState extends ConsumerState<QueryManagementPage> {
                               height: 48,
                               padding: const EdgeInsets.symmetric(horizontal: 12),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.95),
+                                color: Theme.of(context).colorScheme.surfaceContainerLow,
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: DropdownButtonHideUnderline(
                                 child: DropdownButton<String?>(
                                   value: _selectedSubjectId,
                                   isExpanded: true,
-                                  dropdownColor: isDark ? colorScheme.surface : Colors.white,
-                                  icon: const Icon(Icons.filter_list_rounded, color: Colors.black54),
-                                  style: const TextStyle(fontSize: 13, color: Colors.black87, fontWeight: FontWeight.w600),
+                                  dropdownColor: colorScheme.surface,
+                                  icon: const Icon(Icons.filter_list_rounded),
+                                  style: TextStyle(fontSize: 13, color: colorScheme.onSurface, fontWeight: FontWeight.w600),
                                   items: [
                                     const DropdownMenuItem(value: null, child: Text('All Subjects')),
                                     const DropdownMenuItem(value: 'GENERAL', child: Text('General Queries')),
@@ -185,27 +169,17 @@ class _QueryManagementPageState extends ConsumerState<QueryManagementPage> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 8),
 
                       // --- CUSTOM TAB BAR ---
                       TabBar(
                         isScrollable: true,
                         tabAlignment: TabAlignment.start,
-                        dividerColor: Colors.transparent,
-                        labelColor: colorScheme.primary,
-                        unselectedLabelColor: Colors.white70,
-                        labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                        indicator: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 2))],
-                        ),
                         tabs: [
-                          Tab(text: '  Open (${open.length})  '),
-                          Tab(text: '  In Progress (${inProgress.length})  '),
-                          Tab(text: '  Resolved (${resolved.length})  '),
-                          Tab(text: '  Rejected (${rejected.length})  '),
+                          Tab(text: 'Open (${open.length})'),
+                          Tab(text: 'In Progress (${inProgress.length})'),
+                          Tab(text: 'Resolved (${resolved.length})'),
+                          Tab(text: 'Rejected (${rejected.length})'),
                         ],
                       ),
                     ],
@@ -289,16 +263,8 @@ class _QueryList extends ConsumerWidget {
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
           ),
           child: Material(
             color: Colors.transparent,
@@ -468,7 +434,6 @@ class _QueryList extends ConsumerWidget {
                       decoration: BoxDecoration(
                         color: isDark ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.3) : colorScheme.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05)),
                       ),
                       child: Text(
                         query.message,
@@ -481,7 +446,6 @@ class _QueryList extends ConsumerWidget {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(

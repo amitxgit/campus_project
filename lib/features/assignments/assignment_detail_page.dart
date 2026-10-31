@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../../theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -55,18 +56,13 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
     final canManage = user != null &&
         (user.role == UserRole.admin || user.isAdmin || user.id == widget.assignment.teacherId);
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final a = widget.assignment;
 
-    final dueDate = DateFormat('EEEE, MMM d, yyyy • h:mm a').format(a.dueDate);
+    final dueDate = DateFormat('EEE, d MMM · h:mm a').format(a.dueDate);
     final displayDesc = a.description.isEmpty ? 'No instructions provided by the instructor.' : a.description;
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           if (canManage)
             IconButton(
@@ -80,41 +76,25 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- PREMIUM HEADER ---
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(24, 100, 24, 32),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [colorScheme.primary, colorScheme.tertiary],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(32), bottomRight: Radius.circular(32)),
-              ),
+            // --- HEADER ---
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
-                    child: Text(
-                      '${a.subjectName} • ${a.section}'.toUpperCase(),
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.0),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
                   Text(
-                    a.title,
-                    style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900, height: 1.2),
+                    '${a.subjectName}  ·  ${a.section}',
+                    style: TextStyle(color: context.palette.inkMuted, fontWeight: FontWeight.w500),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 6),
+                  Text(a.title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(height: 1.2)),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
-                      Icon(Icons.calendar_today_rounded, color: Colors.white.withValues(alpha: 0.8), size: 16),
+                      Icon(Icons.event_outlined, color: context.palette.accent, size: 18),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text('Due: $dueDate', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        child: Text('Due $dueDate', style: TextStyle(color: context.palette.accent, fontWeight: FontWeight.w600)),
                       ),
                     ],
                   ),
@@ -124,19 +104,16 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
 
             // --- INSTRUCTIONS ---
             Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Instructions', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: colorScheme.primary, letterSpacing: 1.0)),
-                  const SizedBox(height: 12),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
-                      color: colorScheme.surface,
+                      color: context.palette.surface,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05)),
                     ),
                     child: Text(
                       displayDesc,
@@ -144,7 +121,7 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
                     ),
                   ),
 
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 32),
 
                   if (isStudent) _buildStudentSection(colorScheme),
                   if (!isStudent && user != null) _buildSubmissionsSection(colorScheme),

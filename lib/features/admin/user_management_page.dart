@@ -69,21 +69,16 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
   Widget build(BuildContext context) {
     final asyncUsers = ref.watch(allUsersProvider);
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
         leading: Builder(
           builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu_rounded, color: Colors.white),
+            icon: const Icon(Icons.menu_rounded),
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
-        title: const Text('Directory Service', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Users'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: Colors.white),
@@ -98,53 +93,28 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
           // --- PREMIUM HEADER & SEARCH ---
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 100, 20, 20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  colorScheme.primary,
-                  isDark ? colorScheme.tertiary.withValues(alpha: 0.6) : colorScheme.tertiary.withValues(alpha: 0.8)
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(32),
-                bottomRight: Radius.circular(32),
-              ),
-            ),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: Column(
               children: [
                 TextField(
-                  style: const TextStyle(color: Colors.black87),
-                  decoration: InputDecoration(
-                    hintText: 'Search by name, email, or roll no...',
-                    hintStyle: const TextStyle(color: Colors.black54),
-                    prefixIcon: const Icon(Icons.search_rounded, color: Colors.black54),
+                  decoration: const InputDecoration(
+                    hintText: 'Search name, email or roll no',
+                    prefixIcon: Icon(Icons.search_rounded),
                     filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.95),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                    contentPadding: EdgeInsets.symmetric(vertical: 14),
                   ),
                   onChanged: (v) => setState(() => _query = v),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 8),
                 TabBar(
                   controller: _tabController,
                   isScrollable: true,
                   tabAlignment: TabAlignment.start,
-                  dividerColor: Colors.transparent,
-                  labelColor: colorScheme.primary,
-                  unselectedLabelColor: Colors.white70,
-                  indicator: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
                   tabs: const [
-                    Tab(text: '  All Users  '),
-                    Tab(text: '  Students  '),
-                    Tab(text: '  Faculty  '),
-                    Tab(text: '  Admins  '),
+                    Tab(text: 'All'),
+                    Tab(text: 'Students'),
+                    Tab(text: 'Teachers'),
+                    Tab(text: 'Admins'),
                   ],
                 ),
               ],
@@ -511,7 +481,6 @@ class _UserCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     Color badgeColor;
     switch (user.role) {
@@ -524,10 +493,8 @@ class _UserCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
+        color: colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05), width: 1.5),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Material(
         color: Colors.transparent,
@@ -559,7 +526,7 @@ class _UserCard extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(user.email ?? user.phone, style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w500)),
+                      Text(LoginId.isPhoneLogin(user.email) ? user.phone : (user.email ?? user.phone), style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w500)),
                       if (user.role == UserRole.student && user.collegeRollNo != null) ...[
                         const SizedBox(height: 4),
                         Text('Roll: ${user.collegeRollNo} • Sec: ${user.section}',

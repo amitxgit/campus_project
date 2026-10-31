@@ -39,7 +39,7 @@ class _TeacherDirectoryPageState extends ConsumerState<TeacherDirectoryPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Faculty Directory'),
+        title: const Text('Teachers'),
         actions: const [ProfileAvatarAction()],
       ),
       drawer: const AppDrawer(),

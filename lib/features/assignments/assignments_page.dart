@@ -62,38 +62,13 @@ class AssignmentsPage extends ConsumerWidget {
     final asyncAssignments = ref.watch(assignmentsProvider);
     final userAsync = ref.watch(authStateProvider);
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text('Coursework', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('Assignments'),
       ),
       body: Column(
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 100, 20, 32),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [colorScheme.primary, colorScheme.tertiary],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(32), bottomRight: Radius.circular(32)),
-            ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Assignments', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)),
-                SizedBox(height: 8),
-                Text('Manage your pending coursework and submissions.', style: TextStyle(color: Colors.white70, fontSize: 14)),
-              ],
-            ),
-          ),
           Expanded(
             child: asyncAssignments.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -115,10 +90,8 @@ class AssignmentsPage extends ConsumerWidget {
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
-                          color: colorScheme.surface,
+                          color: colorScheme.surfaceContainerLow,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05)),
-                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))],
                         ),
                         child: Material(
                           color: Colors.transparent,
@@ -248,7 +221,7 @@ class _CreateAssignmentDialogState extends ConsumerState<_CreateAssignmentDialog
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      title: const Text('New Assignment', style: TextStyle(fontWeight: FontWeight.w900)),
+      title: const Text('New assignment', style: TextStyle(fontWeight: FontWeight.w900)),
       content: SizedBox(
         width: 400,
         child: Column(

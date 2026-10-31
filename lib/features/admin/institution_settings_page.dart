@@ -45,7 +45,7 @@ class _InstitutionSettingsPageState extends ConsumerState<InstitutionSettingsPag
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Institute Settings'),
+        title: const Text('Settings'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),

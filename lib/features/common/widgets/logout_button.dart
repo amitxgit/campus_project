@@ -29,7 +29,7 @@ class LogoutButton extends ConsumerWidget {
           shouldLogout = await showDialog<bool>(
             context: context,
             builder: (ctx) => AlertDialog(
-              title: const Text('Confirm Logout'),
+              title: const Text('Sign out?'),
               content: const Text('Are you sure you want to log out?'),
               actions: [
                 TextButton(

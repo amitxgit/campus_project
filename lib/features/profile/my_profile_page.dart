@@ -1,5 +1,7 @@
 // lib/features/profile/my_profile_page.dart
 import 'package:flutter/material.dart';
+import '../../core/utils/login_id.dart';
+import '../../theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -81,12 +83,8 @@ class MyProfilePage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Profile', style: TextStyle(fontWeight: FontWeight.bold)),
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: Colors.transparent,
+        title: const Text('Profile'),
       ),
-      extendBodyBehindAppBar: true,
       body: userAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => AsyncErrorWidget(
@@ -132,92 +130,31 @@ class _ModernAestheticProfileHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final p = context.palette;
 
-    return Column(
-      children: [
-        Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.bottomCenter,
-          children: [
-            Container(
-              height: 200,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    colorScheme.primary,
-                    colorScheme.tertiary.withValues(alpha: 0.8),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+      child: Column(
+        children: [
+          CircleAvatar(
+            radius: 44,
+            backgroundColor: p.ink,
+            foregroundColor: p.background,
+            child: Text(
+              user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+              style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w700),
             ),
-            Positioned(
-              bottom: -50,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  shape: BoxShape.circle,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3), width: 1.5),
-                  ),
-                  child: CircleAvatar(
-                    radius: 50,
-                    backgroundColor: colorScheme.surface,
-                    foregroundColor: colorScheme.primary,
-                    child: Text(
-                      user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
-                      style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 60),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
+          ),
+          const SizedBox(height: 16),
+          Text(
             user.name,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.5,
-              color: colorScheme.onSurface,
-            ),
+            style: Theme.of(context).textTheme.headlineSmall,
           ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(
-            color: colorScheme.primaryContainer.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: colorScheme.primary.withValues(alpha: 0.2)),
-          ),
-          child: Text(
-            user.role.label.toUpperCase(),
-            style: TextStyle(
-              color: colorScheme.primary,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.0,
-            ),
-          ),
-        ),
-        const SizedBox(height: 32),
-      ],
+          const SizedBox(height: 4),
+          Text(user.role.label, style: TextStyle(color: p.inkMuted, fontWeight: FontWeight.w500)),
+        ],
+      ),
     );
   }
 }
@@ -240,7 +177,7 @@ class _StudentProfileView extends StatelessWidget {
           title: 'Personal Information',
           icon: Icons.person_outline_rounded,
           children: [
-            _InfoRow(label: 'Email', value: user.email ?? 'Not provided'),
+            if (!LoginId.isPhoneLogin(user.email)) _InfoRow(label: 'Email', value: user.email ?? 'Not provided'),
             _InfoRow(label: 'Phone Number', value: user.phone),
             _InfoRow(label: 'Gender', value: user.gender ?? 'Not Specified'),
             if (user.dateOfBirth != null)
@@ -285,7 +222,7 @@ class _TeacherProfileView extends StatelessWidget {
           title: 'Personal Information',
           icon: Icons.person_outline_rounded,
           children: [
-            _InfoRow(label: 'Email', value: user.email ?? 'Not provided'),
+            if (!LoginId.isPhoneLogin(user.email)) _InfoRow(label: 'Email', value: user.email ?? 'Not provided'),
             _InfoRow(label: 'Phone Number', value: user.phone),
             _InfoRow(label: 'Gender', value: user.gender ?? 'Not Specified'),
           ],
@@ -320,7 +257,7 @@ class _AdminProfileView extends StatelessWidget {
           title: 'Admin Details',
           icon: Icons.admin_panel_settings_outlined,
           children: [
-            _InfoRow(label: 'Email', value: user.email ?? 'Not provided'),
+            if (!LoginId.isPhoneLogin(user.email)) _InfoRow(label: 'Email', value: user.email ?? 'Not provided'),
             _InfoRow(label: 'Phone Number', value: user.phone),
             _InfoRow(label: 'Gender', value: user.gender ?? 'Not Specified'),
           ],
@@ -860,19 +797,8 @@ class _ModernInfoCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isDark ? Colors.white24 : Colors.black12,
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

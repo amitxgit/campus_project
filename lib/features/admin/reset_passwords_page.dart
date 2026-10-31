@@ -49,7 +49,7 @@ class _ResetPasswordsPageState extends ConsumerState<ResetPasswordsPage> {
               onPressed: () => Scaffold.of(ctx).openDrawer(),
             ),
           ),
-          title: const Text('Reset Passwords'),
+          title: const Text('Reset passwords'),
           bottom: const TabBar(isScrollable: true, tabs: tabs),
           actions: const [ProfileAvatarAction()],
         ),

@@ -33,7 +33,7 @@ class _ParentAlertsPageState extends ConsumerState<ParentAlertsPage> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Parent Alerts')),
+      appBar: AppBar(title: const Text('Parent alerts')),
       drawer: const AppDrawer(),
       body: RefreshIndicator(
         onRefresh: () async => ref.invalidate(recentAlertsProvider),

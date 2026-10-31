@@ -1,5 +1,7 @@
 // lib/features/student/student_attendance_page.dart
 import 'package:flutter/material.dart';
+import '../../theme.dart';
+import '../common/widgets/ui_kit.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -140,18 +142,14 @@ class StudentAttendancePage extends ConsumerWidget {
     final asyncData = ref.watch(attendanceDataProvider);
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
         leading: Builder(
           builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu_rounded, color: Colors.white),
+            icon: const Icon(Icons.menu_rounded),
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
-        title: const Text('Attendance Analytics', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Attendance'),
         actions: const [ProfileAvatarAction()],
       ),
       drawer: const AppDrawer(),
@@ -173,23 +171,14 @@ class StudentAttendancePage extends ConsumerWidget {
               slivers: [
                 SliverToBoxAdapter(child: _HeroSummaryCard(data: data)),
                 SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                  padding: const EdgeInsets.fromLTRB(16, 28, 16, 24),
                   sliver: SliverToBoxAdapter(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Subject Breakdown',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-                        ),
-                        const SizedBox(height: 16),
+                        const SectionLabel('By subject', padding: EdgeInsets.only(bottom: 12)),
                         _buildSubjectGrid(context, data.subjectStats),
-                        const SizedBox(height: 40),
-                        Text(
-                          'Activity Timeline',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-                        ),
-                        const SizedBox(height: 16),
+                        const SectionLabel('History', padding: EdgeInsets.only(top: 28, bottom: 12)),
                         _buildHistoryTimeline(context, data),
                         const SizedBox(height: 60),
                       ],
@@ -242,27 +231,21 @@ class StudentAttendancePage extends ConsumerWidget {
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         childAspectRatio: 1.25,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
       ),
       itemCount: stats.length,
       itemBuilder: (ctx, i) {
         final stat = stats[i];
-        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final p = context.palette;
+        // The provider has no theme; map its traffic-light colour to the palette.
+        final tone = stat.color == Colors.red ? p.danger : stat.color == Colors.orange ? p.warning : p.success;
 
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -272,7 +255,7 @@ class StudentAttendancePage extends ConsumerWidget {
                 stat.name,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, height: 1.2),
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, height: 1.25),
               ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -284,11 +267,6 @@ class StudentAttendancePage extends ConsumerWidget {
                       Text(
                         '${stat.present}/${stat.total}',
                         style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600, fontSize: 12),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Attended',
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7), fontSize: 10, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -306,8 +284,8 @@ class StudentAttendancePage extends ConsumerWidget {
                           builder: (context, value, _) => CircularProgressIndicator(
                             value: value,
                             strokeWidth: 4.5,
-                            backgroundColor: stat.color.withValues(alpha: 0.15),
-                            color: stat.color,
+                            backgroundColor: p.surfaceRaised,
+                            color: tone,
                             strokeCap: StrokeCap.round,
                           ),
                         ),
@@ -319,7 +297,7 @@ class StudentAttendancePage extends ConsumerWidget {
                         curve: Curves.easeOutCubic,
                         builder: (context, value, _) => Text(
                           '${value.toInt()}%',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: stat.color),
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: tone),
                         ),
                       ),
                     ],
@@ -333,28 +311,17 @@ class StudentAttendancePage extends ConsumerWidget {
     );
   }
 
-  // ✅ ENTERPRISE FEATURE: Timeline Log UI
   Widget _buildHistoryTimeline(BuildContext context, _AttendanceData data) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final p = context.palette;
 
     return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ListView.builder(
+      decoration: BoxDecoration(color: p.surface, borderRadius: BorderRadius.circular(20)),
+      child: ListView.separated(
         shrinkWrap: true,
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 4),
         physics: const NeverScrollableScrollPhysics(),
         itemCount: data.sortedRecords.length,
+        separatorBuilder: (_, __) => Divider(indent: 16, endIndent: 16, color: p.line),
         itemBuilder: (ctx, i) {
           final r = data.sortedRecords[i];
           final subjName = data.subjectStats.firstWhere(
@@ -362,107 +329,28 @@ class StudentAttendancePage extends ConsumerWidget {
               orElse: () => StudentSubjectStats(subjectId: '', name: 'Unknown', total: 0, present: 0, pct: 0, color: Colors.black)
           ).name;
 
-          final isPresent = r.status == AttendanceStatus.present || r.status == AttendanceStatus.excused;
-          final isLate = r.status == AttendanceStatus.late;
+          final (fg, bg) = switch (r.status) {
+            AttendanceStatus.present || AttendanceStatus.excused => (p.success, p.successSoft),
+            AttendanceStatus.late => (p.warning, p.warningSoft),
+            _ => (p.danger, p.dangerSoft),
+          };
+          final label = r.status.name[0].toUpperCase() + r.status.name.substring(1);
 
-          final color = isPresent ? Colors.green : (isLate ? Colors.orange : Colors.red);
-          final icon = isPresent ? Icons.check_circle_rounded : (isLate ? Icons.watch_later_rounded : Icons.cancel_rounded);
-
-          final isLast = i == data.sortedRecords.length - 1;
-
-          return IntrinsicHeight(
-            child: Row(
-              children: [
-                // Timeline Connector Column
-                SizedBox(
-                  width: 60,
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 2,
-                        height: 20,
-                        color: i == 0 ? Colors.transparent : (isDark ? Colors.white12 : Colors.black12),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.2),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(icon, size: 14, color: color),
-                      ),
-                      Expanded(
-                        child: Container(
-                          width: 2,
-                          color: isLast ? Colors.transparent : (isDark ? Colors.white12 : Colors.black12),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Timeline Content Card
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 20, top: 12, bottom: 12),
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: isDark ? Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3) : Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05)),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(subjName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                const SizedBox(height: 6),
-                                Row(
-                                  children: [
-                                    Icon(Icons.calendar_today_rounded, size: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                                    const SizedBox(width: 4),
-                                    Text(DateFormat('MMM d, yyyy').format(r.date), style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
-                                    const SizedBox(width: 12),
-                                    Icon(Icons.access_time_rounded, size: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                                    const SizedBox(width: 4),
-                                    Text(r.slot, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: color.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: color.withValues(alpha: 0.3)),
-                            ),
-                            child: Text(
-                              r.status.name.toUpperCase(),
-                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: color, letterSpacing: 0.5),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+          return ListTile(
+            title: Text(subjName, style: const TextStyle(fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: Text(
+              '${DateFormat('EEE, d MMM').format(r.date)}  ·  ${r.slot}',
+              style: TextStyle(color: p.inkMuted, fontSize: 13),
             ),
+            trailing: StatusPill(text: label, color: fg, background: bg),
           );
         },
       ),
     );
   }
 }
-
 // -----------------------------------------------------------------------------
-// HERO OVERALL SUMMARY CARD
+// OVERALL SUMMARY
 // -----------------------------------------------------------------------------
 class _HeroSummaryCard extends ConsumerWidget {
   final _AttendanceData data;
@@ -471,114 +359,51 @@ class _HeroSummaryCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final threshold = ref.watch(settingsProvider).attendanceThreshold;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    List<Color> gradientColors;
-    String statusText;
-    IconData statusIcon;
-
-    if (data.overallPct >= threshold + 10) {
-      gradientColors = const [Color(0xFF0D9488), Color(0xFF059669)]; // Teal/Green
-      statusText = 'Excellent standing';
-      statusIcon = Icons.verified_rounded;
-    } else if (data.overallPct >= threshold) {
-      gradientColors = const [Color(0xFFD97706), Color(0xFFF59E0B)]; // Orange/Amber
-      statusText = 'Requires attention';
-      statusIcon = Icons.warning_amber_rounded;
-    } else {
-      gradientColors = const [Color(0xFFE11D48), Color(0xFFDC2626)]; // Rose/Red
-      statusText = 'Critical shortage';
-      statusIcon = Icons.error_outline_rounded;
-    }
+    final p = context.palette;
+    final ok = data.overallPct >= threshold;
+    final tone = ok ? p.success : p.danger;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 100, 24, 32),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [colorScheme.primary, colorScheme.tertiary.withValues(alpha: 0.8)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(32),
-          bottomRight: Radius.circular(32),
-        ),
-      ),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: p.surface, borderRadius: BorderRadius.circular(20)),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Inner Glass Card
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: gradientColors,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: data.overallPct.toDouble()),
+                duration: Motion.slow * 2,
+                curve: Motion.curve,
+                builder: (context, value, _) => Text(
+                  '${value.round()}%',
+                  style: TextStyle(color: p.ink, fontSize: 44, fontWeight: FontWeight.w700, height: 1.0, letterSpacing: -2),
+                ),
               ),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(color: gradientColors.last.withValues(alpha: 0.4), blurRadius: 20, offset: const Offset(0, 10)),
-              ],
+              const Spacer(),
+              Text(
+                '${data.overallPresent} of ${data.overallTotal} classes',
+                style: TextStyle(color: p.inkMuted, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: data.overallPct / 100),
+              duration: Motion.slow * 2,
+              curve: Motion.curve,
+              builder: (_, v, __) => LinearProgressIndicator(value: v, minHeight: 8, color: tone, backgroundColor: p.surfaceRaised),
             ),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned(
-                  right: -20,
-                  bottom: -20,
-                  child: Icon(Icons.analytics_rounded, size: 120, color: Colors.white.withValues(alpha: 0.15)),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20)),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(statusIcon, color: Colors.white, size: 16),
-                          const SizedBox(width: 6),
-                          Text(statusText.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // ✅ ENTERPRISE FEATURE: Animated Counter
-                            TweenAnimationBuilder<double>(
-                              tween: Tween<double>(begin: 0, end: data.overallPct.toDouble()),
-                              duration: const Duration(milliseconds: 1500),
-                              curve: Curves.easeOutExpo,
-                              builder: (context, value, _) => Text(
-                                '${value.toInt()}%',
-                                style: const TextStyle(color: Colors.white, fontSize: 56, fontWeight: FontWeight.w900, height: 1.0, letterSpacing: -2),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text('Overall Attendance', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                          ],
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text('${data.overallPresent}/${data.overallTotal}', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                            Text('Classes Attended', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 11, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            ok ? 'Above the $threshold% requirement' : 'Below the $threshold% requirement',
+            style: TextStyle(fontSize: 13, color: tone, fontWeight: FontWeight.w500),
           ),
         ],
       ),
