@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../common/widgets/profile_avatar_action.dart';
 import '../common/widgets/app_drawer.dart';
 import '../../core/utils/firebase_error_parser.dart';
+import '../common/widgets/ui_kit.dart';
 
 class ImportExportPage extends ConsumerStatefulWidget {
   const ImportExportPage({super.key});
@@ -233,13 +234,7 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
 
       if (mounted) {
         _ctrl.clear();
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Import executed successfully!', style: TextStyle(fontWeight: FontWeight.bold)),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-            )
-        );
+        showMessage(context, 'Import complete.', success: true);
       }
     } on FormatException catch (e) {
       if (mounted) {
@@ -249,9 +244,7 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating)
-        );
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

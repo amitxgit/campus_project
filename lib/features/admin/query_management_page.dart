@@ -10,6 +10,7 @@ import '../../main.dart';
 import '../common/widgets/app_drawer.dart';
 import '../common/widgets/profile_avatar_action.dart';
 import '../common/widgets/async_error_widget.dart';
+import '../common/widgets/ui_kit.dart';
 
 // -----------------------------------------------------------------------------
 // PROVIDER
@@ -524,16 +525,12 @@ class _QueryList extends ConsumerWidget {
                               if (dialogContext.mounted) Navigator.pop(dialogContext);
 
                               if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Ticket updated successfully!'), backgroundColor: Colors.green),
-                                );
+                                showMessage(context, 'Ticket updated successfully!', success: true);
                               }
                             } catch (e) {
                               setState(() => isSaving = false);
                               if (dialogContext.mounted) {
-                                ScaffoldMessenger.of(dialogContext).showSnackBar(
-                                  SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-                                );
+                                showMessage(dialogContext, 'Error: $e', error: true);
                               }
                             }
                           },

@@ -14,6 +14,7 @@ import '../../core/models/user.dart';
 import '../../core/utils/firebase_error_parser.dart';
 import '../../data/settings_repository.dart';
 import '../../main.dart';
+import '../common/widgets/ui_kit.dart';
 
 // -----------------------------------------------------------------------------
 // PROVIDER
@@ -462,7 +463,7 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
                         error = 'Pick at least one teacher.';
                       }
                       if (error != null) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error), backgroundColor: Colors.red));
+                        showMessage(context, error, error: true);
                         return;
                       }
                       setState(() => isSaving = true);
@@ -482,9 +483,7 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
                       } catch (e) {
                         setState(() => isSaving = false);
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red),
-                          );
+                          showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
                         }
                       }
                     },
@@ -614,9 +613,7 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
       ref.invalidate(timetableBuilderProvider);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red),
-        );
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     }
   }
@@ -643,9 +640,7 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
       ref.invalidate(timetableBuilderProvider);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red),
-        );
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     }
   }

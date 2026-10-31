@@ -14,6 +14,7 @@ import '../../data/settings_repository.dart';
 import '../../main.dart';
 import '../common/widgets/app_drawer.dart';
 import '../common/widgets/async_error_widget.dart';
+import '../common/widgets/ui_kit.dart';
 
 typedef _TestsData = ({List<TestPaper> tests, List<String> groups, List<Subject> subjects, String myId});
 
@@ -238,9 +239,7 @@ class _TestsPageState extends ConsumerState<TestsPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red),
-        );
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     }
   }

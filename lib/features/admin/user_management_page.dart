@@ -14,6 +14,7 @@ import '../../data/settings_repository.dart';
 import '../../core/utils/login_id.dart';
 import '../../core/utils/phone.dart';
 import '../../main.dart';
+import '../common/widgets/ui_kit.dart';
 
 // -----------------------------------------------------------------------------
 // PROVIDER
@@ -441,9 +442,7 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
         );
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red),
-        );
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
       ref.invalidate(allUsersProvider);
     }
@@ -624,12 +623,12 @@ class _AdminSecureDeleteDialogState extends ConsumerState<_AdminSecureDeleteDial
       await ref.read(authRepoProvider).deleteAccount(widget.user.id);
       if (mounted) {
         Navigator.pop(context, true);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account purged successfully.'), backgroundColor: Colors.green));
+        showMessage(context, 'Account purged successfully.', success: true);
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isProcessing = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red));
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     }
   }

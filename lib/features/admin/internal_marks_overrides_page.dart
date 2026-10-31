@@ -14,6 +14,7 @@ import '../../core/models/user.dart';
 import '../../core/models/role.dart';
 import '../../main.dart';
 import '../../data/settings_repository.dart';
+import '../common/widgets/ui_kit.dart';
 
 // -----------------------------------------------------------------------------
 // PROVIDER
@@ -410,20 +411,12 @@ class _InternalMarksOverridesPageState
       ref.invalidate(adminMarksProvider);
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Academic records updated successfully!'),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        showMessage(context, 'Academic records updated successfully!', success: true);
       }
     } catch (e) {
       setState(() => _isSaving = false);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        showMessage(context, 'Error: $e', error: true);
       }
     }
   }

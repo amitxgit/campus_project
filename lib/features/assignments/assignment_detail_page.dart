@@ -14,6 +14,7 @@ import '../../core/utils/firebase_error_parser.dart';
 import '../../data/assignment_repository.dart';
 import '../../main.dart';
 import 'assignments_page.dart';
+import '../common/widgets/ui_kit.dart';
 
 final _mySubmissionProvider =
 FutureProvider.autoDispose.family<AssignmentSubmission?, String>((ref, assignmentId) async {
@@ -262,9 +263,7 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red),
-        );
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     }
   }
@@ -291,12 +290,12 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Assignment Turned In Successfully!'), backgroundColor: Colors.green));
+        showMessage(context, 'Assignment Turned In Successfully!', success: true);
         Navigator.pop(context); // Go back to list
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red));
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -368,7 +367,7 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red));
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     }
   }
@@ -392,7 +391,7 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red));
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     }
   }

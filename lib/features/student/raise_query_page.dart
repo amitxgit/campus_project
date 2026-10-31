@@ -7,6 +7,7 @@ import '../common/widgets/profile_avatar_action.dart';
 import '../common/widgets/app_drawer.dart';
 import '../../core/models/subject.dart';
 import '../../main.dart';
+import '../common/widgets/ui_kit.dart';
 
 // -----------------------------------------------------------------------------
 // SUBJECTS PROVIDER (FOR DROPDOWN)
@@ -72,12 +73,7 @@ class _RaiseQueryPageState extends ConsumerState<RaiseQueryPage> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Query submitted successfully! We will get back to you soon.'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      showMessage(context, 'Query submitted successfully! We will get back to you soon.', success: true);
 
       context.pop(); // Back to previous page
     } catch (e) {

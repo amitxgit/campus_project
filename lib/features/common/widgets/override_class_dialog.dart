@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../../core/models/timetable_entry.dart';
 import '../../../core/models/notification.dart';
 import '../../../main.dart';
+import 'ui_kit.dart';
 
 class OverrideClassDialog extends ConsumerStatefulWidget {
   final TimetableEntry entry;
@@ -148,17 +149,12 @@ class _OverrideClassDialogState extends ConsumerState<OverrideClassDialog> {
 
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_action == 'Restore' ? 'Schedule Restored' : 'Class updated successfully!'),
-              backgroundColor: Colors.green,
-            )
-        );
+        showMessage(context, _action == 'Restore' ? 'Schedule Restored' : 'Class updated successfully!', success: true);
       }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+        showMessage(context, 'Error: $e', error: true);
       }
     }
   }

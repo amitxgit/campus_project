@@ -14,6 +14,7 @@ import '../../core/utils/firebase_error_parser.dart';
 import '../../main.dart';
 import '../common/widgets/async_error_widget.dart';
 import '../../data/settings_repository.dart';
+import '../common/widgets/ui_kit.dart';
 
 // -----------------------------------------------------------------------------
 // ROLE-SPECIFIC & PROFILE PROVIDERS
@@ -661,7 +662,7 @@ class _CommonSettingsSection extends ConsumerWidget {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password reset link sent!')));
               } catch (e) {
                 if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red));
+                showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
               }
             },
             child: const Text('Send Link'),

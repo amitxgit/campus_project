@@ -6,6 +6,7 @@ import '../../core/models/institution_settings.dart';
 import '../../core/utils/firebase_error_parser.dart';
 import '../../data/settings_repository.dart';
 import '../common/widgets/app_drawer.dart';
+import '../common/widgets/ui_kit.dart';
 
 class InstitutionSettingsPage extends ConsumerStatefulWidget {
   const InstitutionSettingsPage({super.key});
@@ -330,15 +331,11 @@ class _InstitutionSettingsPageState extends ConsumerState<InstitutionSettingsPag
     try {
       await ref.read(settingsRepoProvider).save(s);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Settings saved'), backgroundColor: Colors.green),
-        );
+        showMessage(context, 'Settings saved', success: true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red),
-        );
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     } finally {
       if (mounted) setState(() => _saving = false);

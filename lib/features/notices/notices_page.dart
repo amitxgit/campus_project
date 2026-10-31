@@ -6,6 +6,7 @@ import '../../core/models/notice.dart';
 import '../../core/models/role.dart';
 import '../../core/models/user.dart';
 import '../../main.dart';
+import '../common/widgets/ui_kit.dart';
 
 // --- PROVIDER ---
 final noticesProvider = FutureProvider.autoDispose<List<Notice>>((ref) async {
@@ -104,7 +105,7 @@ class NoticesPage extends ConsumerWidget {
       ref.invalidate(noticesProvider);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+        showMessage(context, 'Error: $e', error: true);
       }
     }
   }
@@ -302,10 +303,10 @@ class _AddNoticeDialogState extends ConsumerState<_AddNoticeDialog> {
       ref.invalidate(noticesProvider);
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Notice published successfully!'), backgroundColor: Colors.green));
+        showMessage(context, 'Notice published successfully!', success: true);
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      if (mounted) showMessage(context, 'Error: $e', error: true);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

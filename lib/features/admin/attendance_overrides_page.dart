@@ -11,6 +11,7 @@ import '../../core/models/subject.dart';
 import '../../core/models/user.dart';
 import '../../core/models/role.dart';
 import '../../main.dart';
+import '../common/widgets/ui_kit.dart';
 
 // -----------------------------------------------------------------------------
 // PROVIDER
@@ -390,14 +391,12 @@ class _AttendanceOverridesPageState extends ConsumerState<AttendanceOverridesPag
           _isSaving = false;
         });
         ref.invalidate(adminAttendanceProvider);
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('All overrides applied successfully.'), backgroundColor: Colors.green)
-        );
+        showMessage(context, 'All overrides applied successfully.', success: true);
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+        showMessage(context, 'Error: $e', error: true);
       }
     }
   }

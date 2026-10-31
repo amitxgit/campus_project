@@ -7,6 +7,7 @@ import '../../core/models/role.dart';
 import '../../core/models/subject.dart';
 import '../../main.dart';
 import 'assignment_detail_page.dart';
+import '../common/widgets/ui_kit.dart';
 
 // -----------------------------------------------------------------------------
 // PROVIDERS
@@ -303,10 +304,10 @@ class _CreateAssignmentDialogState extends ConsumerState<_CreateAssignmentDialog
       ref.invalidate(assignmentsProvider);
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Assignment Published Successfully!'), backgroundColor: Colors.green));
+        showMessage(context, 'Assignment Published Successfully!', success: true);
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      if (mounted) showMessage(context, 'Error: $e', error: true);
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
