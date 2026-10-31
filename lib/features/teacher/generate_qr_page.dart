@@ -12,6 +12,8 @@ import 'package:crypto/crypto.dart';
 import '../../core/models/attendance_session.dart';
 import '../../main.dart';
 import '../common/widgets/async_error_widget.dart';
+import '../../theme.dart';
+import '../../core/utils/firebase_error_parser.dart';
 
 class GenerateQRPage extends ConsumerStatefulWidget {
   final String entryId;
@@ -148,9 +150,9 @@ class _GenerateQRPageState extends ConsumerState<GenerateQRPage> {
 
     if (_error != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Error')),
+        appBar: AppBar(title: const Text('Attendance')),
         body: AsyncErrorWidget(
-          message: _error.toString(),
+          message: FirebaseErrorParser.getMessage(_error!),
           onRetry: () {
             setState(() {
               _loading = true;
@@ -174,43 +176,30 @@ class _GenerateQRPageState extends ConsumerState<GenerateQRPage> {
         const Center(child: CircularProgressIndicator()),
         child: Scaffold(
           appBar: AppBar(
-            title: const Text('Live Attendance'),
-            centerTitle: true,
+            title: const Text('Attendance'),
             automaticallyImplyLeading: false,
           ),
           body: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(24.0),
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
               child: Column(
                 children: [
+                  const _LivePill(),
+                  const SizedBox(height: 12),
                   Text(
-                    'Session Active',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green,
+                    _formatTime(_secondsElapsed),
+                    style: const TextStyle(
+                      fontSize: 44,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -1.5,
+                      fontFeatures: [FontFeature.tabularFigures()],
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Time Elapsed: ${_formatTime(_secondsElapsed)}',
-                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const Spacer(),
-
-                  // THE ROTATING SECURE QR CODE
+                  // White in both themes: scanners need the contrast.
                   Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 20,
-                          offset: Offset(0, 10),
-                        ),
-                      ],
-                    ),
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
                     child: QrImageView(
                       data: _qrData,
                       version: QrVersions.auto,
@@ -218,23 +207,16 @@ class _GenerateQRPageState extends ConsumerState<GenerateQRPage> {
                       backgroundColor: Colors.white,
                     ),
                   ),
-
-                  const SizedBox(height: 40),
-
+                  const SizedBox(height: 20),
+                  Text(
+                    'Students scan this in the app. The code changes every few seconds, so a photo of it won\'t work later.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: context.palette.inkMuted, height: 1.45),
+                  ),
+                  const Spacer(),
                   SizedBox(
                     width: double.infinity,
-                    height: 56,
-                    child: FilledButton.icon(
-                      onPressed: _finishAndReview,
-                      icon: const Icon(Icons.stop_circle_outlined),
-                      label: const Text(
-                        'Finish & Review',
-                        style: TextStyle(fontSize: 18),
-                      ),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.red,
-                      ),
-                    ),
+                    child: FilledButton(onPressed: _finishAndReview, child: const Text('Finish and review')),
                   ),
                 ],
               ),
@@ -249,5 +231,40 @@ class _GenerateQRPageState extends ConsumerState<GenerateQRPage> {
     final m = (seconds ~/ 60).toString().padLeft(2, '0');
     final s = (seconds % 60).toString().padLeft(2, '0');
     return '$m:$s';
+  }
+}
+/// "● Live" with a gently pulsing dot.
+class _LivePill extends StatefulWidget {
+  const _LivePill();
+
+  @override
+  State<_LivePill> createState() => _LivePillState();
+}
+
+class _LivePillState extends State<_LivePill> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))
+    ..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(color: p.accentSoft, borderRadius: BorderRadius.circular(20)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        FadeTransition(
+          opacity: Tween(begin: 0.35, end: 1.0).animate(_c),
+          child: Container(width: 8, height: 8, decoration: BoxDecoration(color: p.accent, shape: BoxShape.circle)),
+        ),
+        const SizedBox(width: 8),
+        Text('Live', style: TextStyle(color: p.accent, fontWeight: FontWeight.w600)),
+      ]),
+    );
   }
 }

@@ -2,6 +2,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -16,6 +17,9 @@ import '../../core/models/user.dart';
 import '../../data/settings_repository.dart';
 import '../../main.dart';
 import '../parent_alerts/parent_messenger.dart';
+import '../../theme.dart';
+import '../common/widgets/ui_kit.dart';
+import '../../core/utils/firebase_error_parser.dart';
 
 // -----------------------------------------------------------------------------
 // PROVIDER
@@ -88,29 +92,35 @@ class _ReviewAttendancePageState extends ConsumerState<ReviewAttendancePage> {
   // Local overrides for manual edits
   final Map<String, AttendanceStatus> _overrides = {};
 
+  bool _saving = false;
+
   @override
   Widget build(BuildContext context) {
     final asyncData = ref.watch(reviewProvider(widget.sessionId));
+    final p = context.palette;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Review & Save Attendance'),
-        actions: [
-          TextButton(
-            onPressed: () =>
-            asyncData.hasValue ? _save(asyncData.value!) : null,
-            child: const Text(
-              'SAVE',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-          const ProfileAvatarAction(),
-        ],
+        title: const Text('Review attendance'),
+        actions: const [ProfileAvatarAction()],
       ),
+      bottomNavigationBar: asyncData.hasValue
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: FilledButton(
+                  onPressed: _saving ? null : () => _save(asyncData.value!),
+                  child: _saving
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Save attendance'),
+                ),
+              ),
+            )
+          : null,
       body: asyncData.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => AsyncErrorWidget(
-          message: err.toString(),
+          message: FirebaseErrorParser.getMessage(err),
           onRetry: () => ref.refresh(reviewProvider(widget.sessionId)),
         ),
         data: (data) {
@@ -121,75 +131,57 @@ class _ReviewAttendancePageState extends ConsumerState<ReviewAttendancePage> {
           int presentCount = 0;
           for (final s in students) {
             final status = _overrides[s.id] ?? initialMap[s.id]!;
-            if (status == AttendanceStatus.present ||
-                status == AttendanceStatus.late) {
-              presentCount++;
-            }
+            if (status == AttendanceStatus.present || status == AttendanceStatus.late) presentCount++;
           }
 
-          return Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+          return ListView.builder(
+            padding: const EdgeInsets.only(bottom: 16),
+            itemCount: students.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(subjectName, style: TextStyle(fontSize: 13, color: p.inkMuted, fontWeight: FontWeight.w500)),
+                      Text.rich(TextSpan(children: [
+                        TextSpan(
+                          text: '$presentCount',
+                          style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w700, letterSpacing: -1.4),
+                        ),
+                        TextSpan(text: ' of ${students.length} present', style: TextStyle(fontSize: 15, color: p.inkMuted)),
+                      ])),
+                      const SizedBox(height: 10),
+                      ProgressLine(value: students.isEmpty ? 0 : presentCount / students.length),
+                    ],
+                  ),
+                );
+              }
+              final student = students[index - 1];
+              final status = _overrides[student.id] ?? initialMap[student.id]!;
+              final roll = (student.collegeRollNo ?? '') as String;
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 16, 8),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
-                      child: Text(
-                        subjectName,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    Text('$presentCount / ${students.length} Present'),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: students.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final student = students[index];
-                    // Display override if exists, otherwise display permanent status
-                    final status = _overrides[student.id] ?? initialMap[student.id]!;
-
-                    return ListTile(
-                      title: Text(student.name),
-                      subtitle: Text(student.collegeRollNo ?? ''),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _StatusBtn(
-                            label: 'P',
-                            color: Colors.green,
-                            selected: status == AttendanceStatus.present,
-                            onTap: () =>
-                                _set(student.id, AttendanceStatus.present),
-                          ),
-                          const SizedBox(width: 4),
-                          _StatusBtn(
-                            label: 'A',
-                            color: Colors.red,
-                            selected: status == AttendanceStatus.absent,
-                            onTap: () =>
-                                _set(student.id, AttendanceStatus.absent),
-                          ),
-                          const SizedBox(width: 4),
-                          _StatusBtn(
-                            label: 'L',
-                            color: Colors.orange,
-                            selected: status == AttendanceStatus.late,
-                            onTap: () =>
-                                _set(student.id, AttendanceStatus.late),
-                          ),
+                          Text(student.name as String, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                          if (roll.isNotEmpty) Text(roll, style: TextStyle(fontSize: 13, color: p.inkMuted)),
                         ],
                       ),
-                    );
-                  },
+                    ),
+                    _StatusToggle(
+                      value: status,
+                      onChanged: (v) => _set(student.id as String, v),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+              );
+            },
           );
         },
       ),
@@ -205,6 +197,7 @@ class _ReviewAttendancePageState extends ConsumerState<ReviewAttendancePage> {
   // ---------------------------------------------------------------------------
 
   Future<void> _save(Map<String, dynamic> data) async {
+    setState(() => _saving = true);
     try {
       final session = data['session'] as AttendanceSession;
       final initialMap = data['initialStatus'] as Map<String, AttendanceStatus>;
@@ -242,9 +235,7 @@ class _ReviewAttendancePageState extends ConsumerState<ReviewAttendancePage> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Attendance saved successfully')),
-      );
+      showMessage(context, 'Attendance saved.', success: true);
 
       // Offer to tell parents of absentees, unless the server already does it.
       final settings = ref.read(settingsProvider);
@@ -278,50 +269,47 @@ class _ReviewAttendancePageState extends ConsumerState<ReviewAttendancePage> {
       context.go('/home/teacher');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error saving: $e')));
+      setState(() => _saving = false);
+      showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
     }
   }
 }
 
-// -----------------------------------------------------------------------------
-// STATUS BUTTON
-// -----------------------------------------------------------------------------
-
-class _StatusBtn extends StatelessWidget {
-  final String label;
-  final Color color;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _StatusBtn({
-    required this.label,
-    required this.color,
-    required this.selected,
-    required this.onTap,
-  });
+/// Present / Absent / Late as one segmented control.
+class _StatusToggle extends StatelessWidget {
+  final AttendanceStatus value;
+  final ValueChanged<AttendanceStatus> onChanged;
+  const _StatusToggle({required this.value, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        width: 32,
-        height: 32,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? color : Colors.transparent,
-          border: Border.all(color: selected ? color : Colors.grey),
-          borderRadius: BorderRadius.circular(6),
+    final p = context.palette;
+    Widget seg(AttendanceStatus s, String label, Color fg) {
+      final on = value == s;
+      return GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onChanged(s);
+        },
+        child: AnimatedContainer(
+          duration: Motion.fast,
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(color: on ? fg : Colors.transparent, borderRadius: BorderRadius.circular(10)),
+          child: Text(label, style: TextStyle(fontWeight: FontWeight.w700, color: on ? Colors.white : p.inkMuted)),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? Colors.white : Colors.grey,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(color: p.surface, borderRadius: BorderRadius.circular(13)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        seg(AttendanceStatus.present, 'P', p.success),
+        seg(AttendanceStatus.absent, 'A', p.danger),
+        seg(AttendanceStatus.late, 'L', p.warning),
+      ]),
     );
   }
 }

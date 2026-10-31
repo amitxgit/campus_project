@@ -56,11 +56,10 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
     final isStudent = user?.role == UserRole.student;
     final canManage = user != null &&
         (user.role == UserRole.admin || user.isAdmin || user.id == widget.assignment.teacherId);
-    final colorScheme = Theme.of(context).colorScheme;
     final a = widget.assignment;
 
     final dueDate = DateFormat('EEE, d MMM · h:mm a').format(a.dueDate);
-    final displayDesc = a.description.isEmpty ? 'No instructions provided by the instructor.' : a.description;
+    final displayDesc = a.description.isEmpty ? 'No instructions.' : a.description;
 
     return Scaffold(
       appBar: AppBar(
@@ -124,8 +123,8 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
 
                   const SizedBox(height: 32),
 
-                  if (isStudent) _buildStudentSection(colorScheme),
-                  if (!isStudent && user != null) _buildSubmissionsSection(colorScheme),
+                  if (isStudent) _buildStudentSection(),
+                  if (!isStudent && user != null) _buildSubmissionsSection(),
                 ],
               ),
             ),
@@ -138,7 +137,7 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
   // ---------------------------------------------------------------------------
   // STUDENT: TURN IN WORK
   // ---------------------------------------------------------------------------
-  Widget _buildStudentSection(ColorScheme colorScheme) {
+  Widget _buildStudentSection() {
     final mine = ref.watch(_mySubmissionProvider(widget.assignment.id));
     final existing = mine.valueOrNull;
 
@@ -150,27 +149,26 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Submit Your Work', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: colorScheme.primary, letterSpacing: 1.0)),
-        const SizedBox(height: 12),
+        const SectionLabel('Your work', padding: EdgeInsets.only(bottom: 12)),
         if (existing != null)
           Container(
             width: double.infinity,
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
+              color: context.palette.successSoft,
+              borderRadius: BorderRadius.circular(14),
             ),
             child: Row(
               children: [
-                const Icon(Icons.check_circle_rounded, color: Colors.green, size: 20),
+                Icon(Icons.check_circle_rounded, color: context.palette.success, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Turned in ${DateFormat('MMM d, h:mm a').format(existing.submittedAt)}'
+                    'Turned in ${DateFormat('d MMM, h:mm a').format(existing.submittedAt)}'
                         '${existing.submittedAt.isAfter(widget.assignment.dueDate) ? ' (late)' : ''}'
-                        '. You can resubmit to replace it.',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                        '. Resubmit to replace it.',
+                    style: TextStyle(fontWeight: FontWeight.w600, color: context.palette.success),
                   ),
                 ),
               ],
@@ -178,24 +176,24 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
           ),
         Container(
           decoration: BoxDecoration(
-            color: colorScheme.surface,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4))],
           ),
           child: Column(
             children: [
               TextField(
                 controller: _submissionCtrl,
                 maxLines: 4,
-                decoration: InputDecoration(
-                  hintText: 'Write your answer or paste a link...',
+                decoration: const InputDecoration(
+                  hintText: 'Write your answer or paste a link',
+                  filled: false,
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.all(20),
-                  hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: EdgeInsets.all(20),
                 ),
               ),
-              Divider(height: 1, color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+              Divider(height: 1, color: context.palette.line),
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Row(
@@ -203,14 +201,14 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
                     TextButton.icon(
                       onPressed: _isSubmitting ? null : _pickFile,
                       icon: const Icon(Icons.attach_file_rounded),
-                      label: const Text('Attach File'),
+                      label: const Text('Attach file'),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         _fileName ?? existing?.fileName ?? '',
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
+                        style: TextStyle(color: context.palette.inkMuted, fontSize: 13),
                       ),
                     ),
                     if (_fileName != null)
@@ -227,20 +225,14 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
             ],
           ),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 20),
         SizedBox(
           width: double.infinity,
-          height: 56,
-          child: FilledButton.icon(
-            style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+          child: FilledButton(
             onPressed: _isSubmitting ? null : () => _turnInAssignment(existing),
-            icon: _isSubmitting
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : const Icon(Icons.send_rounded),
-            label: Text(
-              _isSubmitting ? 'Turning In...' : (existing == null ? 'Turn In Assignment' : 'Resubmit'),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
+            child: _isSubmitting
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : Text(existing == null ? 'Turn in' : 'Resubmit'),
           ),
         ),
       ],
@@ -271,7 +263,7 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
   Future<void> _turnInAssignment(AssignmentSubmission? existing) async {
     final hasFile = _fileBytes != null || existing?.filePath != null;
     if (_submissionCtrl.text.trim().isEmpty && !hasFile) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please attach a file or write your answer before turning in.'), backgroundColor: Colors.orange));
+      showMessage(context, 'Write an answer or attach a file first.', error: true);
       return;
     }
 
@@ -290,7 +282,7 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
       );
 
       if (mounted) {
-        showMessage(context, 'Assignment Turned In Successfully!', success: true);
+        showMessage(context, 'Turned in.', success: true);
         Navigator.pop(context); // Go back to list
       }
     } catch (e) {
@@ -305,55 +297,71 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
   // ---------------------------------------------------------------------------
   // STAFF: REVIEW SUBMISSIONS
   // ---------------------------------------------------------------------------
-  Widget _buildSubmissionsSection(ColorScheme colorScheme) {
+  Widget _buildSubmissionsSection() {
     final submissions = ref.watch(_allSubmissionsProvider(widget.assignment.id));
 
+    final p = context.palette;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Submissions${submissions.hasValue ? ' (${submissions.value!.length})' : ''}',
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: colorScheme.primary, letterSpacing: 1.0),
+        SectionLabel(
+          'Submissions',
+          padding: const EdgeInsets.only(bottom: 8),
+          trailing: submissions.hasValue
+              ? Text('${submissions.value!.length}', style: TextStyle(fontWeight: FontWeight.w600, color: p.accent))
+              : null,
         ),
-        const SizedBox(height: 12),
         submissions.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Text(FirebaseErrorParser.getMessage(e)),
+          error: (e, _) => Text(FirebaseErrorParser.getMessage(e), style: TextStyle(color: p.danger)),
           data: (list) {
             if (list.isEmpty) {
-              return Text('No one has turned this in yet.', style: TextStyle(color: colorScheme.onSurfaceVariant));
+              return Text('No one has turned this in yet.', style: TextStyle(color: p.inkMuted));
             }
             return Column(
-              children: list.map((s) {
-                final late = s.submittedAt.isAfter(widget.assignment.dueDate);
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    title: Text(s.studentName.isEmpty ? s.studentId : s.studentName,
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${DateFormat('MMM d, h:mm a').format(s.submittedAt)}${late ? ' • LATE' : ''}',
-                          style: TextStyle(color: late ? colorScheme.error : null, fontSize: 12),
-                        ),
-                        if (s.text.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          SelectableText(s.text),
-                        ],
-                      ],
-                    ),
-                    trailing: s.filePath == null
-                        ? null
-                        : IconButton(
-                            tooltip: s.fileName ?? 'Open file',
-                            icon: const Icon(Icons.download_rounded),
-                            onPressed: () => _openFile(s.filePath!),
+              children: [
+                for (final s in list)
+                  Builder(builder: (context) {
+                    final late = s.submittedAt.isAfter(widget.assignment.dueDate);
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(children: [
+                                  Flexible(
+                                    child: Text(s.studentName.isEmpty ? s.studentId : s.studentName,
+                                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                  ),
+                                  if (late) ...[
+                                    const SizedBox(width: 8),
+                                    StatusPill(text: 'Late', color: p.warning, background: p.warningSoft),
+                                  ],
+                                ]),
+                                Text(DateFormat('d MMM, h:mm a').format(s.submittedAt),
+                                    style: TextStyle(color: p.inkMuted, fontSize: 13)),
+                                if (s.text.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  SelectableText(s.text, style: const TextStyle(height: 1.45)),
+                                ],
+                              ],
+                            ),
                           ),
-                  ),
-                );
-              }).toList(),
+                          if (s.filePath != null)
+                            IconButton(
+                              tooltip: s.fileName ?? 'Open file',
+                              icon: Icon(Icons.attach_file_rounded, color: p.accent),
+                              onPressed: () => _openFile(s.filePath!),
+                            ),
+                        ],
+                      ),
+                    );
+                  }),
+              ],
             );
           },
         ),
@@ -380,7 +388,11 @@ class _AssignmentDetailPageState extends ConsumerState<AssignmentDetailPage> {
         content: const Text('Students will no longer see it. Existing submissions are kept for your records.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: ctx.palette.danger, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
         ],
       ),
     );

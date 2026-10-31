@@ -8,6 +8,10 @@ import '../../core/models/subject.dart';
 import '../../main.dart';
 import 'assignment_detail_page.dart';
 import '../common/widgets/ui_kit.dart';
+import '../../theme.dart';
+import '../common/widgets/class_card.dart' show EmptyNote;
+import '../../core/utils/firebase_error_parser.dart';
+import '../common/widgets/async_error_widget.dart';
 
 // -----------------------------------------------------------------------------
 // PROVIDERS
@@ -62,89 +66,84 @@ class AssignmentsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncAssignments = ref.watch(assignmentsProvider);
     final userAsync = ref.watch(authStateProvider);
-    final colorScheme = Theme.of(context).colorScheme;
+    final p = context.palette;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Assignments'),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: asyncAssignments.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, _) => Center(child: Text('Error: $err')),
-              data: (assignments) {
-                if (assignments.isEmpty) return _buildEmptyState(colorScheme);
-
-                return RefreshIndicator(
-                  onRefresh: () async => ref.invalidate(assignmentsProvider),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: assignments.length,
-                    itemBuilder: (ctx, i) {
-                      final assgn = assignments[i];
-                      final displayTitle = assgn.title;
-                      final displaySubject = '${assgn.subjectName} • ${assgn.section}';
-                      final dueStr = 'Due ${DateFormat('MMM d, h:mm a').format(assgn.dueDate)}';
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerLow,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(20),
-                            onTap: () {
-                              Navigator.push(context, MaterialPageRoute(
-                                builder: (_) => AssignmentDetailPage(assignment: assgn),
-                              ));
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Row(
+      appBar: AppBar(title: const Text('Assignments')),
+      body: asyncAssignments.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, _) => AsyncErrorWidget(
+          message: FirebaseErrorParser.getMessage(err),
+          onRetry: () => ref.invalidate(assignmentsProvider),
+        ),
+        data: (assignments) {
+          if (assignments.isEmpty) {
+            return const Center(child: EmptyNote(icon: Icons.assignment_outlined, text: 'No assignments yet.'));
+          }
+          return RefreshIndicator(
+            onRefresh: () async => ref.invalidate(assignmentsProvider),
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 104),
+              itemCount: assignments.length,
+              itemBuilder: (ctx, i) {
+                final a = assignments[i];
+                return FadeSlideIn(
+                  index: i,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Pressable(
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AssignmentDetailPage(assignment: a))),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 44,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(color: colorScheme.primaryContainer, borderRadius: BorderRadius.circular(14)),
-                                    child: Icon(Icons.assignment_rounded, color: colorScheme.onPrimaryContainer),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(displayTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                        const SizedBox(height: 4),
-                                        Text(displaySubject, style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w600)),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          dueStr,
-                                          style: TextStyle(
-                                            color: assgn.isOverdue ? colorScheme.error : colorScheme.onSurfaceVariant,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
+                                  Text(
+                                    DateFormat('d').format(a.dueDate),
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: -0.6,
+                                      height: 1.1,
+                                      color: a.isOverdue ? p.danger : p.ink,
                                     ),
                                   ),
-                                  Icon(Icons.chevron_right_rounded, color: colorScheme.outlineVariant),
+                                  Text(DateFormat('MMM').format(a.dueDate),
+                                      style: TextStyle(fontSize: 12, color: p.inkMuted, fontWeight: FontWeight.w500)),
                                 ],
                               ),
                             ),
-                          ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(a.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                  const SizedBox(height: 2),
+                                  Text('${a.subjectName} · ${a.section}', maxLines: 1, overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(color: p.inkMuted, fontSize: 13)),
+                                ],
+                              ),
+                            ),
+                            if (a.isOverdue) ...[
+                              const SizedBox(width: 8),
+                              StatusPill(text: 'Past due', color: p.danger, background: p.dangerSoft),
+                            ],
+                          ],
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
                 );
               },
             ),
-          ),
-        ],
+          );
+        },
       ),
       floatingActionButton: userAsync.maybeWhen(
         data: (user) {
@@ -152,27 +151,12 @@ class AssignmentsPage extends ConsumerWidget {
             return FloatingActionButton.extended(
               onPressed: () => _showCreateDialog(context, ref, user.id),
               icon: const Icon(Icons.add_rounded),
-              label: const Text('Create Assignment', style: TextStyle(fontWeight: FontWeight.bold)),
+              label: const Text('New assignment'),
             );
           }
           return null;
         },
         orElse: () => null,
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(ColorScheme colorScheme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.assignment_turned_in_rounded, size: 80, color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
-          const SizedBox(height: 16),
-          const Text('All caught up!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Text('No pending assignments found.', style: TextStyle(color: colorScheme.onSurfaceVariant)),
-        ],
       ),
     );
   }
@@ -218,11 +202,10 @@ class _CreateAssignmentDialogState extends ConsumerState<_CreateAssignmentDialog
   @override
   Widget build(BuildContext context) {
     final subjectsAsync = ref.watch(teacherSubjectsProvider);
-    final colorScheme = Theme.of(context).colorScheme;
+    final p = context.palette;
 
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      title: const Text('New assignment', style: TextStyle(fontWeight: FontWeight.w900)),
+      title: const Text('New assignment'),
       content: SizedBox(
         width: 400,
         child: Column(
@@ -233,18 +216,14 @@ class _CreateAssignmentDialogState extends ConsumerState<_CreateAssignmentDialog
               error: (e, _) => const Text('Failed to load subjects'),
               data: (subjects) {
                 if (subjects.isEmpty) {
-                  return Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: colorScheme.errorContainer, borderRadius: BorderRadius.circular(12)),
-                  child: Text('You have no assigned subjects.', style: TextStyle(color: colorScheme.onErrorContainer, fontWeight: FontWeight.bold)),
-                );
+                  return Text('You have no subjects yet. Ask the office to assign you one.', style: TextStyle(color: p.danger));
                 }
                 return DropdownButtonFormField<Subject>(
-                  decoration: InputDecoration(labelText: 'Select Subject', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                  decoration: const InputDecoration(labelText: 'Subject'),
                   initialValue: selectedSubject,
                   items: subjects.map((s) => DropdownMenuItem(
                     value: s,
-                    child: Text('${s.name} (${s.section})', overflow: TextOverflow.ellipsis),
+                    child: Text('${s.name} · ${s.section}', overflow: TextOverflow.ellipsis),
                   )).toList(),
                   onChanged: (val) => setState(() => selectedSubject = val),
                 );
@@ -253,18 +232,19 @@ class _CreateAssignmentDialogState extends ConsumerState<_CreateAssignmentDialog
             const SizedBox(height: 16),
             TextField(
                 controller: titleCtrl,
-                decoration: InputDecoration(labelText: 'Assignment Title', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(labelText: 'Title')
             ),
             const SizedBox(height: 16),
             TextField(
                 controller: descCtrl,
                 maxLines: 4,
-                decoration: InputDecoration(labelText: 'Instructions', alignLabelWithHint: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(labelText: 'Instructions', alignLabelWithHint: true)
             ),
             const SizedBox(height: 8),
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.event_rounded),
               title: Text('Due ${DateFormat('EEE, MMM d').format(dueDate)}'),
               trailing: TextButton(onPressed: _pickDueDate, child: const Text('Change')),
             ),
@@ -275,7 +255,7 @@ class _CreateAssignmentDialogState extends ConsumerState<_CreateAssignmentDialog
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         FilledButton(
           onPressed: isLoading ? null : _submit,
-          child: isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Assign Class'),
+          child: isLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Assign'),
         ),
       ],
     );
@@ -283,7 +263,7 @@ class _CreateAssignmentDialogState extends ConsumerState<_CreateAssignmentDialog
 
   Future<void> _submit() async {
     if (selectedSubject == null || titleCtrl.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill all fields')));
+      showMessage(context, 'Pick a subject and add a title.', error: true);
       return;
     }
 
@@ -304,10 +284,10 @@ class _CreateAssignmentDialogState extends ConsumerState<_CreateAssignmentDialog
       ref.invalidate(assignmentsProvider);
       if (mounted) {
         Navigator.pop(context);
-        showMessage(context, 'Assignment Published Successfully!', success: true);
+        showMessage(context, 'Assignment posted.', success: true);
       }
     } catch (e) {
-      if (mounted) showMessage(context, 'Error: $e', error: true);
+      if (mounted) showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
     } finally {
       if (mounted) setState(() => isLoading = false);
     }

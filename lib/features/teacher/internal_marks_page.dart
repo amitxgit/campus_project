@@ -202,7 +202,7 @@ class _GradingList extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: SwitchListTile(
-                title: const Text('Publish Marks to Students', style: TextStyle(fontWeight: FontWeight.bold)),
+                title: const Text('Publish marks to students', style: TextStyle(fontWeight: FontWeight.w600)),
                 subtitle: Text(data.isPublished ? 'Students can see these marks' : 'Marks are hidden'),
                 value: data.isPublished,
                 onChanged: (isVisible) async {
