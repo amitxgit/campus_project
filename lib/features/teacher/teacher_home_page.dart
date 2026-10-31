@@ -21,6 +21,7 @@ import '../../main.dart';
 
 // ✅ FIX: Corrected the import path to point to your common/widgets folder!
 import '../common/widgets/override_class_dialog.dart';
+import '../../core/utils/firebase_error_parser.dart';
 
 // -----------------------------------------------------------------------------
 // VIEW MODEL
@@ -141,7 +142,7 @@ class TeacherHomePage extends ConsumerWidget {
       body: asyncData.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => AsyncErrorWidget(
-          message: err.toString(),
+          message: FirebaseErrorParser.getMessage(err),
           onRetry: () => ref.invalidate(teacherDashboardProvider),
         ),
         data: (vm) {

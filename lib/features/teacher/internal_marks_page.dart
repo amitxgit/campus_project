@@ -12,6 +12,7 @@ import '../../core/models/attendance.dart';
 import '../../core/models/internal_marks.dart';
 import '../../data/settings_repository.dart';
 import '../../main.dart';
+import '../../core/utils/firebase_error_parser.dart';
 
 class SubjectGradingData {
   final UserAccount teacher;
@@ -139,17 +140,14 @@ class _InternalMarksPageState extends ConsumerState<InternalMarksPage> {
             padding: const EdgeInsets.all(16.0),
             child: subjectsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, stack) => Text('Error: $err'),
+              error: (err, stack) => Text(FirebaseErrorParser.getMessage(err)),
               data: (subjects) {
                 if (subjects.isEmpty) {
                   return const Center(child: Text('You are not the lead teacher for any subjects.'));
                 }
 
                 return InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Subject',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: const InputDecoration(labelText: 'Subject'),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: _selectedSubjectId,
@@ -193,7 +191,7 @@ class _GradingList extends ConsumerWidget {
     return asyncData.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (err, stack) => AsyncErrorWidget(
-        message: err.toString(),
+        message: FirebaseErrorParser.getMessage(err),
         onRetry: () => ref.invalidate(subjectGradingProvider(subjectId)),
       ),
       data: (data) {

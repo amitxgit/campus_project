@@ -14,6 +14,7 @@ import '../../core/models/role.dart';
 import '../../core/models/query_ticket.dart';
 import '../../data/settings_repository.dart';
 import '../../theme.dart';
+import '../../core/utils/firebase_error_parser.dart';
 
 // -----------------------------------------------------------------------------
 // VIEW MODEL & PROVIDER
@@ -139,7 +140,7 @@ class AdminHomePage extends ConsumerWidget {
               child: asyncData.when(
                 loading: () => const SizedBox(height: 92, child: Center(child: CircularProgressIndicator())),
                 error: (err, _) => AsyncErrorWidget(
-                  message: err.toString(),
+                  message: FirebaseErrorParser.getMessage(err),
                   onRetry: () => ref.invalidate(adminDashboardProvider),
                 ),
                 data: (vm) => Padding(

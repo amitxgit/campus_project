@@ -11,6 +11,7 @@ import '../../../core/models/institution_settings.dart';
 import '../../../data/settings_repository.dart';
 import '../../../theme.dart';
 import 'animated_theme_switcher.dart';
+import '../../../core/utils/firebase_error_parser.dart';
 
 class AppDrawer extends ConsumerWidget {
   const AppDrawer({super.key});
@@ -24,7 +25,7 @@ class AppDrawer extends ConsumerWidget {
       child: SafeArea(
         child: userAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Error: $e')),
+          error: (e, _) => Center(child: Text(FirebaseErrorParser.getMessage(e))),
           data: (user) {
             if (user == null) {
               return const Center(child: Text('Not logged in'));

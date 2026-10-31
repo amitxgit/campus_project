@@ -105,15 +105,10 @@ class _InternalMarksOverridesPageState
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         TextField(
-                          decoration: InputDecoration(
-                            hintText: 'Search student or roll no',
-                            prefixIcon: const Icon(Icons.search_rounded),
-                            filled: true,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: const InputDecoration(
+                            hintText: 'Search student',
+                            prefixIcon: Icon(Icons.search_rounded),
+                            isDense: true,
                           ),
                           onChanged: (v) => setState(() => _query = v),
                         ),

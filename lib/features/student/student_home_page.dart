@@ -18,6 +18,7 @@ import '../common/widgets/ui_kit.dart';
 import '../../theme.dart';
 import '../../main.dart';
 import '../../data/settings_repository.dart';
+import '../../core/utils/firebase_error_parser.dart';
 
 // -----------------------------------------------------------------------------
 // VIEW MODELS
@@ -145,7 +146,7 @@ class StudentHomePage extends ConsumerWidget {
       body: asyncData.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => AsyncErrorWidget(
-          message: err.toString(),
+          message: FirebaseErrorParser.getMessage(err),
           onRetry: () => ref.invalidate(studentDashboardProvider),
         ),
         data: (vm) => RefreshIndicator(
