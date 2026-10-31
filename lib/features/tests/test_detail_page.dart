@@ -10,6 +10,7 @@ import '../../core/models/user.dart';
 import '../../core/utils/firebase_error_parser.dart';
 import '../../data/settings_repository.dart';
 import '../../main.dart';
+import '../../theme.dart';
 import '../common/widgets/async_error_widget.dart';
 import '../parent_alerts/parent_messenger.dart';
 
@@ -94,7 +95,7 @@ class _TestDetailPageState extends ConsumerState<TestDetailPage> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(testDetailProvider(widget.testId));
-    final cs = Theme.of(context).colorScheme;
+    final p = context.palette;
 
     return PopScope(
       canPop: !_dirty,
@@ -146,18 +147,22 @@ class _TestDetailPageState extends ConsumerState<TestDetailPage> {
               children: [
                 Container(
                   width: double.infinity,
+                  margin: const EdgeInsets.fromLTRB(16, 4, 16, 4),
                   padding: const EdgeInsets.all(16),
-                  color: cs.surfaceContainerHighest.withValues(alpha: 0.4),
+                  decoration: BoxDecoration(
+                    color: t.published ? p.successSoft : p.surface,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   child: Wrap(
                     spacing: 16,
                     runSpacing: 4,
                     children: [
-                      Text('${t.section} • ${DateFormat('d MMM yyyy').format(t.date)} • Max ${_fmt(t.maxMarks)}'),
+                      Text('${t.section} · ${DateFormat('d MMM yyyy').format(t.date)} · out of ${_fmt(t.maxMarks)}', style: TextStyle(color: p.inkMuted)),
                       if (t.published)
-                        Text('Published • ${t.appeared} appeared • Avg ${t.average.toStringAsFixed(1)} • Top ${_fmt(t.highest)}',
-                            style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold))
+                        Text('Published · ${t.appeared} appeared · avg ${t.average.toStringAsFixed(1)} · top ${_fmt(t.highest)}',
+                            style: TextStyle(color: p.success, fontWeight: FontWeight.w600))
                       else
-                        const Text('Draft — students can\'t see this yet', style: TextStyle(fontWeight: FontWeight.bold)),
+                        const Text('Draft · students can\'t see this yet', style: TextStyle(fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ),
@@ -178,7 +183,7 @@ class _TestDetailPageState extends ConsumerState<TestDetailPage> {
                                   SizedBox(
                                     width: 36,
                                     child: Text(ranks[s.id] == null ? '' : '#${ranks[s.id]}',
-                                        style: TextStyle(color: cs.primary, fontWeight: FontWeight.bold)),
+                                        style: TextStyle(color: p.accent, fontWeight: FontWeight.w600)),
                                   ),
                                   Expanded(child: Text(s.name, style: const TextStyle(fontWeight: FontWeight.w600))),
                                   SizedBox(
@@ -194,7 +199,6 @@ class _TestDetailPageState extends ConsumerState<TestDetailPage> {
                                         isDense: true,
                                         hintText: absent ? 'AB' : '—',
                                         suffixText: '/${_fmt(t.maxMarks)}',
-                                        border: const OutlineInputBorder(),
                                       ),
                                       onChanged: (_) => _dirty = true,
                                     ),

@@ -13,7 +13,9 @@ import '../../core/utils/firebase_error_parser.dart';
 import '../../data/settings_repository.dart';
 import '../../main.dart';
 import '../common/widgets/app_drawer.dart';
+import '../../theme.dart';
 import '../common/widgets/async_error_widget.dart';
+import '../common/widgets/class_card.dart' show EmptyNote;
 import '../common/widgets/ui_kit.dart';
 
 typedef _TestsData = ({List<TestPaper> tests, List<String> groups, List<Subject> subjects, String myId});
@@ -65,15 +67,13 @@ class _TestsPageState extends ConsumerState<TestsPage> {
   Widget build(BuildContext context) {
     final async = ref.watch(testsListProvider);
     final settings = ref.watch(settingsProvider);
-    final cs = Theme.of(context).colorScheme;
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Tests & Results')),
+      appBar: AppBar(title: const Text('Tests')),
       drawer: const AppDrawer(),
       floatingActionButton: async.hasValue
           ? FloatingActionButton.extended(
               onPressed: () => _create(async.value!),
-              icon: const Icon(Icons.add),
+              icon: const Icon(Icons.add_rounded),
               label: const Text('New test'),
             )
           : null,
@@ -85,47 +85,46 @@ class _TestsPageState extends ConsumerState<TestsPage> {
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(testsListProvider),
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+              padding: const EdgeInsets.only(top: 4, bottom: 104),
               children: [
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(children: [
-                    ChoiceChip(label: const Text('All'), selected: _group == null, onSelected: (_) => setState(() => _group = null)),
-                    for (final g in d.groups) ...[
-                      const SizedBox(width: 8),
-                      ChoiceChip(label: Text(g), selected: _group == g, onSelected: (_) => setState(() => _group = g)),
-                    ],
-                  ]),
-                ),
+                if (d.groups.length > 1)
+                  SizedBox(
+                    height: 40,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      children: [
+                        for (final g in <String?>[null, ...d.groups])
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: ChoiceChip(
+                              label: Text(g ?? 'All'),
+                              selected: _group == g,
+                              showCheckmark: false,
+                              onSelected: (_) => setState(() => _group = g),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 8),
-                if (tests.isEmpty)
-                  const Padding(padding: EdgeInsets.all(32), child: Center(child: Text('No tests yet.'))),
-                ...tests.map((t) => Card(
-                      margin: const EdgeInsets.only(top: 8),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: t.published ? Colors.green.withValues(alpha: 0.15) : cs.surfaceContainerHighest,
-                          child: Icon(t.published ? Icons.check_rounded : Icons.edit_note_rounded,
-                              color: t.published ? Colors.green : cs.onSurfaceVariant),
-                        ),
-                        title: Text(t.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text([
-                          t.section,
-                          DateFormat('d MMM yyyy').format(t.date),
-                          'Max ${t.maxMarks.toStringAsFixed(0)}',
-                          if (t.published) 'Avg ${t.average.toStringAsFixed(1)}' else 'Draft',
-                        ].join(' • ')),
-                        trailing: const Icon(Icons.chevron_right_rounded),
-                        onTap: () async {
-                          await context.push('/tests/${t.id}');
-                          ref.invalidate(testsListProvider);
-                        },
-                      ),
-                    )),
                 if (d.groups.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text('No ${settings.groupLabelPlural.toLowerCase()} to give tests to yet.'),
+                  EmptyNote(
+                    icon: Icons.groups_outlined,
+                    text: 'No ${settings.groupLabelPlural.toLowerCase()} to give tests to yet.',
+                  )
+                else if (tests.isEmpty)
+                  const EmptyNote(icon: Icons.quiz_outlined, text: 'No tests yet. Create one to start entering marks.'),
+                for (var i = 0; i < tests.length; i++)
+                  FadeSlideIn(
+                    index: i,
+                    child: _TestRow(
+                      test: tests[i],
+                      onTap: () async {
+                        await context.push('/tests/${tests[i].id}');
+                        ref.invalidate(testsListProvider);
+                      },
+                    ),
                   ),
               ],
             ),
@@ -160,12 +159,12 @@ class _TestsPageState extends ConsumerState<TestsPage> {
                     TextField(
                       controller: nameCtrl,
                       autofocus: true,
-                      decoration: const InputDecoration(labelText: 'Test name', hintText: 'e.g. Weekly Test 12', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(labelText: 'Test name', hintText: 'e.g. Weekly Test 12'),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       initialValue: group,
-                      decoration: InputDecoration(labelText: settings.groupLabel, border: const OutlineInputBorder()),
+                      decoration: InputDecoration(labelText: settings.groupLabel),
                       items: d.groups.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
                       onChanged: (g) => setState(() {
                         group = g!;
@@ -176,7 +175,7 @@ class _TestsPageState extends ConsumerState<TestsPage> {
                     DropdownButtonFormField<String>(
                       key: ValueKey(group),
                       initialValue: subject,
-                      decoration: const InputDecoration(labelText: 'Subject', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(labelText: 'Subject'),
                       items: [
                         const DropdownMenuItem(value: '', child: Text('All subjects / combined')),
                         ...subjects.map((s) => DropdownMenuItem(value: s, child: Text(s))),
@@ -187,7 +186,7 @@ class _TestsPageState extends ConsumerState<TestsPage> {
                     TextField(
                       controller: maxCtrl,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Maximum marks', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(labelText: 'Maximum marks'),
                     ),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
@@ -220,7 +219,7 @@ class _TestsPageState extends ConsumerState<TestsPage> {
     if (ok != true) return;
     final max = double.tryParse(maxCtrl.text.trim()) ?? 0;
     if (nameCtrl.text.trim().isEmpty || max <= 0) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Name and maximum marks are required.')));
+      if (mounted) showMessage(context, 'Name and maximum marks are required.', error: true);
       return;
     }
     try {
@@ -242,5 +241,73 @@ class _TestsPageState extends ConsumerState<TestsPage> {
         showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     }
+  }
+}
+
+/// One test: date on the left, name and batch, then its average or "Draft".
+class _TestRow extends StatelessWidget {
+  final TestPaper test;
+  final VoidCallback onTap;
+  const _TestRow({required this.test, required this.onTap});
+
+  static String _fmt(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final t = test;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Pressable(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 44,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      DateFormat('d').format(t.date),
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.6, height: 1.1),
+                    ),
+                    Text(DateFormat('MMM').format(t.date), style: TextStyle(fontSize: 12, color: p.inkMuted, fontWeight: FontWeight.w500)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(t.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${t.section} · out of ${_fmt(t.maxMarks)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 13, color: p.inkMuted),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              if (t.published)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(_fmt(t.average), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                    Text('avg', style: TextStyle(fontSize: 12, color: p.inkMuted)),
+                  ],
+                )
+              else
+                StatusPill(text: 'Draft', color: p.warning, background: p.warningSoft),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
