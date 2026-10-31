@@ -37,15 +37,13 @@ class ProfileAvatarAction extends ConsumerWidget {
             onTap: () => context.push('/profile'),
             child: CircleAvatar(
               radius: 18,
-              backgroundColor:
-              Theme.of(context).colorScheme.secondaryContainer,
-              foregroundColor:
-              Theme.of(context).colorScheme.onSecondaryContainer,
+              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
               child: Text(
                 initial,
                 style: const TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
