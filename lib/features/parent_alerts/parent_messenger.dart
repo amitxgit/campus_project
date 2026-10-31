@@ -9,6 +9,7 @@ import '../../core/utils/firebase_error_parser.dart';
 import '../../core/utils/phone.dart';
 import '../../data/settings_repository.dart';
 import '../../main.dart';
+import '../../theme.dart';
 
 /// One message for one student's parent.
 class ParentMessage {
@@ -116,21 +117,21 @@ class _ManualSendSheetState extends State<_ManualSendSheet> {
         controller: scroll,
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
         children: [
-          Text('${widget.kind.label} — ${widget.messages.length} parents',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text('${widget.kind.label} · ${widget.messages.length} parents',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, letterSpacing: -0.2)),
           const SizedBox(height: 4),
           Text(
             'Tap each to open WhatsApp with the message ready.'
             '${widget.skipped > 0 ? ' ${widget.skipped} without a parent number were skipped.' : ''}'
             ' Connect WhatsApp in Parent Alerts to send these automatically.',
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            style: TextStyle(color: context.palette.inkMuted, height: 1.45),
           ),
           const SizedBox(height: 8),
           ...widget.messages.map((m) {
             final done = _sent.contains(m.student.id);
             return ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: Icon(done ? Icons.check_circle_rounded : Icons.chat_rounded, color: done ? Colors.green : null),
+              leading: Icon(done ? Icons.check_circle_rounded : Icons.chat_rounded, color: done ? context.palette.success : context.palette.inkMuted),
               title: Text(m.student.name),
               subtitle: Text(widget.kind.render(m.params), maxLines: 2, overflow: TextOverflow.ellipsis),
               trailing: FilledButton.tonal(
