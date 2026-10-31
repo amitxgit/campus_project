@@ -10,7 +10,10 @@ import '../../core/utils/money.dart';
 import '../../data/settings_repository.dart';
 import '../../main.dart';
 import '../common/widgets/app_drawer.dart';
+import '../../theme.dart';
 import '../common/widgets/async_error_widget.dart';
+import '../common/widgets/class_card.dart' show EmptyNote;
+import '../common/widgets/ui_kit.dart';
 import '../../core/models/parent_alert.dart';
 import '../parent_alerts/parent_messenger.dart';
 import 'fee_detail_page.dart';
@@ -59,12 +62,20 @@ class _FeesAdminPageState extends ConsumerState<FeesAdminPage> {
     };
   }
 
+  String _filterLabel(_Filter f) => switch (f) {
+        _Filter.all => 'All',
+        _Filter.overdue => 'Overdue',
+        _Filter.due => 'Balance due',
+        _Filter.paid => 'Fully paid',
+        _Filter.noPlan => 'No plan',
+      };
+
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(feesOverviewProvider);
     final settings = ref.watch(settingsProvider);
     final cur = settings.currencySymbol;
-    final cs = Theme.of(context).colorScheme;
+    final p = context.palette;
 
     return Scaffold(
       appBar: AppBar(
@@ -76,14 +87,17 @@ class _FeesAdminPageState extends ConsumerState<FeesAdminPage> {
               icon: const Icon(Icons.notifications_active_outlined),
               onPressed: () => _remindOverdue(async.valueOrNull ?? []),
             ),
-          TextButton.icon(
-            onPressed: () => _applyToGroup(async.valueOrNull ?? []),
-            icon: const Icon(Icons.playlist_add_rounded),
-            label: Text('Plan for ${settings.groupLabel.toLowerCase()}'),
-          ),
+          const SizedBox(width: 4),
         ],
       ),
       drawer: const AppDrawer(),
+      floatingActionButton: async.hasValue
+          ? FloatingActionButton.extended(
+              onPressed: () => _applyToGroup(async.value!),
+              icon: const Icon(Icons.playlist_add_rounded),
+              label: Text('Plan for a ${settings.groupLabel.toLowerCase()}'),
+            )
+          : null,
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => AsyncErrorWidget(message: FirebaseErrorParser.getMessage(e), onRetry: () => ref.invalidate(feesOverviewProvider)),
@@ -100,67 +114,114 @@ class _FeesAdminPageState extends ConsumerState<FeesAdminPage> {
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(feesOverviewProvider),
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.only(top: 8, bottom: 104),
               children: [
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    _stat('Expected', formatMoney(expected, cur), Icons.account_balance_wallet_rounded, cs.primary),
-                    _stat('Collected', formatMoney(collected, cur), Icons.savings_rounded, Colors.green),
-                    _stat('Outstanding', formatMoney((expected - collected).clamp(0, double.infinity), cur), Icons.hourglass_bottom_rounded, Colors.orange),
-                    _stat('Overdue ($overdueCount)', formatMoney(overdue, cur), Icons.warning_amber_rounded, cs.error),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(children: [
-                  Expanded(
-                    child: TextField(
-                      decoration: const InputDecoration(
-                        hintText: 'Search student',
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      onChanged: (v) => setState(() => _query = v.trim()),
+                // Collected vs expected: the number the owner opens this page for.
+                FadeSlideIn(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Collected', style: TextStyle(fontSize: 13, color: p.inkMuted, fontWeight: FontWeight.w500)),
+                        Text(
+                          formatMoney(collected, cur),
+                          style: const TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -1.4,
+                            height: 1.15,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        ProgressLine(value: expected <= 0 ? 0 : collected / expected),
+                        const SizedBox(height: 8),
+                        Text(
+                          'of ${formatMoney(expected, cur)} expected${_group == null ? '' : ' · $_group'}',
+                          style: TextStyle(fontSize: 13, color: p.inkMuted),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  DropdownButton<String?>(
-                    value: _group,
-                    hint: Text('All ${settings.groupLabelPlural.toLowerCase()}'),
-                    items: [
-                      DropdownMenuItem(value: null, child: Text('All ${settings.groupLabelPlural.toLowerCase()}')),
-                      ...groups.map((g) => DropdownMenuItem(value: g, child: Text(g))),
-                    ],
-                    onChanged: (g) => setState(() => _group = g),
-                  ),
-                ]),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    for (final f in _Filter.values)
-                      ChoiceChip(
-                        label: Text(switch (f) {
-                          _Filter.all => 'All',
-                          _Filter.overdue => 'Overdue',
-                          _Filter.due => 'Balance due',
-                          _Filter.paid => 'Fully paid',
-                          _Filter.noPlan => 'No plan',
-                        }),
-                        selected: _filter == f,
-                        onSelected: (_) => setState(() => _filter = f),
+                ),
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: FadeSlideIn(
+                          index: 1,
+                          child: StatBlock(
+                            value: formatMoney((expected - collected).clamp(0, double.infinity), cur),
+                            label: 'Outstanding',
+                            onTap: () => setState(() => _filter = _Filter.due),
+                          ),
+                        ),
                       ),
-                  ],
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FadeSlideIn(
+                          index: 2,
+                          child: StatBlock(
+                            value: formatMoney(overdue, cur),
+                            label: overdueCount == 1 ? 'Overdue · 1 student' : 'Overdue · $overdueCount students',
+                            tone: overdue > 0 ? p.danger : null,
+                            onTap: () => setState(() => _filter = _Filter.overdue),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 10),
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      hintText: 'Search student',
+                      prefixIcon: Icon(Icons.search_rounded),
+                      isDense: true,
+                    ),
+                    onChanged: (v) => setState(() => _query = v.trim()),
+                  ),
+                ),
+                SizedBox(
+                  height: 40,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      if (groups.isNotEmpty) ...[
+                        _GroupChip(
+                          label: _group ?? 'All ${settings.groupLabelPlural.toLowerCase()}',
+                          selected: _group != null,
+                          groups: groups,
+                          allLabel: 'All ${settings.groupLabelPlural.toLowerCase()}',
+                          onSelected: (g) => setState(() => _group = g),
+                        ),
+                        Container(width: 1, margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), color: p.line),
+                      ],
+                      for (final f in _Filter.values)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: ChoiceChip(
+                            label: Text(_filterLabel(f)),
+                            selected: _filter == f,
+                            showCheckmark: false,
+                            onSelected: (_) => setState(() => _filter = f),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 8),
                 if (visible.isEmpty)
                   const Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Center(child: Text('No students match.')),
+                    padding: EdgeInsets.only(top: 16),
+                    child: EmptyNote(icon: Icons.search_off_rounded, text: 'No students match.'),
                   ),
-                ...visible.map((r) => _row(r, cur, cs)),
+                for (var i = 0; i < visible.length; i++) FadeSlideIn(index: i, child: _row(visible[i], cur)),
               ],
             ),
           );
@@ -169,50 +230,54 @@ class _FeesAdminPageState extends ConsumerState<FeesAdminPage> {
     );
   }
 
-  Widget _stat(String label, String value, IconData icon, Color color) {
-    return SizedBox(
-      width: 170,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(height: 8),
-              FittedBox(child: Text(value, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: color))),
-              Text(label, style: const TextStyle(fontSize: 12)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _row(FeeRow r, String cur, ColorScheme cs) {
+  Widget _row(FeeRow r, String cur) {
+    final p = context.palette;
     final a = r.account;
     final overdue = a?.overdueAmount() ?? 0;
     final (String text, Color color) = a == null
-        ? ('No plan', cs.onSurfaceVariant)
+        ? ('No plan', p.inkFaint)
         : overdue > 0
-            ? ('${formatMoney(overdue, cur)} overdue', cs.error)
+            ? ('${formatMoney(overdue, cur)} overdue', p.danger)
             : a.isFullyPaid
-                ? ('Paid', Colors.green)
-                : ('${formatMoney(a.balance, cur)} due', Colors.orange);
-    return Card(
-      margin: const EdgeInsets.only(top: 8),
-      child: ListTile(
-        leading: CircleAvatar(child: Text(r.student.name.isEmpty ? '?' : r.student.name[0].toUpperCase())),
-        title: Text(r.student.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text([
-          if (r.student.section?.isNotEmpty == true) r.student.section!,
-          if (a != null) 'Paid ${formatMoney(a.paidAmount, cur)} of ${formatMoney(a.netFee, cur)}',
-        ].join(' • ')),
-        trailing: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
-        onTap: () async {
-          await context.push('/admin/fees/${r.student.id}');
-          ref.invalidate(feesOverviewProvider);
-        },
+                ? ('Paid', p.success)
+                : ('${formatMoney(a.balance, cur)} due', p.ink);
+    return InkWell(
+      onTap: () async {
+        await context.push('/admin/fees/${r.student.id}');
+        ref.invalidate(feesOverviewProvider);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(r.student.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                      if (r.student.section?.isNotEmpty == true)
+                        Text(r.student.section!, style: TextStyle(fontSize: 13, color: p.inkMuted)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 14)),
+              ],
+            ),
+            if (a != null && !a.isFullyPaid) ...[
+              const SizedBox(height: 10),
+              ProgressLine(
+                value: a.netFee <= 0 ? 1 : a.paidAmount / a.netFee,
+                height: 4,
+                color: overdue > 0 ? p.danger : p.accent,
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -223,7 +288,7 @@ class _FeesAdminPageState extends ConsumerState<FeesAdminPage> {
       return a != null && a.overdueAmount() > 0;
     }).toList();
     if (overdue.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No overdue fees. 🎉')));
+      showMessage(context, 'No overdue fees.', success: true);
       return;
     }
     await ParentMessenger.send(context, ref, kind: ParentAlertKind.feeReminder, messages: [
@@ -245,9 +310,7 @@ class _FeesAdminPageState extends ConsumerState<FeesAdminPage> {
     final settings = ref.read(settingsProvider);
     final groups = rows.map((r) => r.student.section ?? '').where((s) => s.isNotEmpty).toSet().toList()..sort();
     if (groups.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No students are in a ${settings.groupLabel.toLowerCase()} yet.')),
-      );
+      showMessage(context, 'No students are in a ${settings.groupLabel.toLowerCase()} yet.');
       return;
     }
     String group = _group ?? groups.first;
@@ -262,7 +325,7 @@ class _FeesAdminPageState extends ConsumerState<FeesAdminPage> {
           children: [
             DropdownButtonFormField<String>(
               initialValue: group,
-              decoration: InputDecoration(labelText: settings.groupLabel, border: const OutlineInputBorder()),
+              decoration: InputDecoration(labelText: settings.groupLabel),
               items: groups.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
               onChanged: (g) => setState(() => group = g!),
             ),
@@ -281,7 +344,7 @@ class _FeesAdminPageState extends ConsumerState<FeesAdminPage> {
     final targets = rows.where((r) => r.student.section == group && (!skipExisting || r.account == null)).toList();
     if (targets.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Everyone in that group already has a plan.')));
+        showMessage(context, 'Everyone in that ${settings.groupLabel.toLowerCase()} already has a plan.');
       }
       return;
     }
@@ -301,16 +364,54 @@ class _FeesAdminPageState extends ConsumerState<FeesAdminPage> {
           .toList());
       ref.invalidate(feesOverviewProvider);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fee plan applied to ${targets.length} students.'), backgroundColor: Colors.green),
-        );
+        showMessage(context, 'Fee plan applied to ${targets.length} students.', success: true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red),
-        );
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     }
+  }
+}
+
+/// Chip that opens a menu of batches and shows the chosen one.
+class _GroupChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final List<String> groups;
+  final String allLabel;
+  final ValueChanged<String?> onSelected;
+
+  const _GroupChip({
+    required this.label,
+    required this.selected,
+    required this.groups,
+    required this.allLabel,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String?>(
+      tooltip: allLabel,
+      position: PopupMenuPosition.under,
+      onSelected: onSelected,
+      itemBuilder: (_) => [
+        PopupMenuItem<String?>(value: null, child: Text(allLabel)),
+        for (final g in groups) PopupMenuItem<String?>(value: g, child: Text(g)),
+      ],
+      child: IgnorePointer(
+        child: ChoiceChip(
+          label: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(label),
+            const SizedBox(width: 2),
+            const Icon(Icons.expand_more_rounded, size: 18),
+          ]),
+          selected: selected,
+          showCheckmark: false,
+          onSelected: (_) {},
+        ),
+      ),
+    );
   }
 }

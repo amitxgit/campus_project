@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 
 import '../../core/models/fee.dart';
 import '../../core/utils/money.dart';
+import '../../theme.dart';
+import '../common/widgets/ui_kit.dart';
 
 class FeePlanInput {
   final double totalFee;
@@ -58,7 +60,7 @@ Future<FeePlanInput?> showFeePlanDialog(
                       child: TextField(
                         controller: totalCtrl,
                         keyboardType: TextInputType.number,
-                        decoration: InputDecoration(labelText: 'Total fee', prefixText: '$currency ', border: const OutlineInputBorder()),
+                        decoration: InputDecoration(labelText: 'Total fee', prefixText: '$currency '),
                         onChanged: (_) => setState(() {}),
                       ),
                     ),
@@ -67,7 +69,7 @@ Future<FeePlanInput?> showFeePlanDialog(
                       child: TextField(
                         controller: discountCtrl,
                         keyboardType: TextInputType.number,
-                        decoration: InputDecoration(labelText: 'Discount', prefixText: '$currency ', border: const OutlineInputBorder()),
+                        decoration: InputDecoration(labelText: 'Discount', prefixText: '$currency '),
                         onChanged: (_) => setState(() {}),
                       ),
                     ),
@@ -77,7 +79,7 @@ Future<FeePlanInput?> showFeePlanDialog(
                     Expanded(
                       child: DropdownButtonFormField<int>(
                         initialValue: count,
-                        decoration: const InputDecoration(labelText: 'Instalments', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(labelText: 'Instalments'),
                         items: List.generate(12, (i) => i + 1)
                             .map((n) => DropdownMenuItem(value: n, child: Text(n == 1 ? 'One-time' : '$n'))).toList(),
                         onChanged: (v) => setState(() => count = v!),
@@ -87,7 +89,7 @@ Future<FeePlanInput?> showFeePlanDialog(
                     Expanded(
                       child: DropdownButtonFormField<int>(
                         initialValue: gap,
-                        decoration: const InputDecoration(labelText: 'Every', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(labelText: 'Every'),
                         items: const [1, 2, 3, 6]
                             .map((m) => DropdownMenuItem(value: m, child: Text(m == 1 ? 'Month' : '$m months'))).toList(),
                         onChanged: count == 1 ? null : (v) => setState(() => gap = v!),
@@ -97,8 +99,7 @@ Future<FeePlanInput?> showFeePlanDialog(
                   const SizedBox(height: 4),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.event_rounded),
-                    title: Text('First due ${DateFormat('d MMM yyyy').format(firstDue)}'),
+                                        title: Text('First due ${DateFormat('d MMM yyyy').format(firstDue)}'),
                     trailing: TextButton(
                       child: const Text('Change'),
                       onPressed: () async {
@@ -114,16 +115,36 @@ Future<FeePlanInput?> showFeePlanDialog(
                   ),
                   TextField(
                     controller: noteCtrl,
-                    decoration: const InputDecoration(labelText: 'Note (optional)', hintText: 'e.g. Sibling discount', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(labelText: 'Note (optional)', hintText: 'e.g. Sibling discount'),
                   ),
                   if (preview.isNotEmpty) ...[
                     const SizedBox(height: 16),
-                    Text('Net fee ${formatMoney(net, currency)}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    ...preview.map((i) => Text(
-                          '${i.label}: ${formatMoney(i.amount, currency)} • ${DateFormat('d MMM yyyy').format(i.dueDate)}',
-                          style: TextStyle(color: Theme.of(ctx).colorScheme.onSurfaceVariant, fontSize: 13),
-                        )),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(color: ctx.palette.surface, borderRadius: BorderRadius.circular(14)),
+                      child: Column(
+                        children: [
+                          Row(children: [
+                            const Expanded(child: Text('Net fee', style: TextStyle(fontWeight: FontWeight.w600))),
+                            Text(formatMoney(net, currency), style: const TextStyle(fontWeight: FontWeight.w700)),
+                          ]),
+                          const SizedBox(height: 8),
+                          for (final i in preview)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Row(children: [
+                                Expanded(
+                                  child: Text(
+                                    '${i.label} · ${DateFormat('d MMM yyyy').format(i.dueDate)}',
+                                    style: TextStyle(color: ctx.palette.inkMuted, fontSize: 13),
+                                  ),
+                                ),
+                                Text(formatMoney(i.amount, currency), style: TextStyle(color: ctx.palette.inkMuted, fontSize: 13)),
+                              ]),
+                            ),
+                        ],
+                      ),
+                    ),
                   ],
                 ],
               ),
@@ -134,9 +155,7 @@ Future<FeePlanInput?> showFeePlanDialog(
             FilledButton(
               onPressed: () {
                 if (total <= 0 || discount < 0 || net <= 0) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(content: Text('Enter a total fee, and a discount smaller than it.')),
-                  );
+                  showMessage(ctx, 'Enter a total fee, and a discount smaller than it.', error: true);
                   return;
                 }
                 Navigator.pop(ctx, FeePlanInput(total, discount, preview, noteCtrl.text.trim()));

@@ -260,6 +260,45 @@ class StatBlock extends StatelessWidget {
   }
 }
 
+/// Thin rounded bar that animates to [value] (0–1). Accent by default.
+class ProgressLine extends StatelessWidget {
+  final double value;
+  final Color? color;
+  final double height;
+
+  const ProgressLine({super.key, required this.value, this.color, this.height = 6});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(height),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: value.clamp(0.0, 1.0)),
+        duration: Motion.slow * 2,
+        curve: Motion.curve,
+        builder: (_, v, __) => LinearProgressIndicator(
+          value: v,
+          minHeight: height,
+          backgroundColor: p.surfaceRaised,
+          color: color ?? p.accent,
+        ),
+      ),
+    );
+  }
+}
+
+/// Floating message. [error] / [success] tint it; plain messages stay ink.
+void showMessage(BuildContext context, String text, {bool error = false, bool success = false}) {
+  final p = context.palette;
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(
+      content: Text(text),
+      backgroundColor: error ? p.danger : (success ? p.success : null),
+    ));
+}
+
 /// Small rounded label, e.g. "Cancelled", "Paid".
 class StatusPill extends StatelessWidget {
   final String text;

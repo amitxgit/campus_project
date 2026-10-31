@@ -9,7 +9,9 @@ import '../../core/utils/firebase_error_parser.dart';
 import '../../core/utils/money.dart';
 import '../../data/settings_repository.dart';
 import '../../main.dart';
+import '../../theme.dart';
 import '../common/widgets/async_error_widget.dart';
+import '../common/widgets/ui_kit.dart';
 import '../../core/models/parent_alert.dart';
 import '../parent_alerts/parent_messenger.dart';
 import 'fee_plan_dialog.dart';
@@ -83,76 +85,59 @@ class FeeDetailPage extends ConsumerWidget {
           final account = d.account;
           if (account == null) {
             return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.receipt_long_rounded, size: 56),
-                  const SizedBox(height: 12),
-                  const Text('No fee plan yet', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: () => _editPlan(context, ref, d),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Set up fee plan'),
-                  ),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.receipt_long_outlined, size: 40, color: context.palette.inkFaint),
+                    const SizedBox(height: 12),
+                    const Text('No fee plan yet', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 20),
+                    FilledButton.icon(
+                      onPressed: () => _editPlan(context, ref, d),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Set up fee plan'),
+                    ),
+                  ],
+                ),
               ),
             );
           }
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+            padding: const EdgeInsets.only(top: 8, bottom: 104),
             children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      FeeSummaryRow(account: account, currency: cur),
-                      if (account.discount > 0 || account.note.isNotEmpty) ...[
-                        const Divider(height: 24),
-                        Text(
-                          [
-                            if (account.discount > 0) 'Discount ${formatMoney(account.discount, cur)} on ${formatMoney(account.totalFee, cur)}',
-                            if (account.note.isNotEmpty) account.note,
-                          ].join(' • '),
-                          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                        ),
-                      ],
+              FeeHero(
+                account: account,
+                currency: cur,
+                footnote: [
+                  if (d.student?.section?.isNotEmpty == true) d.student!.section!,
+                  if (account.discount > 0) '${formatMoney(account.discount, cur)} off ${formatMoney(account.totalFee, cur)}',
+                  if (account.note.isNotEmpty) account.note,
+                ].join(' · '),
+              ),
+              const SectionLabel('Instalments'),
+              InstalmentList(account: account, currency: cur),
+              const SectionLabel('Payments', padding: EdgeInsets.fromLTRB(20, 32, 20, 4)),
+              if (d.payments.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Text('No payments recorded yet.', style: TextStyle(color: context.palette.inkMuted)),
+                ),
+              for (final p in d.payments)
+                PaymentRow(
+                  payment: p,
+                  currency: cur,
+                  onTap: () => _showReceipt(context, ref, d, p),
+                  trailing: PopupMenuButton<String>(
+                    icon: Icon(Icons.more_vert_rounded, color: context.palette.inkMuted),
+                    onSelected: (v) => v == 'receipt' ? _showReceipt(context, ref, d, p) : _voidPayment(context, ref, p),
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(value: 'receipt', child: Text('View receipt')),
+                      if (!p.voided) const PopupMenuItem(value: 'void', child: Text('Void payment')),
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              const Text('Instalments', style: TextStyle(fontWeight: FontWeight.w900)),
-              InstalmentList(account: account, currency: cur),
-              const SizedBox(height: 16),
-              const Text('Payments', style: TextStyle(fontWeight: FontWeight.w900)),
-              if (d.payments.isEmpty)
-                const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Text('No payments recorded yet.')),
-              ...d.payments.map((p) => ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(p.voided ? Icons.block_rounded : Icons.receipt_rounded,
-                        color: p.voided ? Colors.grey : Colors.green),
-                    title: Text(
-                      '${formatMoney(p.amount, cur)} • ${p.mode.label}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        decoration: p.voided ? TextDecoration.lineThrough : null,
-                      ),
-                    ),
-                    subtitle: Text('#${p.receiptNo} • ${DateFormat('d MMM yyyy').format(p.paidOn)}'
-                        '${p.reference.isNotEmpty ? ' • ${p.reference}' : ''}${p.voided ? ' • VOID' : ''}'),
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (v) => v == 'receipt'
-                          ? _showReceipt(context, ref, d, p)
-                          : _voidPayment(context, ref, p),
-                      itemBuilder: (_) => [
-                        const PopupMenuItem(value: 'receipt', child: Text('View receipt')),
-                        if (!p.voided) const PopupMenuItem(value: 'void', child: Text('Void payment')),
-                      ],
-                    ),
-                    onTap: () => _showReceipt(context, ref, d, p),
-                  )),
             ],
           );
         },
@@ -212,17 +197,18 @@ class FeeDetailPage extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Balance: ${formatMoney(account.balance, cur)}'),
+                  Text('Balance ${formatMoney(account.balance, cur)}', style: TextStyle(color: ctx.palette.inkMuted)),
                   const SizedBox(height: 12),
                   TextField(
                     controller: amountCtrl,
                     keyboardType: TextInputType.number,
                     autofocus: true,
-                    decoration: InputDecoration(labelText: 'Amount', prefixText: '$cur ', border: const OutlineInputBorder()),
+                    decoration: InputDecoration(labelText: 'Amount', prefixText: '$cur '),
                   ),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 6,
+                    runSpacing: 6,
                     children: PaymentMode.values
                         .map((m) => ChoiceChip(label: Text(m.label), selected: mode == m, onSelected: (_) => setState(() => mode = m)))
                         .toList(),
@@ -230,12 +216,12 @@ class FeeDetailPage extends ConsumerWidget {
                   const SizedBox(height: 12),
                   TextField(
                     controller: refCtrl,
-                    decoration: const InputDecoration(labelText: 'Reference (UPI ID / cheque no.)', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(labelText: 'Reference (UPI ID / cheque no.)'),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: noteCtrl,
-                    decoration: const InputDecoration(labelText: 'Note (optional)', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(labelText: 'Note (optional)'),
                   ),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -322,7 +308,11 @@ class FeeDetailPage extends ConsumerWidget {
             'removed from the paid total. The record is kept for audit.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Void')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: ctx.palette.danger, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Void'),
+          ),
         ],
       ),
     );
@@ -336,9 +326,7 @@ class FeeDetailPage extends ConsumerWidget {
   }
 
   void _error(BuildContext context, Object e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red),
-    );
+    showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
   }
 }
 
