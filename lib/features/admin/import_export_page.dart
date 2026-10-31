@@ -122,16 +122,19 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
 
                   const SizedBox(height: 24),
 
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const SectionLabel('JSON array', padding: EdgeInsets.zero),
-                      if (_ctrl.text.isNotEmpty)
-                        InkWell(
-                          onTap: () => setState(() => _ctrl.clear()),
-                          child: Text('Clear', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.danger)),
-                        )
-                    ],
+                  // SectionLabel already lays itself out as a full-width row, so
+                  // the Clear action goes in its trailing slot. (Wrapping it in
+                  // another Row gave it unbounded width and the page failed to
+                  // render.)
+                  SectionLabel(
+                    'JSON array',
+                    padding: EdgeInsets.zero,
+                    trailing: _ctrl.text.isEmpty
+                        ? null
+                        : InkWell(
+                            onTap: () => setState(() => _ctrl.clear()),
+                            child: Text('Clear', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.danger)),
+                          ),
                   ),
                   const SizedBox(height: 12),
 
