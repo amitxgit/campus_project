@@ -205,6 +205,7 @@ class _TestDetailPageState extends ConsumerState<TestDetailPage> {
                                   ),
                                   const SizedBox(width: 8),
                                   FilterChip(
+                                    showCheckmark: false,
                                     label: const Text('Absent'),
                                     selected: absent,
                                     onSelected: (v) => setState(() {

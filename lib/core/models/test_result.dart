@@ -31,7 +31,7 @@ class TestPaper {
     this.highest = 0,
   });
 
-  String get title => subjectName.isEmpty ? name : '$name • $subjectName';
+  String get title => subjectName.isEmpty ? name : '$name · $subjectName';
 
   Map<String, dynamic> toMap() => {
         'name': name,

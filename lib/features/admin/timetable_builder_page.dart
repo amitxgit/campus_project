@@ -90,62 +90,68 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
           bottom: const TabBar(tabs: [Tab(text: 'Schedule'), Tab(text: 'Subjects')]),
         ),
         drawer: const AppDrawer(),
-        body: asyncData.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (err, stack) => AsyncErrorWidget(
-            message: FirebaseErrorParser.getMessage(err),
-            onRetry: () => ref.invalidate(timetableBuilderProvider),
+        // Builder: the batch/day row reads the tab controller created above.
+        body: Builder(
+          builder: (context) => asyncData.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (err, stack) => AsyncErrorWidget(
+              message: FirebaseErrorParser.getMessage(err),
+              onRetry: () => ref.invalidate(timetableBuilderProvider),
+            ),
+            data: (data) {
+              final groups = _groups(settings, data);
+              if (groups.isEmpty) return _buildNoGroups(settings);
+
+              final group = groups.contains(_selectedGroup) ? _selectedGroup! : groups.first;
+              final days = settings.workingDays;
+              final day = days.contains(_selectedDay) ? _selectedDay! : days.first;
+              final groupSubjects = data.subjects.where((s) => s.section == group).toList()..sort((a, b) => a.name.compareTo(b.name));
+
+              final dayEntries = data.entries.where((e) => e.section == group && e.dayOfWeek == day).toList()
+                ..sort((a, b) => a.startTime.compareTo(b.startTime));
+
+              return Column(
+                children: [
+                  // Batch, then the day. One row, scrolls if it has to.
+                  AnimatedBuilder(
+                    animation: DefaultTabController.of(context),
+                    builder: (context, _) => SizedBox(
+                      height: 56,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                        children: [
+                          MenuChip(value: group, options: groups, onSelected: (g) => setState(() => _selectedGroup = g)),
+                          if (DefaultTabController.of(context).index == 0)
+                            Container(width: 1, margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), color: p.line),
+                          // Days only matter on the Schedule tab.
+                          if (DefaultTabController.of(context).index == 0)
+                            for (final d in days)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: ChoiceChip(
+                                  label: Text(d),
+                                  selected: d == day,
+                                  showCheckmark: false,
+                                  onSelected: (_) => setState(() => _selectedDay = d),
+                                ),
+                              ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        _buildSchedule(dayEntries, data, groupSubjects, group, day, settings),
+                        _buildSubjects(groupSubjects, data.teachers, group),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
-          data: (data) {
-            final groups = _groups(settings, data);
-            if (groups.isEmpty) return _buildNoGroups(settings);
-
-            final group = groups.contains(_selectedGroup) ? _selectedGroup! : groups.first;
-            final days = settings.workingDays;
-            final day = days.contains(_selectedDay) ? _selectedDay! : days.first;
-            final groupSubjects = data.subjects.where((s) => s.section == group).toList()
-              ..sort((a, b) => a.name.compareTo(b.name));
-
-            final dayEntries = data.entries
-                .where((e) => e.section == group && e.dayOfWeek == day)
-                .toList()
-              ..sort((a, b) => a.startTime.compareTo(b.startTime));
-
-            return Column(
-              children: [
-                // Batch, then the day. One row, scrolls if it has to.
-                SizedBox(
-                  height: 56,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-                    children: [
-                      MenuChip(value: group, options: groups, onSelected: (g) => setState(() => _selectedGroup = g)),
-                      Container(width: 1, margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), color: p.line),
-                      for (final d in days)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: ChoiceChip(
-                            label: Text(d),
-                            selected: d == day,
-                            showCheckmark: false,
-                            onSelected: (_) => setState(() => _selectedDay = d),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      _buildSchedule(dayEntries, data, groupSubjects, group, day, settings),
-                      _buildSubjects(groupSubjects, data.teachers, group),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          },
         ),
       ),
     );
@@ -178,8 +184,8 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
   // ---------------------------------------------------------------------------
   // SCHEDULE TAB
   // ---------------------------------------------------------------------------
-  Widget _buildSchedule(List<TimetableEntry> entries, _BuilderData data, List<Subject> groupSubjects,
-      String group, String day, InstitutionSettings settings) {
+  Widget _buildSchedule(List<TimetableEntry> entries, _BuilderData data, List<Subject> groupSubjects, String group, String day,
+      InstitutionSettings settings) {
     return Scaffold(
       body: entries.isEmpty
           ? _buildEmptyState('No classes for $group on $day.', Icons.event_busy_outlined)
@@ -191,7 +197,8 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
                 final entry = entries[index];
                 final subj = data.subjects.firstWhere(
                   (s) => s.id == entry.subjectId,
-                  orElse: () => const Subject(id: '', code: '?', name: 'Unknown subject', department: '', semester: '', section: '', teacherId: ''),
+                  orElse: () =>
+                      const Subject(id: '', code: '?', name: 'Unknown subject', department: '', semester: '', section: '', teacherId: ''),
                 );
                 return FadeSlideIn(
                   index: index,
@@ -213,11 +220,12 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
       final parts = t.split(':');
       return (int.tryParse(parts.first) ?? 0) * 60 + (parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0);
     }
+
     return (m(end) - m(start)).clamp(0, 24 * 60);
   }
 
-  Widget _buildClassCard(TimetableEntry entry, Subject subj, List<Subject> groupSubjects,
-      List<UserAccount> teachers, String group, String day, InstitutionSettings settings) {
+  Widget _buildClassCard(TimetableEntry entry, Subject subj, List<Subject> groupSubjects, List<UserAccount> teachers, String group,
+      String day, InstitutionSettings settings) {
     final p = context.palette;
     final names = teachers.where((t) => entry.teacherIds.contains(t.id)).map((t) => t.name).join(', ');
     void edit() => _showClassDialog(entry, groupSubjects, teachers, group, day, settings);
@@ -255,8 +263,8 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
     return Center(child: EmptyNote(icon: icon, text: message));
   }
 
-  Future<void> _showClassDialog(TimetableEntry? entry, List<Subject> groupSubjects,
-      List<UserAccount> teachers, String group, String day, InstitutionSettings settings) async {
+  Future<void> _showClassDialog(TimetableEntry? entry, List<Subject> groupSubjects, List<UserAccount> teachers, String group, String day,
+      InstitutionSettings settings) async {
     if (groupSubjects.isEmpty) {
       showMessage(context, 'Add a subject for $group first, in the Subjects tab.');
       return;
@@ -405,9 +413,8 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
                         }
                       }
                     },
-              child: isSaving
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Save'),
+              child:
+                  isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save'),
             ),
           ],
         ),

@@ -161,7 +161,12 @@ class _InstitutionSettingsPageState extends ConsumerState<InstitutionSettingsPag
                     ),
                     const SizedBox(width: 8),
                     IconButton.filled(
-                      style: IconButton.styleFrom(minimumSize: const Size(52, 52), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                      style: IconButton.styleFrom(
+                        backgroundColor: p.ink,
+                        foregroundColor: p.background,
+                        minimumSize: const Size(52, 52),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
                       onPressed: _addGroup,
                       icon: const Icon(Icons.add_rounded),
                     ),

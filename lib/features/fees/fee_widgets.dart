@@ -215,7 +215,8 @@ class _InstalmentRow extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          s.state == InstalmentState.partial
+                          // Part-paid (whether due yet or overdue): say what's left.
+                          !paid && s.covered > 0
                               ? '${formatMoney(s.outstanding, currency)} left'
                               : instalmentLabel(s.state),
                           style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
