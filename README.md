@@ -75,7 +75,7 @@ This project is fully integrated with Firebase. To run it, you must connect it t
     * **Firestore Database** (start in test mode for now).
     * **Storage**.
 3.  Add **Android** and **Web** apps to your project.
-    * For **Android**, the package name **must** be `com.example.campus_track`.
+    * For **Android**, the package name **must** be `com.batchwise.app`.
 4.  Install the Firebase CLI and FlutterFire CLI:
     ```bash
     npm install -g firebase-tools

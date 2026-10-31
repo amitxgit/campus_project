@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.campus_track"
+    namespace = "com.batchwise.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -24,7 +24,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.campus_track"
+        applicationId = "com.batchwise.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

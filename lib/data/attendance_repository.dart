@@ -5,10 +5,11 @@ import 'package:cloud_functions/cloud_functions.dart';
 import '../core/models/attendance.dart';
 import '../core/models/attendance_session.dart';
 import '../core/utils/firebase_error_parser.dart';
+import '../main.dart' show appFunctions;
 
 class AttendanceRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  final FirebaseFunctions _functions = appFunctions;
 
   // ---------------------------------------------------------------------------
   // COLLECTION REFERENCES

@@ -8,7 +8,8 @@ listings). Everything else is already in the code.
 ## 1. Firebase project (once per institute)
 
 Each institute gets its own Firebase project, so their data is completely
-separate. For your first demo, use the existing project `campus-7b240`.
+separate. The main project is `batchwise-2bd30` (Firestore and functions in
+`asia-south1`, Mumbai).
 
 1. **Upgrade to the Blaze plan.** Firebase console → ⚙ → *Usage and billing* →
    *Modify plan* → Blaze. Cloud Functions need it. A coaching institute of a few
@@ -24,7 +25,7 @@ separate. For your first demo, use the existing project `campus-7b240`.
    npm install -g firebase-tools
    firebase login
    cd firebase_functions && npm ci && cd ..
-   firebase deploy --only firestore,functions,storage --project campus-7b240
+   firebase deploy --only firestore,functions,storage --project batchwise-2bd30
    ```
    When asked whether Storage rules may read Firestore, answer **Yes**.
 
@@ -59,7 +60,7 @@ customer's project.
 3. Demo logins (password `Demo@123`): admin `admin@apex.demo`, teacher
    `phy@apex.demo`, student mobile `9710000000`.
 
-To try it with no cloud at all, run `firebase emulators:start --project campus-7b240`,
+To try it with no cloud at all, run `firebase emulators:start --project batchwise-2bd30`,
 then `cd tests && npm run seed-demo`, and start the app with
 `flutter run -d chrome --dart-define=USE_EMULATORS=true`.
 
@@ -72,13 +73,12 @@ then `cd tests && npm run seed-demo`, and start the app with
   *Build Android APK* → latest run → *Artifacts* → `campus-track-apk`. Install it
   on a phone (allow "install unknown apps").
 - **Play Store (before selling):**
-  1. Choose a real app ID, e.g. `in.yourbrand.campus`, and replace
-     `com.example.campus_track` in `android/app/build.gradle.kts`.
-  2. Register that ID as a new Android app in Firebase, then run
-     `flutterfire configure` to regenerate `lib/firebase_options.dart`.
-  3. Create an upload key and set a release signing config (the build is
+  1. The app ID is `com.batchwise.app` (set in `android/app/build.gradle.kts`).
+     It is registered as an Android app in Firebase and its settings are in
+     `lib/firebase_options.dart`. Don't change it after publishing.
+  2. Create an upload key and set a release signing config (the build is
      currently signed with the debug key).
-  4. Google Play Console account: US$25 once.
+  3. Google Play Console account: US$25 once.
 
 ## 5. Optional: automatic WhatsApp messages to parents
 

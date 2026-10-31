@@ -23,7 +23,10 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        return ios;
+        throw UnsupportedError(
+          'iOS is not registered in Firebase yet. Add an iOS app to the '
+          'batchwise-2bd30 project and add its options here.',
+        );
       case TargetPlatform.macOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for macos - '
@@ -47,30 +50,19 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBCRbA_eCQoxzqDJDJOxnT_g8fVUPYuMmM',
-    appId: '1:853472397092:web:ccf67962591e1f6c4c55b1',
-    messagingSenderId: '853472397092',
-    projectId: 'campus-7b240',
-    authDomain: 'campus-7b240.firebaseapp.com',
-    storageBucket: 'campus-7b240.firebasestorage.app',
-    measurementId: 'G-5ZSKCND26H',
+    apiKey: 'AIzaSyB1CPrTeHlm5N4IR5VvvXru-Z_yOMYYYfs',
+    appId: '1:13416100959:web:0500ce0991aa206e1097ea',
+    messagingSenderId: '13416100959',
+    projectId: 'batchwise-2bd30',
+    authDomain: 'batchwise-2bd30.firebaseapp.com',
+    storageBucket: 'batchwise-2bd30.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBMKirV3pXIrtROb52yhYI_irLcskuBpcY',
-    appId: '1:853472397092:android:df6de778727abc7d4c55b1',
-    messagingSenderId: '853472397092',
-    projectId: 'campus-7b240',
-    storageBucket: 'campus-7b240.firebasestorage.app',
+    apiKey: 'AIzaSyDAIRpvldHYCBFoYZ8Sh8TU2eKoJuIeL3o',
+    appId: '1:13416100959:android:0f7065bf5f358cde1097ea',
+    messagingSenderId: '13416100959',
+    projectId: 'batchwise-2bd30',
+    storageBucket: 'batchwise-2bd30.firebasestorage.app',
   );
-
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBXHGVjFCeT3dJNRt2HZANG9H-mJnXeMos',
-    appId: '1:853472397092:ios:e74bff44a612a2944c55b1',
-    messagingSenderId: '853472397092',
-    projectId: 'campus-7b240',
-    storageBucket: 'campus-7b240.firebasestorage.app',
-    iosBundleId: 'com.example.helloWorld',
-  );
-
 }

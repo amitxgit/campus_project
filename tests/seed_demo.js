@@ -4,7 +4,7 @@
 // tests, notices and assignments.
 //
 // Emulators (safe, default):
-//   firebase emulators:start --project campus-7b240      (in the repo root)
+//   firebase emulators:start --project batchwise-2bd30      (in the repo root)
 //   cd tests && npm run seed-demo
 //
 // A real project (writes real data; use a fresh demo project):
@@ -14,7 +14,7 @@ const admin = require("firebase-admin");
 const { FieldValue, Timestamp } = require("firebase-admin/firestore");
 
 const args = process.argv.slice(2);
-const projectId = args.includes("--project") ? args[args.indexOf("--project") + 1] : "campus-7b240";
+const projectId = args.includes("--project") ? args[args.indexOf("--project") + 1] : "batchwise-2bd30";
 const real = args.includes("--real-project");
 if (!real) {
   process.env.FIRESTORE_EMULATOR_HOST ||= "127.0.0.1:8080";

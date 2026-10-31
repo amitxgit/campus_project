@@ -11,8 +11,10 @@ const crypto = require("crypto");
 admin.initializeApp();
 const db = admin.firestore();
 
-// Set your region (must match your Flutter app's NotificationService.kFunctionsRegion)
-setGlobalOptions({ region: "us-central1", maxInstances: 10 });
+// Same region as the Firestore database (Mumbai). Firestore triggers must run
+// there, and the app calls functions in this region (see kFunctionsRegion in
+// lib/main.dart).
+setGlobalOptions({ region: "asia-south1", maxInstances: 10 });
 
 function normSection(section) {
   if (!section) return null;

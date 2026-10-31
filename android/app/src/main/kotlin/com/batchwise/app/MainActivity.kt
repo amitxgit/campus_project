@@ -1,4 +1,4 @@
-package com.example.campus_track
+package com.batchwise.app
 
 import io.flutter.embedding.android.FlutterActivity
 

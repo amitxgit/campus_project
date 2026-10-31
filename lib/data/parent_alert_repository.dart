@@ -1,9 +1,9 @@
 // lib/data/parent_alert_repository.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 
 import '../core/models/parent_alert.dart';
 import '../core/utils/firebase_error_parser.dart';
+import '../main.dart' show appFunctions;
 
 class ParentAlertRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -61,6 +61,6 @@ class ParentAlertRepository {
 
   /// Sends Meta's built-in "hello_world" template to [to] to check the setup.
   Future<void> sendTest(String to) => _guard(() async {
-        await FirebaseFunctions.instance.httpsCallable('testWhatsApp').call<Map<String, dynamic>>({'to': to});
+        await appFunctions.httpsCallable('testWhatsApp').call<Map<String, dynamic>>({'to': to});
       });
 }

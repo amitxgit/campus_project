@@ -36,6 +36,10 @@ import 'core/services/notification_service.dart';
 import 'core/services/firestore_notifier.dart';
 import 'core/services/notification_sync_service.dart';
 
+/// Cloud Functions live next to the Firestore database (Mumbai).
+const kFunctionsRegion = 'asia-south1';
+final FirebaseFunctions appFunctions = FirebaseFunctions.instanceFor(region: kFunctionsRegion);
+
 // -----------------------------------------------------------------------------
 // GLOBAL PROVIDERS (Central Registry)
 // -----------------------------------------------------------------------------
@@ -103,7 +107,7 @@ Future<void> main() async {
     const host = String.fromEnvironment('EMULATOR_HOST', defaultValue: 'localhost');
     await FirebaseAuth.instance.useAuthEmulator(host, 9099);
     FirebaseFirestore.instance.useFirestoreEmulator(host, 8080);
-    FirebaseFunctions.instance.useFunctionsEmulator(host, 5001);
+    appFunctions.useFunctionsEmulator(host, 5001);
     await FirebaseStorage.instance.useStorageEmulator(host, 9199);
   }
 

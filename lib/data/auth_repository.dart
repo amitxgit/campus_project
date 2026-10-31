@@ -11,6 +11,7 @@ import '../core/models/role.dart';
 import '../core/services/local_storage.dart';
 import '../core/utils/firebase_error_parser.dart';
 import '../core/utils/login_id.dart';
+import '../main.dart' show appFunctions;
 
 class AuthRepository {
   final LocalStorage _storage;
@@ -277,7 +278,7 @@ class AuthRepository {
   Future<String> createAccount(UserAccount user, String password) async {
     final profile = user.toMap()..remove('createdAt');
     try {
-      final res = await FirebaseFunctions.instance
+      final res = await appFunctions
           .httpsCallable('createUserAccount')
           .call<Map<String, dynamic>>({'password': password, 'profile': profile});
       return res.data['uid'] as String;
@@ -293,7 +294,7 @@ class AuthRepository {
   /// when the server generated one, the password to hand to the student.
   Future<List<Map<String, dynamic>>> bulkCreateStudents(List<Map<String, dynamic>> rows) async {
     try {
-      final res = await FirebaseFunctions.instance
+      final res = await appFunctions
           .httpsCallable('bulkCreateStudents', options: HttpsCallableOptions(timeout: const Duration(minutes: 5)))
           .call<Map<String, dynamic>>({'rows': rows});
       return (res.data['results'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -304,7 +305,7 @@ class AuthRepository {
 
   Future<void> setPassword(String uid, String password) async {
     try {
-      await FirebaseFunctions.instance
+      await appFunctions
           .httpsCallable('setUserPassword')
           .call<Map<String, dynamic>>({'uid': uid, 'password': password});
     } catch (e) {
@@ -319,7 +320,7 @@ class AuthRepository {
   /// server-side.
   Future<void> deleteAccount(String userId) async {
     try {
-      await FirebaseFunctions.instance
+      await appFunctions
           .httpsCallable('deleteUserAccount')
           .call<Map<String, dynamic>>({'uid': userId});
     } catch (e) {

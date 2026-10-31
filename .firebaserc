@@ -1,3 +1,5 @@
 {
-  "projects": {}
+  "projects": {
+    "default": "batchwise-2bd30"
+  }
 }
