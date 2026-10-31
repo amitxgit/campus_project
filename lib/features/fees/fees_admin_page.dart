@@ -193,10 +193,9 @@ class _FeesAdminPageState extends ConsumerState<FeesAdminPage> {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     children: [
                       if (groups.isNotEmpty) ...[
-                        _GroupChip(
-                          label: _group ?? 'All ${settings.groupLabelPlural.toLowerCase()}',
-                          selected: _group != null,
-                          groups: groups,
+                        MenuChip(
+                          value: _group,
+                          options: groups,
                           allLabel: 'All ${settings.groupLabelPlural.toLowerCase()}',
                           onSelected: (g) => setState(() => _group = g),
                         ),
@@ -371,47 +370,5 @@ class _FeesAdminPageState extends ConsumerState<FeesAdminPage> {
         showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     }
-  }
-}
-
-/// Chip that opens a menu of batches and shows the chosen one.
-class _GroupChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final List<String> groups;
-  final String allLabel;
-  final ValueChanged<String?> onSelected;
-
-  const _GroupChip({
-    required this.label,
-    required this.selected,
-    required this.groups,
-    required this.allLabel,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<String?>(
-      tooltip: allLabel,
-      position: PopupMenuPosition.under,
-      onSelected: onSelected,
-      itemBuilder: (_) => [
-        PopupMenuItem<String?>(value: null, child: Text(allLabel)),
-        for (final g in groups) PopupMenuItem<String?>(value: g, child: Text(g)),
-      ],
-      child: IgnorePointer(
-        child: ChoiceChip(
-          label: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(label),
-            const SizedBox(width: 2),
-            const Icon(Icons.expand_more_rounded, size: 18),
-          ]),
-          selected: selected,
-          showCheckmark: false,
-          onSelected: (_) {},
-        ),
-      ),
-    );
   }
 }

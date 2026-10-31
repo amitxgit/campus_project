@@ -16,6 +16,10 @@ class ClassCard extends StatelessWidget {
   final bool rescheduled;
   final Widget? trailing;
   final Widget? footer;
+  final VoidCallback? onTap;
+
+  /// Highlight the class while it is running. Off when the card isn't for today.
+  final bool showLive;
 
   const ClassCard({
     super.key,
@@ -27,6 +31,8 @@ class ClassCard extends StatelessWidget {
     this.rescheduled = false,
     this.trailing,
     this.footer,
+    this.onTap,
+    this.showLive = true,
   });
 
   /// "4" -> "Room 4", but "Hall A" stays "Hall A".
@@ -45,10 +51,10 @@ class ClassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
-    final live = !cancelled && isNow(startTime, durationMinutes);
+    final live = showLive && !cancelled && isNow(startTime, durationMinutes);
     final time = TimeFormatter.formatTime(startTime).split(' ');
 
-    return AnimatedContainer(
+    final card = AnimatedContainer(
       duration: Motion.medium,
       decoration: BoxDecoration(
         color: live ? p.accentSoft : p.surface,
@@ -121,6 +127,8 @@ class ClassCard extends StatelessWidget {
         ],
       ),
     );
+    if (onTap == null) return card;
+    return Pressable(onTap: onTap, color: Colors.transparent, child: card);
   }
 }
 

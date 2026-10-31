@@ -14,11 +14,11 @@ import '../../core/models/user.dart';
 import '../../core/utils/firebase_error_parser.dart';
 import '../../data/settings_repository.dart';
 import '../../main.dart';
+import '../../core/utils/time_formatter.dart';
+import '../../theme.dart';
+import '../common/widgets/class_card.dart';
 import '../common/widgets/ui_kit.dart';
 
-// -----------------------------------------------------------------------------
-// PROVIDER
-// -----------------------------------------------------------------------------
 typedef _BuilderData = ({
   List<TimetableEntry> entries,
   List<Subject> subjects,
@@ -42,9 +42,6 @@ final timetableBuilderProvider = FutureProvider.autoDispose<_BuilderData>((ref) 
   );
 });
 
-// -----------------------------------------------------------------------------
-// MAIN PAGE
-// -----------------------------------------------------------------------------
 class TimetableBuilderPage extends ConsumerStatefulWidget {
   const TimetableBuilderPage({super.key});
 
@@ -82,17 +79,14 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
   Widget build(BuildContext context) {
     final asyncData = ref.watch(timetableBuilderProvider);
     final settings = ref.watch(settingsProvider);
-    final colorScheme = Theme.of(context).colorScheme;
+    final p = context.palette;
 
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Timetable', style: TextStyle(fontWeight: FontWeight.bold)),
-          centerTitle: true,
+          title: const Text('Timetable'),
           actions: const [ProfileAvatarAction()],
-          elevation: 0,
-          scrolledUnderElevation: 0,
           bottom: const TabBar(tabs: [Tab(text: 'Schedule'), Tab(text: 'Subjects')]),
         ),
         drawer: const AppDrawer(),
@@ -119,52 +113,25 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
 
             return Column(
               children: [
-                // --- GROUP + DAY SELECTOR ---
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                    border: Border(bottom: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.4))),
-                  ),
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                  child: Column(
+                // Batch, then the day. One row, scrolls if it has to.
+                SizedBox(
+                  height: 56,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
                     children: [
-                      DropdownButtonFormField<String>(
-                        initialValue: group,
-                        decoration: InputDecoration(
-                          labelText: settings.groupLabel,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          prefixIcon: const Icon(Icons.groups_rounded),
-                          isDense: true,
+                      MenuChip(value: group, options: groups, onSelected: (g) => setState(() => _selectedGroup = g)),
+                      Container(width: 1, margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), color: p.line),
+                      for (final d in days)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: ChoiceChip(
+                            label: Text(d),
+                            selected: d == day,
+                            showCheckmark: false,
+                            onSelected: (_) => setState(() => _selectedDay = d),
+                          ),
                         ),
-                        items: groups.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
-                        onChanged: (g) => setState(() => _selectedGroup = g),
-                      ),
-                      const SizedBox(height: 12),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: days.map((d) {
-                            final isSel = d == day;
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8, bottom: 12),
-                              child: FilterChip(
-                                label: Text(d),
-                                selected: isSel,
-                                showCheckmark: false,
-                                onSelected: (_) => setState(() => _selectedDay = d),
-                                backgroundColor: colorScheme.surface,
-                                selectedColor: colorScheme.primary,
-                                labelStyle: TextStyle(
-                                  color: isSel ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
-                                  fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
-                                ),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -191,16 +158,17 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.groups_rounded, size: 64),
-            const SizedBox(height: 16),
-            Text('No ${s.groupLabelPlural.toLowerCase()} yet', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text('Add your ${s.groupLabelPlural.toLowerCase()} in Institute Settings first.', textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: () => context.go('/admin/settings'),
-              child: const Text('Open Institute Settings'),
+            Icon(Icons.groups_outlined, size: 40, color: context.palette.inkFaint),
+            const SizedBox(height: 12),
+            Text('No ${s.groupLabelPlural.toLowerCase()} yet', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            Text(
+              'Add your ${s.groupLabelPlural.toLowerCase()} in Settings first.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.palette.inkMuted),
             ),
+            const SizedBox(height: 20),
+            FilledButton(onPressed: () => context.push('/admin/settings'), child: const Text('Open Settings')),
           ],
         ),
       ),
@@ -214,134 +182,83 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
       String group, String day, InstitutionSettings settings) {
     return Scaffold(
       body: entries.isEmpty
-          ? _buildEmptyState('No classes for $group on $day.', Icons.event_busy_rounded)
-          : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 96),
+          ? _buildEmptyState('No classes for $group on $day.', Icons.event_busy_outlined)
+          : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 104),
               itemCount: entries.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 final entry = entries[index];
                 final subj = data.subjects.firstWhere(
                   (s) => s.id == entry.subjectId,
                   orElse: () => const Subject(id: '', code: '?', name: 'Unknown subject', department: '', semester: '', section: '', teacherId: ''),
                 );
-                return _buildTimelineCard(entry, subj, groupSubjects, data.teachers, group, day, settings);
+                return FadeSlideIn(
+                  index: index,
+                  child: _buildClassCard(entry, subj, groupSubjects, data.teachers, group, day, settings),
+                );
               },
             ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'addClass',
         onPressed: () => _showClassDialog(null, groupSubjects, data.teachers, group, day, settings),
-        icon: const Icon(Icons.add),
-        label: const Text('Add Class'),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Add class'),
       ),
     );
   }
 
-  Widget _buildTimelineCard(TimetableEntry entry, Subject subj, List<Subject> groupSubjects,
-      List<UserAccount> teachers, String group, String day, InstitutionSettings settings) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final names = teachers.where((t) => entry.teacherIds.contains(t.id)).map((t) => t.name).join(', ');
+  static int _minutesBetween(String start, String end) {
+    int m(String t) {
+      final parts = t.split(':');
+      return (int.tryParse(parts.first) ?? 0) * 60 + (parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0);
+    }
+    return (m(end) - m(start)).clamp(0, 24 * 60);
+  }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 56,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                const SizedBox(height: 12),
-                Text(entry.startTime, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: colorScheme.primary)),
-                Text(entry.endTime, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: colorScheme.onSurfaceVariant)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(20),
+  Widget _buildClassCard(TimetableEntry entry, Subject subj, List<Subject> groupSubjects,
+      List<UserAccount> teachers, String group, String day, InstitutionSettings settings) {
+    final p = context.palette;
+    final names = teachers.where((t) => entry.teacherIds.contains(t.id)).map((t) => t.name).join(', ');
+    void edit() => _showClassDialog(entry, groupSubjects, teachers, group, day, settings);
+
+    return ClassCard(
+      startTime: entry.startTime,
+      durationMinutes: _minutesBetween(entry.startTime, entry.endTime),
+      subject: subj.name,
+      meta: [
+        'till ${TimeFormatter.formatTime(entry.endTime)}',
+        if (entry.room.isNotEmpty) ClassCard.roomLabel(entry.room),
+        if (names.isNotEmpty) names,
+      ].join(' · '),
+      showLive: false,
+      onTap: edit,
+      footer: names.isEmpty ? StatusPill(text: 'No teacher assigned', color: p.danger, background: p.dangerSoft) : null,
+      trailing: PopupMenuButton<String>(
+        icon: Icon(Icons.more_vert_rounded, color: p.inkMuted),
+        onSelected: (v) => v == 'edit'
+            ? edit()
+            : _confirmDelete(
+                title: 'Delete class?',
+                body: 'Remove ${subj.name} on ${entry.dayOfWeek} at ${TimeFormatter.formatTime(entry.startTime)}?',
+                action: () => ref.read(timetableRepoProvider).delete(entry.id),
               ),
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(subj.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                            maxLines: 2, overflow: TextOverflow.ellipsis),
-                      ),
-                      IconButton(
-                        constraints: const BoxConstraints(),
-                        padding: const EdgeInsets.all(4),
-                        icon: Icon(Icons.edit_outlined, size: 20, color: colorScheme.secondary),
-                        onPressed: () => _showClassDialog(entry, groupSubjects, teachers, group, day, settings),
-                      ),
-                      IconButton(
-                        constraints: const BoxConstraints(),
-                        padding: const EdgeInsets.all(4),
-                        icon: Icon(Icons.delete_outline, size: 20, color: colorScheme.error),
-                        onPressed: () => _confirmDelete(
-                          title: 'Delete class?',
-                          body: 'Remove ${subj.name} on ${entry.dayOfWeek} at ${entry.startTime}?',
-                          action: () => ref.read(timetableRepoProvider).delete(entry.id),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 4,
-                    children: [
-                      if (entry.room.isNotEmpty)
-                        Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(Icons.room, size: 14, color: colorScheme.tertiary),
-                          const SizedBox(width: 4),
-                          Text(entry.room, style: TextStyle(fontSize: 12, color: colorScheme.tertiary, fontWeight: FontWeight.bold)),
-                        ]),
-                      Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(names.isEmpty ? Icons.person_off_rounded : Icons.person_rounded,
-                            size: 14, color: names.isEmpty ? colorScheme.error : colorScheme.onSurfaceVariant),
-                        const SizedBox(width: 4),
-                        Text(names.isEmpty ? 'No teacher assigned' : names,
-                            style: TextStyle(fontSize: 12, color: names.isEmpty ? colorScheme.error : colorScheme.onSurfaceVariant)),
-                      ]),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+        itemBuilder: (_) => const [
+          PopupMenuItem(value: 'edit', child: Text('Edit')),
+          PopupMenuItem(value: 'delete', child: Text('Delete')),
         ],
       ),
     );
   }
 
   Widget _buildEmptyState(String message, IconData icon) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 56, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(height: 16),
-          Text(message, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-        ],
-      ),
-    );
+    return Center(child: EmptyNote(icon: icon, text: message));
   }
 
   Future<void> _showClassDialog(TimetableEntry? entry, List<Subject> groupSubjects,
       List<UserAccount> teachers, String group, String day, InstitutionSettings settings) async {
     if (groupSubjects.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Add a subject for $group first (Subjects tab).')),
-      );
+      showMessage(context, 'Add a subject for $group first, in the Subjects tab.');
       return;
     }
     final isNew = entry == null;
@@ -371,7 +288,7 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
                 children: [
                   DropdownButtonFormField<String>(
                     initialValue: subjectId,
-                    decoration: const InputDecoration(labelText: 'Subject', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(labelText: 'Subject'),
                     items: groupSubjects.map((s) => DropdownMenuItem(value: s.id, child: Text('${s.name} (${s.code})'))).toList(),
                     onChanged: (v) => setState(() {
                       subjectId = v!;
@@ -387,7 +304,7 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: settings.workingDays.contains(classDay) ? classDay : settings.workingDays.first,
-                    decoration: const InputDecoration(labelText: 'Day', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(labelText: 'Day'),
                     items: settings.workingDays.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
                     onChanged: (v) => classDay = v!,
                   ),
@@ -397,7 +314,8 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
                     runSpacing: 6,
                     children: settings.periodStarts
                         .map((t) => ChoiceChip(
-                              label: Text(t),
+                              showCheckmark: false,
+                              label: Text(TimeFormatter.formatTime(t)),
                               selected: startCtrl.text == t,
                               onSelected: (_) => setState(() {
                                 startCtrl.text = t;
@@ -411,7 +329,7 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
                     Expanded(
                       child: TextField(
                         controller: startCtrl,
-                        decoration: const InputDecoration(labelText: 'Start (HH:MM)', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(labelText: 'Start (HH:MM)'),
                         onChanged: (_) => setState(() {}),
                       ),
                     ),
@@ -419,17 +337,17 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
                     Expanded(
                       child: TextField(
                         controller: endCtrl,
-                        decoration: const InputDecoration(labelText: 'End (HH:MM)', border: OutlineInputBorder()),
+                        decoration: const InputDecoration(labelText: 'End (HH:MM)'),
                       ),
                     ),
                   ]),
                   const SizedBox(height: 12),
                   TextField(
                     controller: roomCtrl,
-                    decoration: const InputDecoration(labelText: 'Room (optional)', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(labelText: 'Room (optional)'),
                   ),
                   const SizedBox(height: 16),
-                  const Text('Teachers', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Teachers', style: TextStyle(fontSize: 13, color: context.palette.inkMuted, fontWeight: FontWeight.w500)),
                   const SizedBox(height: 8),
                   if (teachers.isEmpty) const Text('No teachers yet. Add them under Users.'),
                   Wrap(
@@ -501,41 +419,74 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
   // SUBJECTS TAB
   // ---------------------------------------------------------------------------
   Widget _buildSubjects(List<Subject> subjects, List<UserAccount> teachers, String group) {
+    final p = context.palette;
     return Scaffold(
       body: subjects.isEmpty
-          ? _buildEmptyState('No subjects for $group yet.', Icons.menu_book_rounded)
+          ? _buildEmptyState('No subjects for $group yet.', Icons.menu_book_outlined)
           : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-              children: subjects.map((s) {
-                final lead = teachers.where((t) => t.id == s.teacherId).map((t) => t.name).firstOrNull;
-                return Card(
-                  child: ListTile(
-                    leading: CircleAvatar(child: Text(s.code.isEmpty ? '?' : s.code.substring(0, 1))),
-                    title: Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text('${s.code} • ${lead ?? 'No lead teacher'}'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => _showSubjectDialog(s, teachers, group)),
-                        IconButton(
-                          icon: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
-                          onPressed: () => _confirmDelete(
-                            title: 'Delete ${s.name}?',
-                            body: 'Classes already scheduled for this subject will show as "Unknown subject" until removed.',
-                            action: () => ref.read(timetableRepoProvider).deleteSubject(s.id),
-                          ),
+              padding: const EdgeInsets.fromLTRB(0, 8, 0, 104),
+              children: [
+                for (var i = 0; i < subjects.length; i++)
+                  FadeSlideIn(
+                    index: i,
+                    child: () {
+                      final s = subjects[i];
+                      final lead = teachers.where((t) => t.id == s.teacherId).map((t) => t.name).firstOrNull;
+                      return InkWell(
+                        onTap: () => _showSubjectDialog(s, teachers, group),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 10, 8, 10),
+                          child: Row(children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(color: p.surface, borderRadius: BorderRadius.circular(12)),
+                              child: Text(
+                                s.code.isEmpty ? '?' : s.code,
+                                maxLines: 1,
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.3),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(s.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                  Text(
+                                    lead ?? 'No lead teacher',
+                                    style: TextStyle(fontSize: 13, color: lead == null ? p.danger : p.inkMuted),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            PopupMenuButton<String>(
+                              icon: Icon(Icons.more_vert_rounded, color: p.inkMuted),
+                              onSelected: (v) => v == 'edit'
+                                  ? _showSubjectDialog(s, teachers, group)
+                                  : _confirmDelete(
+                                      title: 'Delete ${s.name}?',
+                                      body: 'Classes already scheduled for this subject will show as "Unknown subject" until removed.',
+                                      action: () => ref.read(timetableRepoProvider).deleteSubject(s.id),
+                                    ),
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(value: 'edit', child: Text('Edit')),
+                                PopupMenuItem(value: 'delete', child: Text('Delete')),
+                              ],
+                            ),
+                          ]),
                         ),
-                      ],
-                    ),
+                      );
+                    }(),
                   ),
-                );
-              }).toList(),
+              ],
             ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'addSubject',
         onPressed: () => _showSubjectDialog(null, teachers, group),
-        icon: const Icon(Icons.add),
-        label: const Text('Add Subject'),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Add subject'),
       ),
     );
   }
@@ -557,17 +508,17 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
               children: [
                 TextField(
                   controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: 'Name', hintText: 'e.g. Physics', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Name', hintText: 'e.g. Physics'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: codeCtrl,
-                  decoration: const InputDecoration(labelText: 'Short code', hintText: 'e.g. PHY', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Short code', hintText: 'e.g. PHY'),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: leadId,
-                  decoration: const InputDecoration(labelText: 'Lead teacher', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Lead teacher'),
                   items: teachers.map((t) => DropdownMenuItem(value: t.id, child: Text(t.name))).toList(),
                   onChanged: (v) => setState(() => leadId = v),
                 ),
@@ -580,7 +531,7 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
               onPressed: () {
                 final name = nameCtrl.text.trim();
                 if (name.isEmpty || leadId == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Name and lead teacher are required.')));
+                  showMessage(ctx, 'Name and lead teacher are required.', error: true);
                   return;
                 }
                 final code = codeCtrl.text.trim().isEmpty
@@ -627,7 +578,7 @@ class _TimetableBuilderPageState extends ConsumerState<TimetableBuilderPage> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(backgroundColor: ctx.palette.danger, foregroundColor: Colors.white),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete'),
           ),

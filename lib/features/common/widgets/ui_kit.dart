@@ -299,6 +299,42 @@ void showMessage(BuildContext context, String text, {bool error = false, bool su
     ));
 }
 
+/// A chip that opens a menu of [options] and shows the current choice.
+/// With [allLabel] set, the menu starts with an "all" entry that yields null.
+class MenuChip extends StatelessWidget {
+  final String? value;
+  final List<String> options;
+  final String? allLabel;
+  final ValueChanged<String?> onSelected;
+
+  const MenuChip({super.key, required this.value, required this.options, required this.onSelected, this.allLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String?>(
+      tooltip: allLabel ?? 'Choose',
+      position: PopupMenuPosition.under,
+      onSelected: onSelected,
+      itemBuilder: (_) => [
+        if (allLabel != null) PopupMenuItem<String?>(value: null, child: Text(allLabel!)),
+        for (final o in options) PopupMenuItem<String?>(value: o, child: Text(o)),
+      ],
+      child: IgnorePointer(
+        child: ChoiceChip(
+          label: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(value ?? allLabel ?? ''),
+            const SizedBox(width: 2),
+            const Icon(Icons.expand_more_rounded, size: 18),
+          ]),
+          selected: allLabel == null || value != null,
+          showCheckmark: false,
+          onSelected: (_) {},
+        ),
+      ),
+    );
+  }
+}
+
 /// Small rounded label, e.g. "Cancelled", "Paid".
 class StatusPill extends StatelessWidget {
   final String text;
