@@ -15,6 +15,8 @@ import '../../core/utils/login_id.dart';
 import '../../core/utils/phone.dart';
 import '../../main.dart';
 import '../common/widgets/ui_kit.dart';
+import '../../theme.dart';
+import '../common/widgets/class_card.dart' show EmptyNote;
 
 // -----------------------------------------------------------------------------
 // PROVIDER
@@ -69,29 +71,14 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
   @override
   Widget build(BuildContext context) {
     final asyncUsers = ref.watch(allUsersProvider);
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
       appBar: AppBar(
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu_rounded),
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
-          ),
-        ),
         title: const Text('Users'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-            onPressed: () => ref.invalidate(allUsersProvider),
-          ),
-          const ProfileAvatarAction(),
-        ],
+        actions: const [ProfileAvatarAction()],
       ),
       drawer: const AppDrawer(),
       body: Column(
         children: [
-          // --- PREMIUM HEADER & SEARCH ---
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -99,10 +86,9 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
               children: [
                 TextField(
                   decoration: const InputDecoration(
-                    hintText: 'Search name, email or roll no',
+                    hintText: 'Search name, phone or email',
                     prefixIcon: Icon(Icons.search_rounded),
-                    filled: true,
-                    contentPadding: EdgeInsets.symmetric(vertical: 14),
+                    isDense: true,
                   ),
                   onChanged: (v) => setState(() => _query = v),
                 ),
@@ -127,13 +113,14 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
             child: asyncUsers.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (err, stack) => AsyncErrorWidget(
-                message: err.toString(),
+                message: FirebaseErrorParser.getMessage(err),
                 onRetry: () => ref.invalidate(allUsersProvider),
               ),
               data: (users) {
                 final filtered = users.where((u) {
                   final matchesSearch = u.name.toLowerCase().contains(_query.toLowerCase()) ||
                       (u.email?.contains(_query) ?? false) ||
+                      u.phone.contains(_query) ||
                       (u.collegeRollNo?.toLowerCase().contains(_query.toLowerCase()) ?? false);
 
                   if (!matchesSearch) return false;
@@ -147,19 +134,19 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
                 }).toList();
 
                 if (filtered.isEmpty) {
-                  return _buildEmptyState(colorScheme);
+                  return const Center(child: EmptyNote(icon: Icons.person_search_outlined, text: 'No users match.'));
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-                  itemCount: filtered.length,
-                  itemBuilder: (context, index) {
-                    final u = filtered[index];
-                    return _UserCard(
-                      user: u,
-                      onEdit: () => _showEditDialog(u),
-                    );
-                  },
+                return RefreshIndicator(
+                  onRefresh: () async => ref.invalidate(allUsersProvider),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(0, 8, 0, 104),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) => FadeSlideIn(
+                      index: index,
+                      child: _UserCard(user: filtered[index], onEdit: () => _showEditDialog(filtered[index])),
+                    ),
+                  ),
                 );
               },
             ),
@@ -169,20 +156,7 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddDialog(),
         icon: const Icon(Icons.person_add_alt_1_rounded),
-        label: const Text('Add User', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(ColorScheme colorScheme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.person_off_rounded, size: 64, color: colorScheme.outlineVariant),
-          const SizedBox(height: 16),
-          const Text('No users found matching your criteria', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-        ],
+        label: const Text('Add user'),
       ),
     );
   }
@@ -229,9 +203,7 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
-          final colorScheme = Theme.of(context).colorScheme;
           return Dialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
             child: Container(
               width: 500,
               padding: const EdgeInsets.all(24),
@@ -242,10 +214,10 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(isNew ? 'Create New Profile' : 'Edit User Profile', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 24),
+                      Text(isNew ? 'Add user' : u.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
 
-                      _buildSectionHeader(colorScheme, 'Basic Information'),
+                      _buildSectionHeader('Basics'),
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -262,7 +234,7 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
                             Expanded(
                               child: SwitchListTile(
                                 contentPadding: EdgeInsets.zero,
-                                title: const Text('Admin Access', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                title: const Text('Admin access', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                                 value: adminPrivilege,
                                 onChanged: (bool value) {
                                   setState(() => adminPrivilege = value);
@@ -275,13 +247,13 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: nameCtrl,
-                        decoration: _buildInputDecoration('Full Name', Icons.person_rounded),
+                        decoration: _buildInputDecoration('Full name', Icons.person_rounded),
                         validator: (v) => v!.isEmpty ? 'Required' : null,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: emailCtrl,
-                        decoration: _buildInputDecoration('Email Address', Icons.email_rounded),
+                        decoration: _buildInputDecoration('Email (optional)', Icons.email_rounded),
                         keyboardType: TextInputType.emailAddress,
                         validator: (v) {
                           final email = v?.trim() ?? '';
@@ -295,16 +267,16 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: phoneCtrl,
-                        decoration: _buildInputDecoration('Phone Number', Icons.phone_rounded),
+                        decoration: _buildInputDecoration('Mobile number', Icons.phone_rounded),
                       ),
 
                       if (isNew) ...[
                         const SizedBox(height: 24),
-                        _buildSectionHeader(colorScheme, 'Security Credentials'),
+                        _buildSectionHeader('Sign-in'),
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: passCtrl,
-                          decoration: _buildInputDecoration('Initial Password', Icons.lock_rounded),
+                          decoration: _buildInputDecoration('Password', Icons.lock_rounded),
                           obscureText: true,
                           validator: (v) => v!.length < 6 ? 'Minimum 6 characters' : null,
                         ),
@@ -312,7 +284,7 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
 
                       if (role == UserRole.student) ...[
                         const SizedBox(height: 24),
-                        _buildSectionHeader(colorScheme, 'Parent / Guardian'),
+                        _buildSectionHeader('Parent'),
                         const SizedBox(height: 12),
                         Row(
                           children: [
@@ -331,14 +303,14 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
                           ],
                         ),
                         const SizedBox(height: 24),
-                        _buildSectionHeader(colorScheme, 'Academic Records'),
+                        _buildSectionHeader('Enrolment'),
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                            Expanded(child: TextFormField(controller: collegeCtrl, decoration: _buildInputDecoration(isCollege ? 'College Roll' : 'Roll / Enrolment No.', Icons.tag_rounded))),
+                            Expanded(child: TextFormField(controller: collegeCtrl, decoration: _buildInputDecoration(isCollege ? 'College roll no.' : 'Roll no. (optional)', Icons.tag_rounded))),
                             if (isCollege) ...[
                               const SizedBox(width: 12),
-                              Expanded(child: TextFormField(controller: examCtrl, decoration: _buildInputDecoration('Exam Roll', Icons.numbers_rounded))),
+                              Expanded(child: TextFormField(controller: examCtrl, decoration: _buildInputDecoration('Exam roll no.', Icons.numbers_rounded))),
                             ],
                           ],
                         ),
@@ -351,7 +323,7 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
                                   initialValue: year,
                                   items: [1, 2, 3, 4, 5].map((y) => DropdownMenuItem(value: y, child: Text('Year $y'))).toList(),
                                   onChanged: (v) => year = v,
-                                  decoration: _buildInputDecoration('Current Year', Icons.calendar_today_rounded),
+                                  decoration: _buildInputDecoration('Year', Icons.calendar_today_rounded),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -382,18 +354,18 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
                       Row(
                         children: [
                           if (!isNew)
-                            IconButton(
+                            TextButton(
+                              style: TextButton.styleFrom(foregroundColor: context.palette.danger),
                               onPressed: () {
                                 Navigator.pop(context);
                                 _confirmDeleteUser(u);
                               },
-                              icon: const Icon(Icons.delete_forever_rounded, color: Colors.red),
+                              child: const Text('Delete'),
                             ),
                           const Spacer(),
                           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
                           const SizedBox(width: 12),
                           FilledButton(
-                            style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                             onPressed: () {
                               if (!form.currentState!.validate()) return;
                               Navigator.pop(
@@ -413,7 +385,7 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
                                 ),
                               );
                             },
-                            child: const Text('Apply Changes'),
+                            child: Text(isNew ? 'Create' : 'Save'),
                           ),
                         ],
                       ),
@@ -437,9 +409,7 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
           await ref.read(authRepoProvider).updateUser(updated);
         }
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isNew ? 'Account created. They can now sign in.' : 'Profile updated.')),
-        );
+        showMessage(context, isNew ? 'Account created. They can sign in now.' : 'Saved.', success: true);
       } catch (e) {
         if (!mounted) return;
         showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
@@ -448,18 +418,10 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
     }
   }
 
-  Widget _buildSectionHeader(ColorScheme colors, String title) {
-    return Text(title.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: colors.primary, letterSpacing: 1));
-  }
+  Widget _buildSectionHeader(String title) => SectionLabel(title, padding: const EdgeInsets.only(top: 12));
 
-  InputDecoration _buildInputDecoration(String label, IconData icon) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon, size: 20),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-    );
-  }
+  // [icon] is kept for call-site readability but not drawn: labels are enough.
+  InputDecoration _buildInputDecoration(String label, IconData icon) => InputDecoration(labelText: label);
 
   Future<void> _confirmDeleteUser(UserAccount user) async {
     final bool? deleted = await showDialog<bool>(
@@ -479,75 +441,41 @@ class _UserCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final p = context.palette;
+    final isAdmin = user.isAdmin || user.role == UserRole.admin;
+    final login = LoginId.isPhoneLogin(user.email) ? user.phone : (user.email ?? user.phone);
+    final (String roleText, Color fg, Color bg) = isAdmin
+        ? ('Admin', p.accent, p.accentSoft)
+        : user.role == UserRole.teacher
+            ? ('Teacher', p.ink, p.surfaceRaised)
+            : ('Student', p.inkMuted, p.surface);
 
-    Color badgeColor;
-    switch (user.role) {
-      case UserRole.admin: badgeColor = Colors.teal; break;
-      case UserRole.teacher: badgeColor = colorScheme.primary; break;
-      case UserRole.student: badgeColor = colorScheme.secondary; break;
-    }
-    if (user.isAdmin) badgeColor = Colors.deepOrange;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: onEdit,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundColor: badgeColor.withValues(alpha: 0.1),
-                  child: Text(
-                    user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
-                    style: TextStyle(color: badgeColor, fontWeight: FontWeight.w900, fontSize: 18),
+    return InkWell(
+      onTap: onEdit,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(user.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                  const SizedBox(height: 2),
+                  Text(
+                    [login, if (user.role == UserRole.student && (user.section ?? '').isNotEmpty) user.section!].join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: p.inkMuted, fontSize: 13),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(child: Text(user.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis)),
-                          const SizedBox(width: 8),
-                          _buildRoleBadge(badgeColor, user.isAdmin ? 'ADMIN' : user.role.label.toUpperCase()),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(LoginId.isPhoneLogin(user.email) ? user.phone : (user.email ?? user.phone), style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w500)),
-                      if (user.role == UserRole.student && user.collegeRollNo != null) ...[
-                        const SizedBox(height: 4),
-                        Text('Roll: ${user.collegeRollNo} • Sec: ${user.section}',
-                            style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7), fontSize: 12, fontWeight: FontWeight.bold)),
-                      ]
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right_rounded, color: Colors.grey),
-              ],
+                ],
+              ),
             ),
-          ),
+            const SizedBox(width: 12),
+            StatusPill(text: roleText, color: fg, background: bg),
+          ],
         ),
       ),
-    );
-  }
-
-  Widget _buildRoleBadge(Color color, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6), border: Border.all(color: color.withValues(alpha: 0.3))),
-      child: Text(label, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
     );
   }
 }
@@ -581,37 +509,37 @@ class _AdminSecureDeleteDialogState extends ConsumerState<_AdminSecureDeleteDial
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
+    final p = context.palette;
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      icon: Icon(Icons.warning_amber_rounded, color: colorScheme.error, size: 48),
-      title: const Text('Permanent Deletion', style: TextStyle(fontWeight: FontWeight.w900)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('Confirm deletion for ${widget.user.name}. All records will be removed from Directory Service.', textAlign: TextAlign.center),
-          const SizedBox(height: 24),
-          const Text('Type DELETE to confirm', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red)),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _verifyCtrl,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 2),
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: colorScheme.errorContainer.withValues(alpha: 0.1),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: colorScheme.error)),
+      title: Text('Delete ${widget.user.name}?'),
+      content: SizedBox(
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Their sign-in and profile are removed. Past attendance and marks stay in your records. This can\'t be undone.',
+              style: TextStyle(color: p.inkMuted, height: 1.45),
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            TextField(
+              controller: _verifyCtrl,
+              autocorrect: false,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(labelText: 'Type DELETE to confirm'),
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: colorScheme.error),
+          style: FilledButton.styleFrom(backgroundColor: p.danger, foregroundColor: Colors.white),
           onPressed: _canDelete && !_isProcessing ? _executeDelete : null,
-          child: _isProcessing ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Delete Permanently'),
+          child: _isProcessing
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('Delete'),
         ),
       ],
     );
@@ -623,7 +551,7 @@ class _AdminSecureDeleteDialogState extends ConsumerState<_AdminSecureDeleteDial
       await ref.read(authRepoProvider).deleteAccount(widget.user.id);
       if (mounted) {
         Navigator.pop(context, true);
-        showMessage(context, 'Account purged successfully.', success: true);
+        showMessage(context, 'Account deleted.', success: true);
       }
     } catch (e) {
       if (mounted) {

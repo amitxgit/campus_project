@@ -8,7 +8,7 @@ extension QueryStatusX on QueryStatus {
   String get label {
     switch (this) {
       case QueryStatus.open: return "Open";
-      case QueryStatus.inProgress: return "In Progress";
+      case QueryStatus.inProgress: return "In progress";
       case QueryStatus.resolved: return "Resolved";
       case QueryStatus.rejected: return "Rejected";
     }

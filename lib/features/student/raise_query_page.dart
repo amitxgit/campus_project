@@ -75,7 +75,7 @@ class _RaiseQueryPageState extends ConsumerState<RaiseQueryPage> {
 
       if (!mounted) return;
 
-      showMessage(context, 'Sent. You will be notified when the office replies.', success: true);
+      showMessage(context, 'Sent to the office.', success: true);
 
       context.pop(); // Back to previous page
     } catch (e) {
@@ -109,7 +109,7 @@ class _RaiseQueryPageState extends ConsumerState<RaiseQueryPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Your question goes to the office. You will get a notification when they reply.',
+                'Your question goes to the office. You will get a notification when they update it.',
                 style: TextStyle(color: p.inkMuted, height: 1.45),
               ),
               const SizedBox(height: 24),
