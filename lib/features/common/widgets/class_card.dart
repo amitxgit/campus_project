@@ -148,6 +148,8 @@ class EmptyNote extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
       decoration: BoxDecoration(color: p.surface, borderRadius: BorderRadius.circular(20)),
       child: Column(
+        // min: otherwise it stretches to full height when wrapped in Center.
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, color: p.inkFaint, size: 28),
           const SizedBox(height: 10),

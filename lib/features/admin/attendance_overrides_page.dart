@@ -147,7 +147,7 @@ class _AttendanceOverridesPageState extends ConsumerState<AttendanceOverridesPag
                                           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
                                       const SizedBox(height: 2),
                                       Text(
-                                        [sub?.name ?? 'Unknown subject', DateFormat('d MMM').format(r.date), r.slot].join(' · '),
+                                        [sub?.name ?? 'Unknown subject', DateFormat('d MMM').format(r.date), if (r.slot.isNotEmpty) r.slot].join(' · '),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(color: p.inkMuted, fontSize: 13),

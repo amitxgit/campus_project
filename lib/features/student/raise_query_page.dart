@@ -17,7 +17,11 @@ import '../../core/utils/firebase_error_parser.dart';
 
 final subjectsProvider = FutureProvider.autoDispose<List<Subject>>((ref) async {
   final ttRepo = ref.watch(timetableRepoProvider);
-  final subjects = await ttRepo.allSubjects();
+  final me = await ref.watch(authRepoProvider).currentUser();
+  final all = await ttRepo.allSubjects();
+  // Only the student's own batch; fall back to everything if it has none.
+  final mine = all.where((s) => s.section == me?.section).toList();
+  final subjects = mine.isEmpty ? all : mine;
   subjects.sort((a, b) => a.name.compareTo(b.name));
   return subjects;
 });

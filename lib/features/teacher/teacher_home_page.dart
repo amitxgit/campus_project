@@ -387,7 +387,8 @@ class _TimetablePreviewState extends ConsumerState<_TimetablePreview> {
           subjectCodes: {for (var k in widget.vm.subjectsMap.keys) k: widget.vm.subjectsMap[k]?.code ?? ''},
           subjectLeadTeacherId: {for (var k in widget.vm.subjectsMap.keys) k: widget.vm.subjectsMap[k]?.teacherId ?? ''},
           teacherNames: widget.vm.teacherNamesMap,
-          todayKey: dayKey,
+          // The real today, not the selected tab: overrides apply to today's date.
+          todayKey: _dayNames[DateTime.now().weekday - 1],
           currentTeacherId: widget.vm.currentTeacherId,
           cancelledEntryIds: widget.vm.cancelledEntryIds,
         ),
