@@ -10,6 +10,11 @@ import '../common/widgets/async_error_widget.dart';
 import '../../core/models/subject.dart';
 import '../../core/models/user.dart';
 import '../../main.dart';
+import '../../core/utils/login_id.dart';
+import '../../theme.dart';
+import '../common/widgets/ui_kit.dart';
+import '../common/widgets/class_card.dart' show EmptyNote;
+import '../../core/utils/firebase_error_parser.dart';
 
 // Provider to fetch teachers and subjects
 final teacherDirectoryProvider = FutureProvider.autoDispose((ref) async {
@@ -46,7 +51,7 @@ class _TeacherDirectoryPageState extends ConsumerState<TeacherDirectoryPage> {
       body: asyncData.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => AsyncErrorWidget(
-          message: err.toString(),
+          message: FirebaseErrorParser.getMessage(err),
           onRetry: () => ref.refresh(teacherDirectoryProvider),
         ),
         data: (data) {
@@ -54,124 +59,59 @@ class _TeacherDirectoryPageState extends ConsumerState<TeacherDirectoryPage> {
           final subjects = data.allSubjects;
 
           if (teachers.isEmpty) {
-            return const Center(child: Text('No teachers found.'));
+            return const Center(child: EmptyNote(icon: Icons.person_search_outlined, text: 'No teachers yet.'));
           }
+          final p = context.palette;
 
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
+          return ListView.builder(
+            padding: const EdgeInsets.only(top: 4, bottom: 32),
             itemCount: teachers.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 16),
             itemBuilder: (context, index) {
               final teacher = teachers[index];
-
-              // Find subjects taught by this teacher
-              final teachingSubjects = subjects
-                  .where((s) => s.teacherId == teacher.id)
-                  .map((s) => '${s.name} (${s.code})')
-                  .toList();
-
-              return Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: ExpansionTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    child: Text(teacher.name.isNotEmpty ? teacher.name[0] : '?'),
-                  ),
-                  title: Text(
-                    teacher.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(teacher.email ?? teacher.phone),
-                  children: [
-                    // CONTACT INFO
-                    _buildSection(
-                      context,
-                      title: 'Contact',
-                      icon: Icons.contact_phone_outlined,
-                      children: [
-                        if (teacher.email != null)
-                          ListTile(
-                            leading: const Icon(Icons.email_outlined, size: 20),
-                            title: Text(teacher.email!),
-                            dense: true,
-                            onTap: () => _launchUrl('mailto:${teacher.email}'),
-                          ),
-                        ListTile(
-                          leading: const Icon(Icons.phone_outlined, size: 20),
-                          title: Text(teacher.phone),
-                          dense: true,
-                          onTap: () => _launchUrl('tel:${teacher.phone}'),
-                        ),
-                      ],
+              final teaching = subjects.where((s) => s.teacherId == teacher.id).map((s) => s.name).toSet().toList()..sort();
+              return FadeSlideIn(
+                index: index,
+                child: Theme(
+                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 20),
+                    childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                    expandedCrossAxisAlignment: CrossAxisAlignment.start,
+                    shape: const Border(),
+                    collapsedShape: const Border(),
+                    title: Text(teacher.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                    subtitle: Text(
+                      teaching.isEmpty ? 'No subjects yet' : teaching.join(', '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: p.inkMuted, fontSize: 13),
                     ),
-
-                    // QUALIFICATIONS
-                    if (teacher.qualifications.isNotEmpty)
-                      _buildSection(
-                        context,
-                        title: 'Qualifications',
-                        icon: Icons.school_outlined,
-                        children: teacher.qualifications
-                            .map((q) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 2),
-                          child: Text('• $q'),
-                        ))
-                            .toList(),
-                      ),
-
-                    // SUBJECTS
-                    if (teachingSubjects.isNotEmpty)
-                      _buildSection(
-                        context,
-                        title: 'Subjects Taught',
-                        icon: Icons.book_outlined,
-                        children: teachingSubjects
-                            .map((s) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 2),
-                          child: Text('• $s'),
-                        ))
-                            .toList(),
-                      ),
-                    const SizedBox(height: 12),
-                  ],
+                    children: [
+                      if (teacher.qualifications.isNotEmpty) ...[
+                        Text(teacher.qualifications.join(' · '), style: TextStyle(color: p.inkMuted, height: 1.45)),
+                        const SizedBox(height: 10),
+                      ],
+                      Wrap(spacing: 8, runSpacing: 8, children: [
+                        if (teacher.phone.isNotEmpty)
+                          OutlinedButton.icon(
+                            onPressed: () => _launchUrl('tel:${teacher.phone}'),
+                            icon: const Icon(Icons.call_outlined, size: 18),
+                            label: Text(teacher.phone),
+                          ),
+                        if ((teacher.email ?? '').isNotEmpty && !LoginId.isPhoneLogin(teacher.email))
+                          OutlinedButton.icon(
+                            onPressed: () => _launchUrl('mailto:${teacher.email}'),
+                            icon: const Icon(Icons.mail_outline_rounded, size: 18),
+                            label: const Text('Email'),
+                          ),
+                      ]),
+                    ],
+                  ),
                 ),
               );
             },
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildSection(
-      BuildContext context, {
-        required String title,
-        required IconData icon,
-        required List<Widget> children,
-      }) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 4.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                    fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
-              )
-            ],
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.only(left: 24.0),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
-          ),
-        ],
       ),
     );
   }

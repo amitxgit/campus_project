@@ -2,12 +2,12 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../common/widgets/profile_avatar_action.dart';
 import '../common/widgets/async_error_widget.dart';
+import '../common/widgets/attendance_toggle.dart';
 import '../../core/models/attendance.dart';
 import '../../core/models/attendance_session.dart';
 import 'package:intl/intl.dart';
@@ -174,7 +174,7 @@ class _ReviewAttendancePageState extends ConsumerState<ReviewAttendancePage> {
                         ],
                       ),
                     ),
-                    _StatusToggle(
+                    AttendanceToggle(
                       value: status,
                       onChanged: (v) => _set(student.id as String, v),
                     ),
@@ -272,44 +272,5 @@ class _ReviewAttendancePageState extends ConsumerState<ReviewAttendancePage> {
       setState(() => _saving = false);
       showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
     }
-  }
-}
-
-/// Present / Absent / Late as one segmented control.
-class _StatusToggle extends StatelessWidget {
-  final AttendanceStatus value;
-  final ValueChanged<AttendanceStatus> onChanged;
-  const _StatusToggle({required this.value, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.palette;
-    Widget seg(AttendanceStatus s, String label, Color fg) {
-      final on = value == s;
-      return GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onChanged(s);
-        },
-        child: AnimatedContainer(
-          duration: Motion.fast,
-          width: 40,
-          height: 40,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(color: on ? fg : Colors.transparent, borderRadius: BorderRadius.circular(10)),
-          child: Text(label, style: TextStyle(fontWeight: FontWeight.w700, color: on ? Colors.white : p.inkMuted)),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(color: p.surface, borderRadius: BorderRadius.circular(13)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        seg(AttendanceStatus.present, 'P', p.success),
-        seg(AttendanceStatus.absent, 'A', p.danger),
-        seg(AttendanceStatus.late, 'L', p.warning),
-      ]),
-    );
   }
 }
