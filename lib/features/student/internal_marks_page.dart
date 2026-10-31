@@ -11,6 +11,10 @@ import '../../core/models/subject.dart';
 import '../../core/models/user.dart';
 import '../../main.dart';
 import '../../data/settings_repository.dart';
+import '../../theme.dart';
+import '../common/widgets/ui_kit.dart';
+import '../common/widgets/class_card.dart' show EmptyNote;
+import '../../core/utils/firebase_error_parser.dart';
 
 // Provider to fetch all data needed for this page
 final studentMarksProvider = FutureProvider.autoDispose((ref) async {
@@ -62,19 +66,19 @@ class InternalMarksPage extends ConsumerWidget {
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
-        title: const Text('Internal Marks'),
+        title: const Text('Internal marks'),
         actions: const [ProfileAvatarAction()],
       ),
       drawer: const AppDrawer(),
       body: asyncData.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => AsyncErrorWidget(
-          message: err.toString(),
+          message: FirebaseErrorParser.getMessage(err),
           onRetry: () => ref.invalidate(studentMarksProvider),
         ),
         data: (data) {
           if (data.groupedMarks.isEmpty) {
-            return const Center(child: Text('No internal marks have been published yet.'));
+            return const Center(child: EmptyNote(icon: Icons.military_tech_outlined, text: 'Your internal marks will appear here once they are published.'));
           }
 
           final subjectIds = data.groupedMarks.keys.toList();
@@ -82,7 +86,7 @@ class InternalMarksPage extends ConsumerWidget {
           return RefreshIndicator(
             onRefresh: () => ref.refresh(studentMarksProvider.future),
             child: ListView.builder(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.only(top: 8, bottom: 32),
               itemCount: subjectIds.length,
               itemBuilder: (context, index) {
                 final subjectId = subjectIds[index];
@@ -96,25 +100,13 @@ class InternalMarksPage extends ConsumerWidget {
                 final teacherId = subject?.teacherId;
                 final teacherName = data.teachersMap[teacherId] ?? 'Unknown Teacher';
 
-                return Card(
-                  elevation: 0,
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                return FadeSlideIn(
+                  index: index,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Text(
-                          subjectName,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      ...marksList.map((marks) {
-                        return _MarkDetailsTile(
-                          marks: marks,
-                          teacherName: teacherName,
-                        );
-                      }),
+                      for (final marks in marksList)
+                        _MarkDetailsTile(subjectName: subjectName, marks: marks, teacherName: teacherName),
                     ],
                   ),
                 );
@@ -128,67 +120,53 @@ class InternalMarksPage extends ConsumerWidget {
 }
 
 class _MarkDetailsTile extends ConsumerWidget {
+  final String subjectName;
   final InternalMarks marks;
   final String teacherName;
 
-  const _MarkDetailsTile({required this.marks, required this.teacherName});
+  const _MarkDetailsTile({required this.subjectName, required this.marks, required this.teacherName});
+
+  static String _fmt(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = ref.watch(settingsProvider);
+    final p = context.palette;
     final maxTotal = scheme.totalMarksMax;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Grades by $teacherName', style: Theme.of(context).textTheme.titleSmall),
-          const Divider(),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              _MarkItem(label: 'Assignment', value: marks.assignmentMarks, max: scheme.assignmentMax.round()),
-              _MarkItem(label: 'Test/Ppt', value: marks.testMarks, max: scheme.testMax.round()),
-              _MarkItem(label: 'Attendance', value: marks.attendanceMarks, max: scheme.attendanceMax.round()),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(subjectName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                    Text(teacherName, style: TextStyle(fontSize: 13, color: p.inkMuted)),
+                  ],
+                ),
+              ),
+              Text.rich(TextSpan(children: [
+                TextSpan(text: _fmt(marks.totalMarks), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                TextSpan(text: ' / ${_fmt(maxTotal)}', style: TextStyle(color: p.inkMuted, fontSize: 13)),
+              ])),
             ],
           ),
-          const Divider(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text('Total: ', style: Theme.of(context).textTheme.bodyMedium),
-              Text(
-                '${marks.totalMarks.toStringAsFixed(0)} / ${maxTotal.toStringAsFixed(0)}',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ],
+          const SizedBox(height: 10),
+          ProgressLine(value: maxTotal <= 0 ? 0 : marks.totalMarks / maxTotal, height: 4),
+          const SizedBox(height: 8),
+          Text(
+            'Assignment ${_fmt(marks.assignmentMarks)}/${_fmt(scheme.assignmentMax)} · '
+            'Test ${_fmt(marks.testMarks)}/${_fmt(scheme.testMax)} · '
+            'Attendance ${_fmt(marks.attendanceMarks)}/${_fmt(scheme.attendanceMax)}',
+            style: TextStyle(fontSize: 12, color: p.inkMuted),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _MarkItem extends StatelessWidget {
-  final String label;
-  final double value;
-  final int max;
-
-  const _MarkItem({required this.label, required this.value, required this.max});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value.toStringAsFixed(0),
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        Text(
-          '$label (/$max)',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
     );
   }
 }

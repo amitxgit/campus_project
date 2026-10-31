@@ -1,20 +1,23 @@
 // lib/features/student/timetable_page.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../common/widgets/profile_avatar_action.dart';
 import '../common/widgets/app_drawer.dart';
 import '../common/widgets/timetable_grid.dart';
+import '../common/widgets/async_error_widget.dart';
+import '../common/widgets/class_card.dart';
+import '../common/widgets/ui_kit.dart';
 import '../../core/models/role.dart';
 import '../../core/models/timetable_entry.dart';
 import '../../core/models/timetable_override.dart';
 import '../../core/models/subject.dart';
 import '../../core/models/user.dart';
-import '../../core/utils/time_formatter.dart';
+import '../../core/utils/firebase_error_parser.dart';
 import '../../data/settings_repository.dart';
 import '../../main.dart';
+import '../../theme.dart';
 
 // -----------------------------------------------------------------------------
 // VIEW MODEL
@@ -146,21 +149,20 @@ class TimetablePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncData = ref.watch(studentTimetablePageProvider);
 
+    final settings = ref.watch(settingsProvider);
+
     return Scaffold(
       appBar: AppBar(
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
-          ),
-        ),
-        title: const Text('My Timetable'),
+        title: const Text('Timetable'),
         actions: const [ProfileAvatarAction()],
       ),
       drawer: const AppDrawer(),
       body: asyncData.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => _buildErrorState(context, ref, err, stack),
+        error: (err, _) => AsyncErrorWidget(
+          message: FirebaseErrorParser.getMessage(err),
+          onRetry: () => ref.invalidate(studentTimetablePageProvider),
+        ),
         data: (vm) {
           final subjectCodes = vm.subjectsMap.map((k, v) => MapEntry(k, v.code));
           final subjectLeadMap = vm.subjectsMap.map((k, v) => MapEntry(k, v.teacherId));
@@ -171,58 +173,28 @@ class TimetablePage extends ConsumerWidget {
               padding: const EdgeInsets.only(bottom: 40),
               physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                if (vm.nextClass != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: _NextClassCard(vm: vm),
-                  ),
-
+                if (vm.nextClass != null) FadeSlideIn(child: _NextClass(vm: vm)),
                 if (vm.cancelledEntryIds.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                     child: _CancelledBanner(count: vm.cancelledEntryIds.length),
                   ),
-
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Weekly Schedule',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '${ref.watch(settingsProvider).groupLabel} ${vm.section}',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onPrimaryContainer,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
+                SectionLabel(
+                  'This week',
+                  trailing: Text(
+                    vm.section,
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.accent),
                   ),
                 ),
-
                 TimetableGrid(
-                  days: ref.watch(settingsProvider).workingDays,
-                  periodStarts: ref.watch(settingsProvider).periodStarts,
-                  periodLabels: ref.watch(settingsProvider).periodLabels,
+                  days: settings.workingDays,
+                  periodStarts: settings.periodStarts,
+                  periodLabels: settings.periodLabels,
                   entries: vm.entries,
                   subjectCodes: subjectCodes,
                   subjectLeadTeacherId: subjectLeadMap,
                   teacherNames: vm.teacherNamesMap,
                   todayKey: _TimetableUtil.dayStr(DateTime.now().weekday),
-                  // ✅ FIXED: Pass cancelled IDs down so the grid styles them!
                   cancelledEntryIds: vm.cancelledEntryIds,
                 ),
               ],
@@ -232,172 +204,48 @@ class TimetablePage extends ConsumerWidget {
       ),
     );
   }
-
-  Widget _buildErrorState(BuildContext context, WidgetRef ref, Object err, StackTrace stack) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.warning, color: Colors.red, size: 32),
-                SizedBox(width: 8),
-                Text('CRASH DETECTED', style: TextStyle(color: Colors.red, fontSize: 20, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const Divider(height: 32),
-            Text('ERROR:\n$err', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 16),
-            Text('STACK TRACE:\n$stack', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 24),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                FilledButton.icon(
-                  onPressed: () => ref.invalidate(studentTimetablePageProvider),
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Retry'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final errorText = 'CRASH REPORT\n\nERROR:\n$err\n\nSTACK TRACE:\n$stack';
-                    await Clipboard.setData(ClipboardData(text: errorText));
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error details copied!')));
-                    }
-                  },
-                  icon: const Icon(Icons.copy),
-                  label: const Text('Copy Details'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
-// -----------------------------------------------------------------------------
-// MODERNIZED NEXT CLASS CARD
-// -----------------------------------------------------------------------------
-
-class _NextClassCard extends StatelessWidget {
+/// "Now" or "Next · in 25 min", then the class itself.
+class _NextClass extends StatelessWidget {
   final TimetablePageVM vm;
-  const _NextClassCard({required this.vm});
+  const _NextClass({required this.vm});
+
+  static String _inWords(int minutes) {
+    if (minutes < 60) return '$minutes min';
+    final h = minutes ~/ 60, m = minutes % 60;
+    return m == 0 ? '$h h' : '$h h $m min';
+  }
 
   @override
   Widget build(BuildContext context) {
     final nc = vm.nextClass!;
     final e = nc.entry;
-    final subject = vm.subjectsMap[e.subjectId]?.name ?? e.subjectId;
-    final isPrimary = Theme.of(context).brightness == Brightness.light;
-
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          colors: isPrimary
-              ? [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)]
-              : [Theme.of(context).colorScheme.surfaceContainerHigh, Theme.of(context).colorScheme.surfaceContainerHighest],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    final teacher = vm.teacherNamesMap[vm.subjectsMap[e.subjectId]?.teacherId] ?? '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionLabel(
+          nc.isOngoing ? 'Now' : 'Next',
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+          trailing: Text(
+            nc.isOngoing ? 'ends in ${_inWords(nc.minutesToStart)}' : 'in ${_inWords(nc.minutesToStart)}',
+            style: TextStyle(fontSize: 13, color: context.palette.inkMuted, fontWeight: FontWeight.w500),
+          ),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          )
-        ],
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Icon(nc.isOngoing ? Icons.play_circle_fill : Icons.schedule,
-                        color: isPrimary ? Colors.white : Theme.of(context).colorScheme.primary, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      nc.isOngoing ? 'ONGOING' : 'UPCOMING',
-                      style: TextStyle(
-                        color: isPrimary ? Colors.white : Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                nc.isOngoing ? 'Ends in ${nc.minutesToStart}m' : 'Starts in ${nc.minutesToStart}m',
-                style: TextStyle(
-                  color: isPrimary ? Colors.white : Theme.of(context).colorScheme.onSurface,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: ClassCard(
+            startTime: e.startTime,
+            durationMinutes: _TimetableUtil.toMinutes(e.endTime) - _TimetableUtil.toMinutes(e.startTime),
+            subject: vm.subjectsMap[e.subjectId]?.name ?? 'Class',
+            meta: [ClassCard.roomLabel(e.room), teacher].where((x) => x.isNotEmpty).join(' · '),
           ),
-          const SizedBox(height: 20),
-          Text(
-            subject,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              color: isPrimary ? Colors.white : Theme.of(context).colorScheme.onSurface,
-              height: 1.1,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Icon(Icons.access_time, size: 18, color: isPrimary ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant),
-              const SizedBox(width: 6),
-              Text(
-                TimeFormatter.formatSlot(e.slot),
-                style: TextStyle(
-                  color: isPrimary ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 15,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Icon(Icons.room, size: 18, color: isPrimary ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant),
-              const SizedBox(width: 6),
-              Text(
-                'Room ${e.room}',
-                style: TextStyle(
-                  color: isPrimary ? Colors.white70 : Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 15,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
-
-// -----------------------------------------------------------------------------
-// CANCELLED BANNER
-// -----------------------------------------------------------------------------
 
 class _CancelledBanner extends StatelessWidget {
   final int count;
@@ -405,26 +253,18 @@ class _CancelledBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.5),
-        border: Border.all(color: Theme.of(context).colorScheme.error.withValues(alpha: 0.3)),
-        borderRadius: BorderRadius.circular(12),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(color: p.dangerSoft, borderRadius: BorderRadius.circular(14)),
       child: Row(
         children: [
-          Icon(Icons.info_outline, color: Theme.of(context).colorScheme.error, size: 22),
-          const SizedBox(width: 12),
+          Icon(Icons.event_busy_outlined, color: p.danger, size: 18),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
-              count == 1
-                  ? '1 class has been cancelled today.'
-                  : '$count classes have been cancelled today.',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onErrorContainer,
-                fontWeight: FontWeight.w600,
-              ),
+              count == 1 ? '1 class is cancelled today' : '$count classes are cancelled today',
+              style: TextStyle(color: p.danger, fontWeight: FontWeight.w600),
             ),
           ),
         ],

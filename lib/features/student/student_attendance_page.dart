@@ -10,12 +10,17 @@ import '../common/widgets/app_drawer.dart';
 import '../common/widgets/async_error_widget.dart';
 import '../../core/models/attendance.dart';
 import '../../core/models/subject.dart';
+import '../../core/utils/firebase_error_parser.dart';
 import '../../main.dart';
+import '../common/widgets/class_card.dart' show EmptyNote;
 import '../../data/settings_repository.dart';
 
 // -----------------------------------------------------------------------------
 // MODELS
 // -----------------------------------------------------------------------------
+
+/// How a subject's attendance compares with the requirement.
+enum AttendanceLevel { ok, close, low }
 
 class StudentSubjectStats {
   final String subjectId;
@@ -23,7 +28,7 @@ class StudentSubjectStats {
   final int total;
   final int present;
   final int pct;
-  final Color color;
+  final AttendanceLevel level;
 
   StudentSubjectStats({
     required this.subjectId,
@@ -31,7 +36,7 @@ class StudentSubjectStats {
     required this.total,
     required this.present,
     required this.pct,
-    required this.color,
+    required this.level,
   });
 }
 
@@ -101,12 +106,9 @@ final attendanceDataProvider = FutureProvider.autoDispose<_AttendanceData>((ref)
 
     final pct = total == 0 ? 100 : ((present / total) * 100).round();
 
-    Color color = Colors.green;
-    if (pct < threshold) {
-      color = Colors.red;
-    } else if (pct < threshold + 10) {
-      color = Colors.orange;
-    }
+    final level = pct < threshold
+        ? AttendanceLevel.low
+        : (pct < threshold + 10 ? AttendanceLevel.close : AttendanceLevel.ok);
 
     stats.add(StudentSubjectStats(
       subjectId: subId,
@@ -114,7 +116,7 @@ final attendanceDataProvider = FutureProvider.autoDispose<_AttendanceData>((ref)
       total: total,
       present: present,
       pct: pct,
-      color: color,
+      level: level,
     ));
   });
 
@@ -156,7 +158,7 @@ class StudentAttendancePage extends ConsumerWidget {
       body: asyncData.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => AsyncErrorWidget(
-          message: err.toString(),
+          message: FirebaseErrorParser.getMessage(err),
           onRetry: () => ref.invalidate(attendanceDataProvider),
         ),
         data: (data) {
@@ -198,28 +200,8 @@ class StudentAttendancePage extends ConsumerWidget {
   // ---------------------------------------------------------------------------
 
   Widget _buildEmptyState(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: colorScheme.primaryContainer.withValues(alpha: 0.5),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.analytics_outlined, size: 64, color: colorScheme.primary),
-          ),
-          const SizedBox(height: 24),
-          const Text('No Attendance Data', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text(
-            'Your attendance records will appear here.',
-            style: TextStyle(color: colorScheme.onSurfaceVariant),
-          ),
-        ],
-      ),
+    return const Center(
+      child: EmptyNote(icon: Icons.fact_check_outlined, text: 'Your attendance will appear here after your first class.'),
     );
   }
 
@@ -238,8 +220,11 @@ class StudentAttendancePage extends ConsumerWidget {
       itemBuilder: (ctx, i) {
         final stat = stats[i];
         final p = context.palette;
-        // The provider has no theme; map its traffic-light colour to the palette.
-        final tone = stat.color == Colors.red ? p.danger : stat.color == Colors.orange ? p.warning : p.success;
+        final tone = switch (stat.level) {
+          AttendanceLevel.low => p.danger,
+          AttendanceLevel.close => p.warning,
+          AttendanceLevel.ok => p.success,
+        };
 
         return Container(
           padding: const EdgeInsets.all(16),
@@ -266,7 +251,7 @@ class StudentAttendancePage extends ConsumerWidget {
                     children: [
                       Text(
                         '${stat.present}/${stat.total}',
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600, fontSize: 12),
+                        style: TextStyle(color: context.palette.inkMuted, fontWeight: FontWeight.w600, fontSize: 12),
                       ),
                     ],
                   ),
@@ -276,7 +261,6 @@ class StudentAttendancePage extends ConsumerWidget {
                       SizedBox(
                         width: 48,
                         height: 48,
-                        // ✅ ENTERPRISE FEATURE: Animated Progress Rings
                         child: TweenAnimationBuilder<double>(
                           tween: Tween<double>(begin: 0, end: stat.pct / 100),
                           duration: const Duration(milliseconds: 1200),
@@ -290,7 +274,6 @@ class StudentAttendancePage extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      // ✅ ENTERPRISE FEATURE: Animated Inner Percentage
                       TweenAnimationBuilder<double>(
                         tween: Tween<double>(begin: 0, end: stat.pct.toDouble()),
                         duration: const Duration(milliseconds: 1200),
@@ -326,7 +309,7 @@ class StudentAttendancePage extends ConsumerWidget {
           final r = data.sortedRecords[i];
           final subjName = data.subjectStats.firstWhere(
                   (s) => s.subjectId == r.subjectId,
-              orElse: () => StudentSubjectStats(subjectId: '', name: 'Unknown', total: 0, present: 0, pct: 0, color: Colors.black)
+              orElse: () => StudentSubjectStats(subjectId: '', name: 'Unknown', total: 0, present: 0, pct: 0, level: AttendanceLevel.ok)
           ).name;
 
           final (fg, bg) = switch (r.status) {
