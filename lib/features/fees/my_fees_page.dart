@@ -11,15 +11,17 @@ import '../common/widgets/app_drawer.dart';
 import '../common/widgets/class_card.dart' show EmptyNote;
 import '../common/widgets/async_error_widget.dart';
 import '../common/widgets/ui_kit.dart';
+import 'fee_messages.dart';
 import 'fee_widgets.dart';
+import 'upi_pay.dart';
 
-final myFeesProvider = FutureProvider.autoDispose<({FeeAccount? account, List<FeePayment> payments, String name})>((ref) async {
+final myFeesProvider = FutureProvider.autoDispose<({FeeAccount? account, List<FeePayment> payments, String name, String? roll})>((ref) async {
   final me = await ref.watch(authRepoProvider).currentUser();
   if (me == null) throw Exception('Not logged in');
   final repo = ref.watch(feeRepoProvider);
   final account = await repo.account(me.id);
   final payments = account == null ? <FeePayment>[] : await repo.payments(me.id);
-  return (account: account, payments: payments, name: me.name);
+  return (account: account, payments: payments, name: me.name, roll: me.collegeRollNo);
 });
 
 class MyFeesPage extends ConsumerWidget {
@@ -46,6 +48,8 @@ class MyFeesPage extends ConsumerWidget {
             );
           }
           final receipts = d.payments.where((x) => !x.voided).toList();
+          final due = account.payableNow();
+          final upi = due > 0.5 ? upiPaymentFor(settings, studentName: d.name, roll: d.roll, amount: due) : null;
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(myFeesProvider),
             child: ListView(
@@ -54,8 +58,13 @@ class MyFeesPage extends ConsumerWidget {
                 FeeHero(
                   account: account,
                   currency: cur,
-                  footnote: account.isFullyPaid ? null : 'Pay at the office and you will get a receipt here.',
+                  footnote: account.isFullyPaid
+                      ? null
+                      : upi != null
+                          ? 'Once the office confirms your UPI payment, the receipt appears here.'
+                          : 'Pay at the office and you will get a receipt here.',
                 ),
+                if (upi != null) UpiPayBar(payment: upi, currency: cur),
                 const SectionLabel('Instalments'),
                 InstalmentList(account: account, currency: cur),
                 const SectionLabel('Receipts', padding: EdgeInsets.fromLTRB(20, 32, 20, 4)),

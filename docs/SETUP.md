@@ -1,4 +1,4 @@
-# Setting up Campus Track for an institute
+# Setting up Batchwise for an institute
 
 These are the steps that need an account owner (billing, credentials, store
 listings). Everything else is already in the code.
@@ -94,6 +94,9 @@ number.
    the app's **Parent Alerts** page (*Message templates* → copy each one).
    Category **Utility**, language **English**, names exactly `absence_alert`,
    `fee_reminder`, `fee_receipt` and `test_result`. Approval usually takes minutes to a day.
+   `fee_reminder` and `fee_receipt` have five values; the fifth is the UPI pay
+   link (see section 6). In Meta, give it a sample value like
+   `https://batchwise-2bd30.web.app/pay.html?pa=apex@ybl&am=5000.00`.
 4. Create a **permanent access token**: Business settings → *System users* → add
    an admin system user → *Generate token* with the `whatsapp_business_messaging`
    permission.
@@ -103,3 +106,30 @@ number.
 
 Meta charges per message (utility messages in India cost a few paise each; check
 Meta's current rate card), billed to the institute's Meta account.
+
+## 6. Online fee payments by UPI (free, no gateway)
+
+Students and parents pay straight into the institute's bank account from any
+UPI app. There's no gateway fee. The office still confirms each payment: when
+it shows up in the bank app, record it in **Fees → student → Record payment**
+as *UPI* with the UPI reference number.
+
+1. Get the institute's **UPI ID** (e.g. `apexclasses@okhdfcbank`). A business
+   UPI ID from the bank or a merchant app (GPay for Business, PhonePe Business,
+   Paytm for Business) avoids the daily limits on personal IDs.
+2. In the app: **Settings → Online payments**, enter the UPI ID and the name
+   on that account, then save.
+3. **Publish the pay page.** WhatsApp doesn't make `upi://` links tappable, so
+   reminders and receipts link to `pay.html` on the web app, which opens the
+   UPI app. Turn on Hosting once (Firebase console → *Build → Hosting* → *Get
+   started*), then from the repo root:
+   ```bash
+   flutter build web
+   firebase deploy --only hosting --project batchwise-2bd30
+   ```
+   This serves the web app and the pay page at `https://batchwise-2bd30.web.app`.
+   If the web app is hosted somewhere else, build the phone app with
+   `--dart-define=PAY_PAGE_BASE=https://your-site` so links point there.
+4. Check it works: open **My Fees** as a student with a balance and tap **Pay**,
+   or send yourself a fee reminder and tap the link.
+

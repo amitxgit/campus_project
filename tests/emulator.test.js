@@ -293,6 +293,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await check("admin saves settings", () =>
     assertSucceeds(adminDb.doc("settings/institution").set({ name: "Apex Classes", type: "coaching", groups: ["IV-HE"] })));
   await check("teacher cannot change settings", () => assertFails(teacher.doc("settings/institution").update({ name: "X" })));
+  await check("admin sets the UPI ID students pay to", () =>
+    assertSucceeds(adminDb.doc("settings/institution").update({ upiId: "apex@okhdfcbank", upiPayeeName: "Apex Classes" })));
+  await check("students and teachers cannot redirect payments to their own UPI ID", async () => {
+    await assertFails(student.doc("settings/institution").update({ upiId: "thief@ybl" }));
+    await assertFails(teacher.doc("settings/institution").update({ upiId: "thief@ybl" }));
+  });
 
   console.log("Fees");
   await check("admin creates fee plan", () =>
@@ -358,7 +364,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await db.doc("users/student1").update({ parentPhone: "98123 45678", name: "Asha" });
 
   await check("alert without WhatsApp configured is marked notConfigured", async () => {
-    const ref = await queue({ studentId: "student1", kind: "feeReminder", params: ["a", "b", "c", "d"], requestedBy: "admin1" });
+    const ref = await queue({ studentId: "student1", kind: "feeReminder", params: ["a", "b", "c", "d", "e"], requestedBy: "admin1" });
     assert.strictEqual(await waitStatus(ref), "notConfigured");
   });
   await check("students cannot read or write WhatsApp secrets", async () => {
@@ -376,6 +382,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     assert.strictEqual(msg.body.to, "919812345678");
     assert.strictEqual(msg.body.template.name, "test_result");
     assert.deepStrictEqual(msg.body.template.components[0].parameters.map((p) => p.text), ["Asha", "80/100", "WT1", "Apex"]);
+  });
+  await check("fee reminder goes out with its pay link as the 5th value", async () => {
+    const link = "https://batchwise-2bd30.web.app/pay.html?pa=apex@ybl&pn=Apex&am=5000.00&cu=INR&tn=Fees%20Asha";
+    const values = ["₹5,000", "Asha", "10 Jan 2026", "Apex", link];
+    const ref = await queue({ studentId: "student1", kind: "feeReminder", params: values, requestedBy: "admin1" });
+    assert.strictEqual(await waitStatus(ref), "sent");
+    const msg = received[received.length - 1];
+    assert.strictEqual(msg.body.template.name, "fee_reminder");
+    assert.deepStrictEqual(msg.body.template.components[0].parameters.map((p) => p.text), values);
+  });
+  await check("old 4-value fee reminder and receipt are rejected", async () => {
+    for (const kind of ["feeReminder", "feeReceipt"]) {
+      const ref = await queue({ studentId: "student1", kind, params: ["a", "b", "c", "d"], requestedBy: "admin1" });
+      assert.strictEqual(await waitStatus(ref), "rejected", kind);
+    }
   });
   await check("student without a parent number is marked noPhone", async () => {
     const ref = await queue({ studentId: "student2", kind: "absence", params: ["x", "y", "z"], requestedBy: "teacher1" });

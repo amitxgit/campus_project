@@ -437,8 +437,8 @@ exports.processNotificationRequest = onDocumentCreated(
 
 const ALERT_TEMPLATES = {
   absence: { name: "absence_alert", params: 3 },
-  feeReminder: { name: "fee_reminder", params: 4 },
-  feeReceipt: { name: "fee_receipt", params: 4 },
+  feeReminder: { name: "fee_reminder", params: 5 },
+  feeReceipt: { name: "fee_receipt", params: 5 },
   testResult: { name: "test_result", params: 4 },
 };
 const IST = "Asia/Kolkata";

@@ -52,6 +52,11 @@ class InstitutionSettings {
 
   final String currencySymbol;
 
+  /// Where students pay online (e.g. apexclasses@okhdfcbank) and the name
+  /// UPI apps show for it. Empty = online payment not offered.
+  final String upiId;
+  final String upiPayeeName;
+
   const InstitutionSettings({
     required this.name,
     required this.type,
@@ -72,9 +77,16 @@ class InstitutionSettings {
     this.autoAbsenceAlerts = false,
     this.whatsappSender = '',
     required this.currencySymbol,
+    this.upiId = '',
+    this.upiPayeeName = '',
   });
 
   bool get whatsappConnected => whatsappSender.isNotEmpty;
+
+  bool get upiEnabled => upiId.isNotEmpty;
+
+  /// Payee name for UPI apps; falls back to the institute name.
+  String get upiPayee => upiPayeeName.trim().isNotEmpty ? upiPayeeName.trim() : name;
 
   static const allDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -198,6 +210,8 @@ class InstitutionSettings {
         'autoAbsenceAlerts': autoAbsenceAlerts,
         'whatsappSender': whatsappSender,
         'currencySymbol': currencySymbol,
+        'upiId': upiId,
+        'upiPayeeName': upiPayeeName,
       };
 
   factory InstitutionSettings.fromMap(Map<String, dynamic> map) {
@@ -233,6 +247,8 @@ class InstitutionSettings {
       autoAbsenceAlerts: flag(map['autoAbsenceAlerts'], false),
       whatsappSender: (map['whatsappSender'] as String?) ?? '',
       currencySymbol: (map['currencySymbol'] as String?) ?? base.currencySymbol,
+      upiId: ((map['upiId'] as String?) ?? '').trim(),
+      upiPayeeName: (map['upiPayeeName'] as String?) ?? '',
     );
   }
 
@@ -256,6 +272,8 @@ class InstitutionSettings {
     bool? autoAbsenceAlerts,
     String? whatsappSender,
     String? currencySymbol,
+    String? upiId,
+    String? upiPayeeName,
   }) {
     return InstitutionSettings(
       name: name ?? this.name,
@@ -277,6 +295,8 @@ class InstitutionSettings {
       autoAbsenceAlerts: autoAbsenceAlerts ?? this.autoAbsenceAlerts,
       whatsappSender: whatsappSender ?? this.whatsappSender,
       currencySymbol: currencySymbol ?? this.currencySymbol,
+      upiId: upiId ?? this.upiId,
+      upiPayeeName: upiPayeeName ?? this.upiPayeeName,
     );
   }
 }

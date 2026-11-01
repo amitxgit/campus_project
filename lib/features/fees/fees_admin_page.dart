@@ -16,7 +16,7 @@ import '../common/widgets/class_card.dart' show EmptyNote;
 import '../common/widgets/ui_kit.dart';
 import '../../core/models/parent_alert.dart';
 import '../parent_alerts/parent_messenger.dart';
-import 'fee_detail_page.dart';
+import 'fee_messages.dart';
 import 'fee_plan_dialog.dart';
 
 class FeeRow {
@@ -295,11 +295,13 @@ class _FeesAdminPageState extends ConsumerState<FeesAdminPage> {
         ParentMessage(
           r.student,
           // Remind about the whole overdue amount, dated by the oldest unpaid instalment.
-          () {
-            final p = feeReminderParams(ref, r.student.name, r.account!.nextDue()!);
-            p[0] = formatMoney(r.account!.overdueAmount(), ref.read(settingsProvider).currencySymbol);
-            return p;
-          }(),
+          feeReminderParams(
+            ref.read(settingsProvider),
+            studentName: r.student.name,
+            roll: r.student.collegeRollNo,
+            due: r.account!.nextDue()!,
+            amount: r.account!.overdueAmount(),
+          ),
         ),
     ]);
   }

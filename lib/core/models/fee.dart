@@ -111,6 +111,14 @@ class FeeAccount {
       .where((s) => s.state == InstalmentState.overdue)
       .fold(0.0, (total, s) => total + s.outstanding);
 
+  /// What to ask for when the student pays now: everything overdue, or the
+  /// next instalment if nothing is overdue. Zero once fully paid.
+  double payableNow([DateTime? now]) {
+    final overdue = overdueAmount(now);
+    if (overdue > 0.5) return overdue;
+    return nextDue(now)?.outstanding ?? 0;
+  }
+
   /// The first instalment that still has money owing, if any.
   InstalmentStatus? nextDue([DateTime? now]) {
     for (final s in statuses(now)) {

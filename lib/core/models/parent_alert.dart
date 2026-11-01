@@ -26,13 +26,19 @@ extension ParentAlertKindX on ParentAlertKind {
   String get templateBody => switch (this) {
         ParentAlertKind.absence =>
           'Dear Parent, {{1}} was absent from class on {{2}}. Please contact {{3}} if you have any questions.',
+        // {{5}} is a pay link, or "at the office" when UPI isn't set up. Links
+        // sit at the end of a line so no punctuation sticks to them.
         ParentAlertKind.feeReminder =>
-          'Dear Parent, a fee payment of {{1}} for {{2}} is due on {{3}}. Please pay at {{4}}. Ignore if already paid.',
+          'Dear Parent, a fee payment of {{1}} for {{2}} is due on {{3}} at {{4}}.\nPay: {{5}}\nIgnore if already paid.',
+        // {{5}} is "nil", or the balance followed by a pay link.
         ParentAlertKind.feeReceipt =>
-          'Dear Parent, we have received {{1}} towards the fees of {{2}} (Receipt No. {{3}}) at {{4}}. Thank you for your payment.',
+          'Dear Parent, we have received {{1}} towards the fees of {{2}} (Receipt No. {{3}}) at {{4}}.\nBalance due: {{5}}\nThank you for your payment.',
         ParentAlertKind.testResult =>
           'Dear Parent, {{1}} scored {{2}} in {{3}} at {{4}}. Please contact us to discuss progress.',
       };
+
+  /// Number of {{n}} placeholders; the server checks queued alerts against it.
+  int get paramCount => RegExp(r'\{\{\d+\}\}').allMatches(templateBody).length;
 
   String render(List<String> params) {
     var text = templateBody;

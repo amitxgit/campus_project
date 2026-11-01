@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/institution_settings.dart';
 import '../../core/utils/firebase_error_parser.dart';
+import '../../core/utils/upi.dart';
 import '../../data/settings_repository.dart';
 import '../../theme.dart';
 import '../common/widgets/app_drawer.dart';
@@ -22,6 +23,8 @@ class _InstitutionSettingsPageState extends ConsumerState<InstitutionSettingsPag
   final _nameCtrl = TextEditingController();
   final _labelCtrl = TextEditingController();
   final _groupCtrl = TextEditingController();
+  final _upiCtrl = TextEditingController();
+  final _payeeCtrl = TextEditingController();
   bool _saving = false;
   bool _dirty = false;
 
@@ -30,6 +33,8 @@ class _InstitutionSettingsPageState extends ConsumerState<InstitutionSettingsPag
     _nameCtrl.dispose();
     _labelCtrl.dispose();
     _groupCtrl.dispose();
+    _upiCtrl.dispose();
+    _payeeCtrl.dispose();
     super.dispose();
   }
 
@@ -37,6 +42,8 @@ class _InstitutionSettingsPageState extends ConsumerState<InstitutionSettingsPag
     _draft = s;
     _nameCtrl.text = s.name;
     _labelCtrl.text = s.groupLabel;
+    _upiCtrl.text = s.upiId;
+    _payeeCtrl.text = s.upiPayeeName;
   }
 
   void _update(InstitutionSettings Function(InstitutionSettings) fn) {
@@ -223,6 +230,37 @@ class _InstitutionSettingsPageState extends ConsumerState<InstitutionSettingsPag
                     (v) => _update((d) => d.copyWith(internalMarksEnabled: v))),
               ]),
 
+              if (s.feesEnabled)
+                _card('Online payments', [
+                  TextField(
+                    controller: _upiCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    autocorrect: false,
+                    decoration: const InputDecoration(
+                      labelText: 'UPI ID',
+                      hintText: 'e.g. apexclasses@okhdfcbank',
+                    ),
+                    onChanged: (v) => _update((d) => d.copyWith(upiId: v.trim())),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _payeeCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Name on the UPI account',
+                      hintText: s.name,
+                    ),
+                    onChanged: (v) => _update((d) => d.copyWith(upiPayeeName: v)),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    s.upiEnabled
+                        ? 'Students see a Pay button, and fee reminders and receipts carry a pay link. '
+                            'Record each payment as UPI once it reaches your account.'
+                        : 'Add a UPI ID to let students and parents pay online.',
+                    style: TextStyle(color: p.inkMuted, fontSize: 13, height: 1.4),
+                  ),
+                ]),
+
               if (s.internalMarksEnabled)
                 _card('Internal marks scheme', [
                   Row(
@@ -327,7 +365,15 @@ class _InstitutionSettingsPageState extends ConsumerState<InstitutionSettingsPag
     setState(() {
       _dirty = true;
       if (applyPreset) {
-        _draft = InstitutionSettings.preset(type, name: _draft!.name).copyWith(groups: _draft!.groups);
+        // Keep what belongs to this institute rather than to the type.
+        final d = _draft!;
+        _draft = InstitutionSettings.preset(type, name: d.name).copyWith(
+          groups: d.groups,
+          whatsappSender: d.whatsappSender,
+          autoAbsenceAlerts: d.autoAbsenceAlerts,
+          upiId: d.upiId,
+          upiPayeeName: d.upiPayeeName,
+        );
         _labelCtrl.text = _draft!.groupLabel;
       } else {
         _draft = _draft!.copyWith(type: type);
@@ -349,6 +395,10 @@ class _InstitutionSettingsPageState extends ConsumerState<InstitutionSettingsPag
     final s = _draft!;
     if (s.name.trim().isEmpty || s.groupLabel.trim().isEmpty) {
       showMessage(context, 'Name and group label are required.', error: true);
+      return;
+    }
+    if (s.upiId.isNotEmpty && !UpiPayment.isValidUpiId(s.upiId)) {
+      showMessage(context, "That UPI ID doesn't look right. It should look like name@bank.", error: true);
       return;
     }
     if (s.periodStarts.isEmpty || s.workingDays.isEmpty) {

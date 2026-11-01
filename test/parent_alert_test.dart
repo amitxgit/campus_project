@@ -30,6 +30,11 @@ void main() {
       }
     });
 
+    test('param counts match what the server checks (firebase_functions ALERT_TEMPLATES)', () {
+      expect({for (final k in ParentAlertKind.values) k.name: k.paramCount},
+          {'absence': 3, 'feeReminder': 5, 'feeReceipt': 5, 'testResult': 4});
+    });
+
     test('no template starts or ends with a variable (Meta rejects these)', () {
       for (final kind in ParentAlertKind.values) {
         final body = kind.templateBody.trim();

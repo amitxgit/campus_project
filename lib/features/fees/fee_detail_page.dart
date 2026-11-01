@@ -14,6 +14,7 @@ import '../common/widgets/async_error_widget.dart';
 import '../common/widgets/ui_kit.dart';
 import '../../core/models/parent_alert.dart';
 import '../parent_alerts/parent_messenger.dart';
+import 'fee_messages.dart';
 import 'fee_plan_dialog.dart';
 import 'fee_widgets.dart';
 
@@ -56,7 +57,11 @@ class FeeDetailPage extends ConsumerWidget {
                 final d = async.value!;
                 final next = d.account!.nextDue()!;
                 ParentMessenger.send(context, ref, kind: ParentAlertKind.feeReminder, messages: [
-                  ParentMessage(d.student!, feeReminderParams(ref, d.student!.name, next)),
+                  ParentMessage(
+                    d.student!,
+                    feeReminderParams(ref.read(settingsProvider),
+                        studentName: d.student!.name, roll: d.student!.collegeRollNo, due: next),
+                  ),
                 ]);
               },
             ),
@@ -287,12 +292,11 @@ class FeeDetailPage extends ConsumerWidget {
           icon: const Icon(Icons.chat_rounded, size: 18),
           label: const Text('Send to parent'),
           onPressed: () => ParentMessenger.send(context, ref, kind: ParentAlertKind.feeReceipt, messages: [
-            ParentMessage(student, [
-              formatMoney(p.amount, settings.currencySymbol),
-              student.name,
-              '${p.receiptNo}',
-              settings.name,
-            ]),
+            ParentMessage(
+              student,
+              feeReceiptParams(settings,
+                  studentName: student.name, roll: student.collegeRollNo, payment: p, account: d.account!),
+            ),
           ]),
         ),
     ]);
@@ -328,15 +332,4 @@ class FeeDetailPage extends ConsumerWidget {
   void _error(BuildContext context, Object e) {
     showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
   }
-}
-
-/// Values for the fee_reminder template: amount, student, due date, institute.
-List<String> feeReminderParams(WidgetRef ref, String studentName, InstalmentStatus due) {
-  final s = ref.read(settingsProvider);
-  return [
-    formatMoney(due.outstanding, s.currencySymbol),
-    studentName,
-    DateFormat('d MMM yyyy').format(due.instalment.dueDate),
-    s.name,
-  ];
 }
