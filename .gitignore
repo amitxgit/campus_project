@@ -80,3 +80,7 @@ pubspec.lock
 
 # Local build outputs handed to people (not source)
 /deliverables/
+
+# Dependencies and build caches
+node_modules/
+/android/.gradle/
