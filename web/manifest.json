@@ -5,7 +5,7 @@
     "display": "standalone",
     "background_color": "#0B0B0D",
     "theme_color": "#0B0B0D",
-    "description": "A new Flutter project.",
+    "description": "Attendance, fee collection, tests and parent alerts for coaching institutes.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

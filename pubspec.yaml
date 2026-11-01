@@ -1,5 +1,5 @@
 name: campus_track
-description: Attendance, fees, tests and parent alerts for coaching institutes, schools and colleges.
+description: Attendance, fee collection, tests and parent alerts for coaching institutes.
 publish_to: "none"
 version: 1.0.0+1
 
