@@ -36,6 +36,9 @@ dependencies:
   file_picker: ^13.3.0
 
   collection: ^1.18.0
+  pdf: ^3.12.0
+  printing: ^5.14.3
+  share_plus: ^13.3.1
 dev_dependencies:
   path: ^1.9.0
   flutter_test:
@@ -48,6 +51,8 @@ flutter:
   assets:
     - assets/logo_foreground.jpg
     - assets/loader.json   # Remove this line if you're not using any Lottie animation
+    - assets/fonts/NotoSans-Regular.ttf   # PDFs (receipts, report cards): covers ₹
+    - assets/fonts/NotoSans-Bold.ttf
 
 flutter_launcher_icons:
   android: true

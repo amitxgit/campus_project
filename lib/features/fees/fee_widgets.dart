@@ -318,10 +318,12 @@ String receiptText({
   return b.toString().trim();
 }
 
-/// Receipt preview with copy and optional extra actions (e.g. WhatsApp).
+/// Receipt preview with copy, PDF ([pdf] builds it) and optional extra
+/// actions (e.g. WhatsApp).
 Future<void> showReceiptDialog(
   BuildContext context, {
   required String text,
+  Future<void> Function()? pdf,
   List<Widget> extraActions = const [],
 }) {
   return showDialog(
@@ -345,6 +347,18 @@ Future<void> showReceiptDialog(
               showMessage(ctx, 'Receipt copied');
             },
           ),
+          if (pdf != null)
+            TextButton.icon(
+              icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+              label: const Text('PDF'),
+              onPressed: () async {
+                try {
+                  await pdf();
+                } catch (_) {
+                  if (ctx.mounted) showMessage(ctx, 'Could not create the PDF.', error: true);
+                }
+              },
+            ),
           ...extraActions,
           FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Done')),
         ],

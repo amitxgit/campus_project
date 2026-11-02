@@ -11,6 +11,8 @@ import '../common/widgets/app_drawer.dart';
 import '../common/widgets/class_card.dart' show EmptyNote;
 import '../common/widgets/async_error_widget.dart';
 import '../common/widgets/ui_kit.dart';
+import '../../core/utils/share_file.dart';
+import '../reports/receipt_pdf.dart';
 import 'fee_messages.dart';
 import 'fee_widgets.dart';
 import 'upi_pay.dart';
@@ -86,6 +88,17 @@ class MyFeesPage extends ConsumerWidget {
                         account: account,
                         currency: cur,
                       ),
+                      pdf: () async {
+                        final bytes = await buildReceiptPdf(
+                          institute: settings.name,
+                          studentName: d.name,
+                          roll: d.roll,
+                          payment: pay,
+                          account: account,
+                          currency: cur,
+                        );
+                        await sharePdf(bytes, receiptFileName(d.name, pay.receiptNo));
+                      },
                     ),
                   ),
               ],

@@ -15,6 +15,8 @@ import '../common/widgets/async_error_widget.dart';
 import '../common/widgets/ui_kit.dart';
 import '../../core/models/parent_alert.dart';
 import '../parent_alerts/parent_messenger.dart';
+import '../../core/utils/share_file.dart';
+import '../reports/receipt_pdf.dart';
 import 'fee_messages.dart';
 import 'fee_plan_dialog.dart';
 import 'fee_widgets.dart';
@@ -392,7 +394,18 @@ class FeeDetailPage extends ConsumerWidget {
       currency: settings.currencySymbol,
     );
     final student = d.student;
-    return showReceiptDialog(context, text: text, extraActions: [
+    final name = student?.name ?? d.account!.studentName;
+    return showReceiptDialog(context, text: text, pdf: () async {
+      final bytes = await buildReceiptPdf(
+        institute: settings.name,
+        studentName: name,
+        roll: student?.collegeRollNo,
+        payment: p,
+        account: d.account!,
+        currency: settings.currencySymbol,
+      );
+      await sharePdf(bytes, receiptFileName(name, p.receiptNo));
+    }, extraActions: [
       if (student != null && !p.voided && settings.parentAlertsEnabled)
         TextButton.icon(
           icon: const Icon(Icons.chat_rounded, size: 18),
