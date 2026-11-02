@@ -1,7 +1,8 @@
 // Fills a Firebase project with a realistic demo coaching institute
 // ("Apex Classes"): settings, staff, 24 students in two batches, subjects,
-// timetable, two weeks of attendance, fee plans with payments, published
-// tests, notices and assignments.
+// timetable, two weeks of attendance, fee plans with payments (some paid
+// online through Razorpay links), a UPI ID, published tests, notices,
+// assignments and enquiries in every status.
 //
 // Emulators (safe, default):
 //   firebase emulators:start --project batchwise-2bd30      (in the repo root)
@@ -64,6 +65,9 @@ const day = (offset) => {
     attendanceThreshold: 80, assignmentMax: 12, testMax: 12, attendanceMax: 6,
     internalMarksEnabled: false, remarksEnabled: true, feesEnabled: true, testsEnabled: true,
     parentAlertsEnabled: true, autoAbsenceAlerts: false, whatsappSender: "", currencySymbol: "₹",
+    // Pay by UPI on My Fees and in reminders; the owner's number for the 8 pm
+    // summary (WhatsApp only once connected; in the app regardless).
+    upiId: "apexclasses@okhdfcbank", upiPayeeName: "Apex Classes", ownerPhone: "9800000001",
   });
 
   // --- Staff -----------------------------------------------------------------
@@ -169,8 +173,24 @@ const day = (offset) => {
       studentName: s.name, section: s.section, totalFee: total, discount, instalments,
       paidAmount: paid, note: discount ? "Merit scholarship" : "", updatedAt: FieldValue.serverTimestamp(),
     });
-    for (const p of payments) {
+    for (const [k, p] of payments.entries()) {
       receipt++;
+      // Every fourth student paid their latest instalment through a Razorpay
+      // link, recorded the way razorpayWebhook does it (doc id = payment id).
+      if (i % 4 === 1 && k === payments.length - 1) {
+        const payId = `pay_Demo${String(receipt).padStart(6, "0")}`;
+        const linkId = `plink_Demo${String(receipt).padStart(6, "0")}`;
+        await ref.collection("payments").doc(payId).set({
+          amount: p.amount, mode: k % 2 ? "card" : "upi", reference: payId, note: "Paid online (Razorpay link)",
+          paidOn: Timestamp.fromDate(p.on), receiptNo: receipt, receivedBy: "Razorpay", voided: false, paymentLinkId: linkId,
+        });
+        await db.collection("payment_links").doc(linkId).set({
+          studentId: s.uid, studentName: s.name, amount: p.amount, shortUrl: `https://rzp.io/rzp/${linkId}`,
+          status: "paid", paymentId: payId, receiptNo: receipt, createdBy: "demo_admin",
+          createdAt: Timestamp.fromDate(day(-62 + k * 45)), paidAt: Timestamp.fromDate(p.on),
+        });
+        continue;
+      }
       await ref.collection("payments").doc(`demo_pay_${receipt}`).set({
         amount: p.amount, mode: pick(["upi", "upi", "cash", "bankTransfer"]), reference: "", note: "",
         paidOn: Timestamp.fromDate(p.on), receiptNo: receipt, receivedBy: "Neha Kulkarni", voided: false,
@@ -230,6 +250,43 @@ const day = (offset) => {
       title: "Kinematics problem set", description: "Solve questions 1-25 from Module 2. Upload a photo or PDF of your work.",
       teacherId: "demo_t_phy", subjectId: `demo_sub_${b}_PHY`, subjectName: "Physics", section: b,
       dueDate: Timestamp.fromDate(day(4)), createdAt: Timestamp.fromDate(day(-2)),
+    });
+  }
+
+  // --- Enquiries ---------------------------------------------------------------
+  // Every status, with follow-ups due today, overdue and later, so the
+  // Enquiries tabs and the admin home conversion line all have something.
+  const joinedStudent = students[students.length - 1];
+  const enquiries = [
+    { name: "Aryan Malhotra", course: "Class 11 JEE", source: "walkIn", status: "new", follow: 0, created: -1 },
+    { name: "Sneha Pillai", course: "Class 12 NEET", source: "instagram", status: "new", follow: 1, created: 0 },
+    { name: "Yuvraj Chawla", course: "Class 11 JEE", source: "call", status: "contacted", follow: -2, created: -6 },
+    { name: "Ira Deshpande", course: "Dropper NEET", source: "referral", status: "contacted", follow: 0, created: -4 },
+    { name: "Om Prakash Yadav", course: "Class 12 JEE", source: "justdial", status: "demoBooked", follow: 2, created: -3 },
+    { name: "Nisha Bhatt", course: "Class 11 NEET", source: "walkIn", status: "demoBooked", follow: -1, created: -8 },
+    { name: joinedStudent.name, course: "Class 12 NEET", source: "referral", status: "joined", follow: null, created: -9,
+      studentId: joinedStudent.uid, batch: joinedStudent.section },
+    { name: "Harsh Vardhan", course: "Class 11 JEE", source: "instagram", status: "joined", follow: null, created: -5 },
+    { name: "Pooja Saxena", course: "Class 12 JEE", source: "call", status: "lost", follow: null, created: -10,
+      notes: "Chose a nearer institute." },
+    { name: "Manav Arora", course: "Dropper JEE", source: "other", status: "lost", follow: null, created: -12,
+      notes: "Fees too high." },
+  ];
+  for (const [i, e] of enquiries.entries()) {
+    const first = e.name.split(" ")[0];
+    const last = e.name.split(" ").slice(-1)[0];
+    await db.collection("enquiries").doc(`demo_enq_${i + 1}`).set({
+      name: e.name, phone: `95${String(30000000 + i * 40213).slice(0, 8)}`,
+      parentName: `Mr./Mrs. ${last}`, parentPhone: `94${String(40000000 + i * 30119).slice(0, 8)}`,
+      course: e.course, batch: e.batch || (e.course.includes("NEET") ? "NEET-2027-B" : "JEE-2027-A"),
+      source: e.source, status: e.status,
+      nextFollowUp: e.follow === null ? null : Timestamp.fromDate(day(e.follow)),
+      notes: e.notes || `${first} asked about weekend batches.`,
+      createdBy: i % 3 === 0 ? "demo_t_phy" : "demo_admin",
+      ...(e.studentId ? { studentId: e.studentId } : {}),
+      createdAt: Timestamp.fromDate(day(e.created)),
+      // Last touched the day after it came in (today's ones: today).
+      updatedAt: Timestamp.fromDate(day(e.created >= -1 ? e.created : e.created + 1)),
     });
   }
 
