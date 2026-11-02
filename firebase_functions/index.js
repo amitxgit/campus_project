@@ -379,8 +379,36 @@ exports.deleteUserAccount = onCall(async (request) => {
     if (e.code !== "auth/user-not-found") throw e;
   }
   await db.collection("users").doc(uid).delete();
+  await deletePersonalData(uid);
+
+  // Close their deletion request, if they made one.
+  const req = db.collection("deletion_requests").doc(uid);
+  if ((await req.get()).exists) {
+    await req.update({ status: "done", handledBy: caller.id, handledAt: FieldValue.serverTimestamp() });
+  }
   return { ok: true };
 });
+
+// What web/delete-account.html promises: notifications, device tokens and
+// uploaded files go with the account. Fee, attendance and result records stay
+// with the institute (see the privacy policy).
+async function deletePersonalData(uid) {
+  const notifications = await db.collection("notifications").where("userId", "==", uid).get();
+  for (let i = 0; i < notifications.docs.length; i += 450) {
+    const batch = db.batch();
+    notifications.docs.slice(i, i + 450).forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
+  await db.recursiveDelete(db.collection("userTokens").doc(uid));
+
+  const assignments = await db.collection("assignments").select().get();
+  const bucket = admin.storage().bucket();
+  for (const a of assignments.docs) {
+    await a.ref.collection("submissions").doc(uid).delete();
+    await bucket.deleteFiles({ prefix: `submissions/${a.id}/${uid}/` }).catch((e) =>
+      logger.warn("Could not delete uploads", { uid, assignment: a.id, error: String(e) }));
+  }
+}
 
 // ---------------------------------------------------------------------------
 // IN-APP NOTIFICATIONS

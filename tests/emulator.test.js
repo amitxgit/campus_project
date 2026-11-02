@@ -665,6 +665,55 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await expectError(call("setUserPassword", { uid: imported[0].uid, password: "hacked1" }, tTeacher), "PERMISSION_DENIED");
   });
 
+  console.log("Account deletion requests");
+  await makeUser("leaver", { role: "student", section: "IV-HE", name: "Leaver" });
+  const leaver = as("leaver");
+  const ask = { userId: "leaver", name: "Leaver", role: "student", contact: "leaver@test.edu", reason: "Moving city", status: "pending", createdAt: new Date() };
+  await check("a user can ask for their own account to be deleted, not someone else's", async () => {
+    await assertFails(leaver.doc("deletion_requests/student1").set({ ...ask, userId: "student1" }));
+    await assertFails(leaver.doc("deletion_requests/leaver").set({ ...ask, status: "done" }));
+    await assertFails(leaver.doc("deletion_requests/leaver").set({ ...ask, handledBy: "me" }));
+    await assertSucceeds(leaver.doc("deletion_requests/leaver").set(ask));
+    await assertSucceeds(leaver.doc("deletion_requests/leaver").get());
+  });
+  await check("others can't see it; the user can't mark it done; admins list it", async () => {
+    await assertFails(student.doc("deletion_requests/leaver").get());
+    await assertFails(teacher.collection("deletion_requests").get());
+    await assertFails(leaver.doc("deletion_requests/leaver").update({ status: "done" }));
+    await assertSucceeds(adminDb.collection("deletion_requests").where("status", "==", "pending").get());
+  });
+  await check("cancel while pending; ask again after a decline", async () => {
+    await assertSucceeds(leaver.doc("deletion_requests/leaver").delete());
+    await assertSucceeds(leaver.doc("deletion_requests/leaver").set(ask));
+    await assertSucceeds(adminDb.doc("deletion_requests/leaver").update({ status: "rejected", handledBy: "admin1" }));
+    await assertFails(leaver.doc("deletion_requests/leaver").delete());
+    await assertSucceeds(leaver.doc("deletion_requests/leaver").update({ ...ask }));
+  });
+  await check("deleting the account removes notifications, tokens and uploads, and closes the request", async () => {
+    await db.collection("notifications").add({ userId: "leaver", title: "x", body: "y", read: false, createdAt: new Date() });
+    await db.doc("userTokens/leaver/tokens/tok1").set({ token: "tok1" });
+    await db.doc("assignments/a_mine/submissions/leaver").set({ studentId: "leaver", filePath: "submissions/a_mine/leaver/hw.pdf" });
+    // The default bucket the functions use (the test library defaults to gs://<project>).
+    const fnBucket = `gs://${PROJECT}.appspot.com`;
+    await env.authenticatedContext("leaver").storage(fnBucket).ref("submissions/a_mine/leaver/hw.pdf").put(new Uint8Array([1, 2, 3]));
+    await env.authenticatedContext("student1").storage(fnBucket).ref("submissions/a_mine/student1/keep.pdf").put(new Uint8Array([1]));
+
+    await call("deleteUserAccount", { uid: "leaver" }, tAdmin);
+
+    assert.strictEqual((await db.doc("users/leaver").get()).exists, false);
+    assert.strictEqual((await db.collection("notifications").where("userId", "==", "leaver").get()).size, 0);
+    assert.strictEqual((await db.collection("userTokens/leaver/tokens").get()).size, 0);
+    assert.strictEqual((await db.doc("assignments/a_mine/submissions/leaver").get()).exists, false);
+    const gone = await env.authenticatedContext("teacher1").storage(fnBucket).ref("submissions/a_mine/leaver/hw.pdf")
+      .getMetadata().then(() => false, (e) => e.code === "storage/object-not-found");
+    assert.ok(gone, "upload still there");
+    const req = (await db.doc("deletion_requests/leaver").get()).data();
+    assert.strictEqual(req.status, "done");
+    assert.strictEqual(req.handledBy, "admin1");
+    // Other students' files are untouched.
+    await assertSucceeds(env.authenticatedContext("teacher1").storage(fnBucket).ref("submissions/a_mine/student1/keep.pdf").getMetadata());
+  });
+
   console.log("Owner's daily summary");
   // A clean slate for the figures, on a day no other check uses.
   await db.recursiveDelete(db.collection("fee_accounts"));

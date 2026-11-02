@@ -16,6 +16,7 @@ import '../../data/settings_repository.dart';
 import '../../theme.dart';
 import '../../core/utils/firebase_error_parser.dart';
 import '../enquiries/enquiries_page.dart' show enquiryConversionProvider;
+import 'deletion_requests_page.dart' show pendingDeletionsProvider;
 
 // -----------------------------------------------------------------------------
 // VIEW MODEL & PROVIDER
@@ -183,12 +184,46 @@ class AdminHomePage extends ConsumerWidget {
                 ),
               ),
             ),
+            const _DeletionRequestsBanner(),
             const _EnquiryConversionLine(),
             const SectionLabel('Today'),
             grid(daily),
             const SectionLabel('Setup'),
             grid(setup),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown only while someone is waiting for their account to be deleted.
+class _DeletionRequestsBanner extends ConsumerWidget {
+  const _DeletionRequestsBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final n = ref.watch(pendingDeletionsProvider).valueOrNull?.length ?? 0;
+    if (n == 0) return const SizedBox.shrink();
+    final p = context.palette;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Pressable(
+        color: p.warningSoft,
+        onTap: () => context.push('/admin/deletion-requests'),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+          child: Row(children: [
+            Icon(Icons.person_remove_outlined, color: p.warning),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '$n account deletion request${n == 1 ? '' : 's'}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: p.inkFaint),
+          ]),
         ),
       ),
     );

@@ -49,6 +49,8 @@ import 'features/fees/fees_admin_page.dart';
 import 'features/fees/fee_detail_page.dart';
 import 'features/enquiries/enquiries_page.dart';
 import 'features/reports/reports_page.dart';
+import 'features/legal/legal_page.dart';
+import 'features/admin/deletion_requests_page.dart';
 import 'features/fees/my_fees_page.dart';
 import 'features/parent_alerts/parent_alerts_page.dart';
 import 'features/tests/tests_page.dart';
@@ -155,8 +157,11 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (isLoading) return AppRoutes.splash;
 
+      // Privacy policy and terms are public (linked from the login screen).
+      final isLegal = location.startsWith('/legal/');
+
       if (user == null) {
-        return isLogin ? null : AppRoutes.login;
+        return isLogin || isLegal ? null : AppRoutes.login;
       }
 
       // ✅ Use the selected workspace role, or default to the database role
@@ -181,6 +186,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // ===== COMMON =====
       GoRoute(path: '/about', builder: (_, __) => const AboutPage()),
+      GoRoute(path: '/legal/:slug', builder: (_, state) => LegalPage(slug: state.pathParameters['slug'] ?? '')),
       GoRoute(path: '/profile', builder: (_, __) => const MyProfilePage()),
       GoRoute(path: '/profile/update', builder: (_, __) => const UpdateProfilePage()),
       GoRoute(path: '/notifications', builder: (_, __) => const NotificationsPage()),
@@ -246,6 +252,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/admin/parent-alerts', builder: (_, __) => const ParentAlertsPage()),
       GoRoute(path: '/admin/enquiries', builder: (_, __) => const EnquiriesPage()),
       GoRoute(path: '/admin/reports', builder: (_, __) => const ReportsPage()),
+      GoRoute(path: '/admin/deletion-requests', builder: (_, __) => const DeletionRequestsPage()),
       GoRoute(
         path: '/admin/fees/:studentId',
         builder: (_, state) => FeeDetailPage(studentId: state.pathParameters['studentId'] ?? ''),

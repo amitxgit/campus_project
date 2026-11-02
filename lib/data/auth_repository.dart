@@ -250,27 +250,6 @@ class AuthRepository {
   }
 
   // ============================
-  // 🔹 DELETE CURRENT ACCOUNT
-  // ============================
-  Future<void> deleteCurrentUserAccount() async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-
-    try {
-      await _usersRef.doc(user.uid).delete();
-      await user.delete();
-      await _storage.clearSession();
-    } on fb_auth.FirebaseAuthException catch (e) {
-      if (e.code == 'requires-recent-login') {
-        throw Exception(
-          'Please re-login before deleting your account.',
-        );
-      }
-      throw Exception(FirebaseErrorParser.getMessage(e));
-    }
-  }
-
-  // ============================
   // 🔹 CREATE (ADMIN, VIA CLOUD FUNCTION)
   // ============================
   /// Creates the Firebase Auth login and the Firestore profile under the same

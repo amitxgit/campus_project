@@ -15,6 +15,7 @@ import '../../main.dart';
 import '../common/widgets/async_error_widget.dart';
 import '../../data/settings_repository.dart';
 import '../common/widgets/ui_kit.dart';
+import '../../data/deletion_request_repository.dart';
 
 // -----------------------------------------------------------------------------
 // ROLE-SPECIFIC & PROFILE PROVIDERS
@@ -594,19 +595,15 @@ class _CommonSettingsSection extends ConsumerWidget {
           },
         ),
 
-        // 🔴 SECURITY FIX: Only show "Delete Account" if the user is an Admin
-        if (user.role == UserRole.admin) ...[
-          Divider(height: 1, indent: 20, endIndent: 20, color: context.palette.line),
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-            title: Text('Delete my account', style: TextStyle(color: context.palette.danger, fontWeight: FontWeight.w500)),
-            onTap: () => showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (_) => _SecureDeleteDialog(user: user),
-            ),
-          ),
-        ],
+        Divider(height: 1, indent: 20, endIndent: 20, color: context.palette.line),
+        _DeletionRequestTile(user: user),
+        Divider(height: 1, indent: 20, endIndent: 20, color: context.palette.line),
+        ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          title: const Text('Privacy policy', style: TextStyle(fontWeight: FontWeight.w500)),
+          trailing: Icon(Icons.chevron_right_rounded, color: context.palette.inkFaint),
+          onTap: () => GoRouter.of(context).push('/legal/privacy'),
+        ),
       ],
     );
   }
@@ -654,84 +651,107 @@ class _CommonSettingsSection extends ConsumerWidget {
 }
 
 // -----------------------------------------------------------------------------
-// SECURE DELETE DIALOG (FOR ADMINS ONLY)
+// ACCOUNT DELETION REQUEST (everyone, admins included)
 // -----------------------------------------------------------------------------
 
-class _SecureDeleteDialog extends ConsumerStatefulWidget {
+/// Asks the institute's admins to delete this account (an admin can't delete
+/// their own, so the institute is never left without one). Shows the state of
+/// a request already made.
+class _DeletionRequestTile extends ConsumerWidget {
   final UserAccount user;
-  const _SecureDeleteDialog({required this.user});
+  const _DeletionRequestTile({required this.user});
 
   @override
-  ConsumerState<_SecureDeleteDialog> createState() => _SecureDeleteDialogState();
-}
-
-class _SecureDeleteDialogState extends ConsumerState<_SecureDeleteDialog> {
-  final TextEditingController _verifyCtrl = TextEditingController();
-  bool _canDelete = false;
-  bool _isProcessing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _verifyCtrl.addListener(() {
-      setState(() => _canDelete = _verifyCtrl.text.trim() == 'DELETE');
-    });
-  }
-
-  @override
-  void dispose() {
-    _verifyCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _executeDelete() async {
-    if (!_canDelete) return;
-    setState(() => _isProcessing = true);
-    try {
-      await ref.read(authRepoProvider).deleteCurrentUserAccount();
-      await ref.read(authRepoProvider).logout();
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isProcessing = false);
-        Navigator.pop(context);
-        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final p = context.palette;
-    return AlertDialog(
-      title: const Text('Delete your account?'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('You will be signed out and can\'t sign in again. This can\'t be undone.', style: TextStyle(color: p.inkMuted, height: 1.45)),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _verifyCtrl,
-            enabled: !_isProcessing,
-            autocorrect: false,
-            textCapitalization: TextCapitalization.characters,
-            decoration: const InputDecoration(labelText: 'Type DELETE to confirm'),
+    final req = ref.watch(_myDeletionRequestProvider(user.id)).valueOrNull;
+    final pending = req?.status == DeletionStatus.pending;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      title: Text(
+        pending ? 'Deletion requested' : 'Request account deletion',
+        style: TextStyle(color: pending ? p.ink : p.danger, fontWeight: FontWeight.w500),
+      ),
+      subtitle: pending
+          ? Text('Your institute will delete your account. Tap to cancel.', style: TextStyle(color: p.inkMuted, fontSize: 13))
+          : req?.status == DeletionStatus.rejected
+              ? Text('Your last request was declined. Contact the office.', style: TextStyle(color: p.inkMuted, fontSize: 13))
+              : null,
+      onTap: () => pending ? _cancel(context, ref) : _request(context, ref),
+    );
+  }
+
+  Future<void> _request(BuildContext context, WidgetRef ref) async {
+    final reason = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete your account?'),
+        content: SizedBox(
+          width: 420,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              'Your institute\'s admin will delete your sign-in, profile, notifications and uploads. '
+              'Fee receipts, attendance and results may be kept as the institute\'s records.',
+              style: TextStyle(color: ctx.palette.inkMuted, height: 1.45),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reason,
+              maxLength: 500,
+              maxLines: 3,
+              minLines: 1,
+              decoration: const InputDecoration(labelText: 'Reason (optional)'),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(padding: EdgeInsets.zero),
+              onPressed: () => GoRouter.of(ctx).push('/legal/delete-account'),
+              child: const Text('What is deleted and what is kept'),
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: ctx.palette.danger, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Request deletion'),
           ),
         ],
       ),
-      actions: [
-        TextButton(onPressed: _isProcessing ? null : () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: p.danger, foregroundColor: Colors.white),
-          onPressed: (_canDelete && !_isProcessing) ? _executeDelete : null,
-          child: _isProcessing
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Delete'),
-        ),
-      ],
     );
+    if (ok != true) return;
+    try {
+      await ref.read(deletionRepoProvider).request(user, reason.text.trim());
+      if (context.mounted) showMessage(context, 'Request sent to your institute.', success: true);
+    } catch (e) {
+      if (context.mounted) showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
+    }
+  }
+
+  Future<void> _cancel(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel your deletion request?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep it')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Cancel request')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(deletionRepoProvider).cancel(user.id);
+    } catch (e) {
+      if (context.mounted) showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
+    }
   }
 }
+
+final _myDeletionRequestProvider = StreamProvider.autoDispose.family<DeletionRequest?, String>(
+  (ref, uid) => ref.watch(deletionRepoProvider).watchMine(uid),
+);
 
 // -----------------------------------------------------------------------------
 // SHARED UI WIDGETS

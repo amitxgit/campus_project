@@ -7,6 +7,7 @@ import '../../core/utils/firebase_error_parser.dart';
 import '../../core/utils/phone.dart';
 import '../../theme.dart';
 import '../common/widgets/ui_kit.dart';
+import '../legal/legal_page.dart' show LegalLinks;
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -229,6 +230,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           ),
         ),
       ),
+      const SizedBox(height: 24),
+      const LegalLinks(),
     ];
 
     return Scaffold(

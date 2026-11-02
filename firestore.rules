@@ -195,6 +195,23 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 100);
     }
 
+    // Account deletion requests (Play Store requirement), one per user, keyed
+    // by uid. The user asks; an admin deletes the account or rejects it.
+    match /deletion_requests/{uid} {
+      allow read: if isAdmin() || isSelf(uid);
+      allow create: if isSelf(uid)
+        && request.resource.data.userId == uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.keys().hasOnly(['userId', 'name', 'role', 'contact', 'reason', 'status', 'createdAt'])
+        && (!('reason' in request.resource.data) || request.resource.data.reason.size() <= 500);
+      // Ask again after a rejection.
+      allow update: if isAdmin() || (isSelf(uid)
+        && resource.data.status == 'rejected'
+        && request.resource.data.status == 'pending'
+        && request.resource.data.userId == uid);
+      allow delete: if isAdmin() || (isSelf(uid) && resource.data.status == 'pending');
+    }
+
     // Owner's daily summaries, written by the dailySummary function.
     match /daily_summaries/{day} {
       allow read: if isAdmin();

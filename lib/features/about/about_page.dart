@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../common/widgets/profile_avatar_action.dart';
 import '../common/widgets/app_drawer.dart';
 import '../common/widgets/ui_kit.dart';
+import '../legal/legal_page.dart' show LegalLinks;
 import '../../theme.dart';
 
 class AboutPage extends ConsumerWidget {
@@ -85,7 +86,9 @@ class AboutPage extends ConsumerWidget {
               ],
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
+          const LegalLinks(),
+          const SizedBox(height: 8),
           Center(
             child: Text(
               '© ${DateTime.now().year} Batchwise',
