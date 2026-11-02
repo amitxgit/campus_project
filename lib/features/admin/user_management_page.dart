@@ -9,14 +9,13 @@ import '../common/widgets/async_error_widget.dart';
 import '../../core/models/role.dart';
 import '../../core/models/user.dart';
 import '../../core/utils/firebase_error_parser.dart';
-import '../../core/models/institution_settings.dart';
 import '../../data/settings_repository.dart';
 import '../../core/utils/login_id.dart';
-import '../../core/utils/phone.dart';
 import '../../main.dart';
 import '../common/widgets/ui_kit.dart';
 import '../../theme.dart';
 import '../common/widgets/class_card.dart' show EmptyNote;
+import 'user_form_dialog.dart';
 
 // -----------------------------------------------------------------------------
 // PROVIDER
@@ -179,235 +178,20 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
   }
 
   Future<void> _showEditDialog(UserAccount u, {bool isNew = false}) async {
-    final form = GlobalKey<FormState>();
-    final nameCtrl = TextEditingController(text: u.name);
-    // Mobile-number logins use an internal address; don't show it as an email.
-    // Leaving the field empty keeps it (copyWith ignores null).
-    final emailCtrl = TextEditingController(text: LoginId.isPhoneLogin(u.email) ? '' : u.email);
-    final phoneCtrl = TextEditingController(text: u.phone);
-    final parentNameCtrl = TextEditingController(text: u.parentName);
-    final parentPhoneCtrl = TextEditingController(text: u.parentPhone);
-    final collegeCtrl = TextEditingController(text: u.collegeRollNo);
-    final examCtrl = TextEditingController(text: u.examRollNo);
-    final passCtrl = TextEditingController();
-
-    final settings = ref.read(settingsProvider);
-    final isCollege = settings.type == InstitutionType.college;
-    // Include the user's current group even if it was removed from settings.
-    final groups = <String>{...settings.groups, if (u.section?.isNotEmpty == true) u.section!}.toList();
-    String? section = u.section?.isNotEmpty == true ? u.section : (groups.isNotEmpty ? groups.first : null);
-    final sectionCtrl = TextEditingController(text: section ?? '');
-    int? year = u.year;
-    UserRole role = u.role;
-    bool adminPrivilege = u.isAdmin;
-
-    final updated = await showDialog<UserAccount>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          return Dialog(
-            child: Container(
-              width: 500,
-              padding: const EdgeInsets.all(24),
-              child: SingleChildScrollView(
-                child: Form(
-                  key: form,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(isNew ? 'Add user' : u.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 8),
-
-                      _buildSectionHeader('Basics'),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: DropdownButtonFormField<UserRole>(
-                              initialValue: role,
-                              items: UserRole.values.map((r) => DropdownMenuItem(value: r, child: Text(r.label))).toList(),
-                              onChanged: (v) => setState(() => role = v!),
-                              decoration: _buildInputDecoration('Role', Icons.badge_rounded),
-                            ),
-                          ),
-                          if (role == UserRole.teacher) ...[
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: SwitchListTile(
-                                contentPadding: EdgeInsets.zero,
-                                title: const Text('Admin access', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                                value: adminPrivilege,
-                                onChanged: (bool value) {
-                                  setState(() => adminPrivilege = value);
-                                },
-                              ),
-                            ),
-                          ]
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: nameCtrl,
-                        decoration: _buildInputDecoration('Full name', Icons.person_rounded),
-                        validator: (v) => v!.isEmpty ? 'Required' : null,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: emailCtrl,
-                        decoration: _buildInputDecoration('Email (optional)', Icons.email_rounded),
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (v) {
-                          final email = v?.trim() ?? '';
-                          if (email.isNotEmpty && !email.contains('@')) return 'Enter a valid email';
-                          if (isNew && email.isEmpty && PhoneNumber.normalize(phoneCtrl.text) == null) {
-                            return 'Email or mobile number is needed to sign in';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: phoneCtrl,
-                        decoration: _buildInputDecoration('Mobile number', Icons.phone_rounded),
-                      ),
-
-                      if (isNew) ...[
-                        const SizedBox(height: 24),
-                        _buildSectionHeader('Sign-in'),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: passCtrl,
-                          decoration: _buildInputDecoration('Password', Icons.lock_rounded),
-                          obscureText: true,
-                          validator: (v) => v!.length < 6 ? 'Minimum 6 characters' : null,
-                        ),
-                      ],
-
-                      if (role == UserRole.student) ...[
-                        const SizedBox(height: 24),
-                        _buildSectionHeader('Parent'),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(child: TextFormField(controller: parentNameCtrl, decoration: _buildInputDecoration('Parent name', Icons.family_restroom_rounded))),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: TextFormField(
-                                controller: parentPhoneCtrl,
-                                keyboardType: TextInputType.phone,
-                                decoration: _buildInputDecoration('Parent WhatsApp no.', Icons.phone_android_rounded),
-                                validator: (v) => (v == null || v.trim().isEmpty || PhoneNumber.normalize(v) != null)
-                                    ? null
-                                    : 'Enter a valid mobile number',
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        _buildSectionHeader('Enrolment'),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(child: TextFormField(controller: collegeCtrl, decoration: _buildInputDecoration(isCollege ? 'College roll no.' : 'Roll no. (optional)', Icons.tag_rounded))),
-                            if (isCollege) ...[
-                              const SizedBox(width: 12),
-                              Expanded(child: TextFormField(controller: examCtrl, decoration: _buildInputDecoration('Exam roll no.', Icons.numbers_rounded))),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            if (isCollege) ...[
-                              Expanded(
-                                child: DropdownButtonFormField<int>(
-                                  initialValue: year,
-                                  items: [1, 2, 3, 4, 5].map((y) => DropdownMenuItem(value: y, child: Text('Year $y'))).toList(),
-                                  onChanged: (v) => year = v,
-                                  decoration: _buildInputDecoration('Year', Icons.calendar_today_rounded),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                            ],
-                            Expanded(
-                              child: groups.isEmpty
-                                  // No groups configured yet: let the admin type one.
-                                  ? TextFormField(
-                                      controller: sectionCtrl,
-                                      decoration: _buildInputDecoration(settings.groupLabel, Icons.grid_view_rounded),
-                                      onChanged: (v) => section = v.trim(),
-                                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                                    )
-                                  : DropdownButtonFormField<String>(
-                                      initialValue: section,
-                                      items: groups.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                                      onChanged: (v) => section = v,
-                                      decoration: _buildInputDecoration(settings.groupLabel, Icons.grid_view_rounded),
-                                      validator: (v) => v == null ? 'Required' : null,
-                                    ),
-                            ),
-                          ],
-                        ),
-                      ],
-
-                      const SizedBox(height: 32),
-
-                      Row(
-                        children: [
-                          if (!isNew)
-                            TextButton(
-                              style: TextButton.styleFrom(foregroundColor: context.palette.danger),
-                              onPressed: () {
-                                Navigator.pop(context);
-                                _confirmDeleteUser(u);
-                              },
-                              child: const Text('Delete'),
-                            ),
-                          const Spacer(),
-                          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                          const SizedBox(width: 12),
-                          FilledButton(
-                            onPressed: () {
-                              if (!form.currentState!.validate()) return;
-                              Navigator.pop(
-                                context,
-                                u.copyWith(
-                                  role: role,
-                                  isAdmin: adminPrivilege,
-                                  name: nameCtrl.text.trim(),
-                                  email: emailCtrl.text.trim().isEmpty ? null : emailCtrl.text.trim(),
-                                  phone: phoneCtrl.text.trim(),
-                                  collegeRollNo: collegeCtrl.text.trim().isEmpty ? null : collegeCtrl.text.trim(),
-                                  examRollNo: examCtrl.text.trim().isEmpty ? null : examCtrl.text.trim(),
-                                  section: role == UserRole.student ? section : null,
-                                  year: role == UserRole.student ? year : null,
-                                  parentName: role == UserRole.student ? parentNameCtrl.text.trim() : null,
-                                  parentPhone: role == UserRole.student ? parentPhoneCtrl.text.trim() : null,
-                                ),
-                              );
-                            },
-                            child: Text(isNew ? 'Create' : 'Save'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
+    final result = await showUserFormDialog(
+      context,
+      ref.read(settingsProvider),
+      u,
+      isNew: isNew,
+      onDelete: () => _confirmDeleteUser(u),
     );
+    final updated = result?.user;
 
     if (updated != null) {
       try {
         if (mounted) showMessage(context, isNew ? 'Creating account…' : 'Saving…');
         if (isNew) {
-          // No email: the student signs in with their mobile number.
-          final login = updated.email?.isNotEmpty == true ? updated.email! : LoginId.toEmail(updated.phone);
-          await ref.read(authRepoProvider).createAccount(updated.copyWith(email: login), passCtrl.text);
+          await createUserFromForm(ref.read(authRepoProvider).createAccount, result!);
         } else {
           await ref.read(authRepoProvider).updateUser(updated);
         }
@@ -420,11 +204,6 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
       ref.invalidate(allUsersProvider);
     }
   }
-
-  Widget _buildSectionHeader(String title) => SectionLabel(title, padding: const EdgeInsets.only(top: 12));
-
-  // [icon] is kept for call-site readability but not drawn: labels are enough.
-  InputDecoration _buildInputDecoration(String label, IconData icon) => InputDecoration(labelText: label);
 
   Future<void> _confirmDeleteUser(UserAccount user) async {
     final bool? deleted = await showDialog<bool>(
