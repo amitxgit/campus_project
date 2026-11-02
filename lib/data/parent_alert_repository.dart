@@ -59,6 +59,12 @@ class ParentAlertRepository {
 
   Future<void> deleteWhatsAppCredentials() => _guard(() => _db.collection('secrets').doc('whatsapp').delete());
 
+  /// Sends today's owner summary now (normally automatic at 8 pm).
+  Future<Map<String, dynamic>> sendDailySummary() => _guard(() async {
+        final res = await appFunctions.httpsCallable('sendDailySummary').call<Map<String, dynamic>>({});
+        return Map<String, dynamic>.from(res.data);
+      });
+
   /// Sends Meta's built-in "hello_world" template to [to] to check the setup.
   Future<void> sendTest(String to) => _guard(() async {
         await appFunctions.httpsCallable('testWhatsApp').call<Map<String, dynamic>>({'to': to});

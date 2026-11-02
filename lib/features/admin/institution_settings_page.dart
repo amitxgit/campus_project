@@ -491,6 +491,7 @@ class _InstitutionSettingsPageState extends ConsumerState<InstitutionSettingsPag
           upiId: d.upiId,
           upiPayeeName: d.upiPayeeName,
           razorpayKeyId: d.razorpayKeyId,
+          ownerPhone: d.ownerPhone,
         );
         _labelCtrl.text = _draft!.groupLabel;
       } else {

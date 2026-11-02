@@ -90,10 +90,11 @@ number.
    developers.facebook.com → *Create app* → *Business* → add *WhatsApp*.
 2. Add and verify the institute's phone number (it can't already be on the
    normal WhatsApp app).
-3. In *WhatsApp Manager → Message templates*, create the four templates shown on
+3. In *WhatsApp Manager → Message templates*, create the five templates shown on
    the app's **Parent Alerts** page (*Message templates* → copy each one).
    Category **Utility**, language **English**, names exactly `absence_alert`,
-   `fee_reminder`, `fee_receipt` and `test_result`. Approval usually takes minutes to a day.
+   `fee_reminder`, `fee_receipt`, `test_result` and `daily_summary` (the owner's
+   evening summary, see section 10). Approval usually takes minutes to a day.
    `fee_reminder` and `fee_receipt` have five values; the fifth is the UPI pay
    link (see section 6). In Meta, give it a sample value like
    `https://batchwise-2bd30.web.app/pay.html?pa=apex@ybl&am=5000.00`.
@@ -200,3 +201,23 @@ deploying.
 
 On a phone these open the share sheet (WhatsApp, Drive, email); in a browser
 they download.
+
+## 10. Owner's daily summary (8 pm)
+
+Every evening at 8 pm (India time) each admin gets a notification in the app
+with the day's fee collections, students absent, total overdue fees, new
+enquiries and follow-ups that were missed.
+
+1. **Deploy the functions** (section 1, step 3). The 8 pm run uses Cloud
+   Scheduler, which the Blaze plan includes (3 free jobs a month; this is one).
+   If the deploy asks to enable the Cloud Scheduler API, answer **Yes**.
+2. **Optional, on WhatsApp too:** with WhatsApp connected (section 5) and the
+   `daily_summary` template approved, open **Parent Alerts → Daily summary → ⋮
+   → Add owner's WhatsApp** and enter the owner's number. In Meta, give the
+   template sample values like `Mon, 2 Nov`, `Apex Classes`,
+   `₹12,500 from 4 payments`, `3`, `₹1,20,000` and `2 new, 1 follow-up missed`.
+3. **Check it:** **Parent Alerts → Daily summary → ⋮ → Send today's now**, then
+   look in Notifications (and on the owner's WhatsApp).
+
+The 8 pm run sends once a day even if Cloud Scheduler retries. Each day's
+figures are kept in `daily_summaries` in Firestore.

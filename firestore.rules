@@ -195,6 +195,11 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 100);
     }
 
+    // Owner's daily summaries, written by the dailySummary function.
+    match /daily_summaries/{day} {
+      allow read: if isAdmin();
+    }
+
     // Razorpay payment links, created and settled only by Cloud Functions.
     match /payment_links/{id} {
       allow read: if isAdmin();

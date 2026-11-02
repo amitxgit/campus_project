@@ -131,6 +131,7 @@ class NotificationsPage extends ConsumerWidget {
         NotificationType.lowAttendance => Icons.error_outline_rounded,
         NotificationType.queryUpdate => Icons.question_answer_outlined,
         NotificationType.remarkSaved => Icons.rate_review_outlined,
+        NotificationType.dailySummary => Icons.insights_rounded,
         NotificationType.general => Icons.notifications_none_rounded,
       };
 }

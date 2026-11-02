@@ -3,6 +3,7 @@
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { setGlobalOptions } = require("firebase-functions/v2/options");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const { FieldValue, Timestamp } = require("firebase-admin/firestore");
@@ -596,14 +597,14 @@ const toDate = (v) => (v && v.toDate ? v.toDate() : new Date(v));
 const balanceOf = (a) =>
   (Number(a.totalFee) || 0) - (Number(a.discount) || 0) - (Number(a.paidAmount) || 0);
 
-// Same as FeeAccount.payableNow in the app: everything overdue, else what's
-// left of the next instalment. Payments cover instalments oldest-first.
-function payableNow(account, now = new Date()) {
+// Same as FeeAccount in the app: payments cover instalments oldest-first;
+// `overdue` is what's left on instalments due before today (IST), `next` what's
+// left on the first one not yet due.
+function feeDue(account, now = new Date()) {
   const today = istDay(now);
   const instalments = (account.instalments || [])
     .map((i) => ({ amount: Number(i.amount) || 0, due: toDate(i.dueDate) }))
     .sort((a, b) => a.due - b.due);
-  if (!instalments.length) return Math.max(balanceOf(account), 0);
   let remaining = Number(account.paidAmount) || 0;
   let overdue = 0;
   let next = 0;
@@ -615,6 +616,13 @@ function payableNow(account, now = new Date()) {
     if (istDay(inst.due) < today) overdue += left;
     else if (!next) next = left;
   }
+  return { overdue, next, hasInstalments: instalments.length > 0 };
+}
+
+// Same as FeeAccount.payableNow: everything overdue, else the next instalment.
+function payableNow(account, now = new Date()) {
+  const { overdue, next, hasInstalments } = feeDue(account, now);
+  if (!hasInstalments) return Math.max(balanceOf(account), 0);
   return overdue > 0.5 ? overdue : next;
 }
 
@@ -769,6 +777,150 @@ exports.razorpayWebhook = onRequest({ invoker: "public" }, async (req, res) => {
     logger.error("Razorpay payment for a student with no fee plan", { studentId, payment: payment.id });
   }
   res.status(200).send(outcome);
+});
+
+// ---------------------------------------------------------------------------
+// OWNER'S DAILY SUMMARY
+// ---------------------------------------------------------------------------
+// Every evening at 8 pm IST: today's collections, absences, total overdue and
+// enquiries. Always an in-app notification to each admin; also a WhatsApp
+// message to settings.ownerPhone when WhatsApp is connected.
+
+const DAILY_SUMMARY_TEMPLATE = { name: "daily_summary", params: 6 };
+
+// IST calendar day containing `when`: its key, label and [start, end).
+function istDayBounds(when = new Date()) {
+  const key = istDay(when);
+  const start = new Date(`${key}T00:00:00+05:30`);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  const label = start.toLocaleDateString("en-IN", { timeZone: IST, weekday: "short", day: "numeric", month: "short" });
+  return { key, start, end, label };
+}
+
+const money = (amount, symbol) =>
+  `${symbol || "₹"}${Math.round(amount).toLocaleString("en-IN")}`;
+
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+// The figures for one IST day. Pure reads; `day` from istDayBounds.
+async function computeDailySummary(day) {
+  const [payments, attendance, accounts, enquiries] = await Promise.all([
+    db.collectionGroup("payments")
+      .where("paidOn", ">=", day.start).where("paidOn", "<", day.end).get(),
+    db.collection("attendance")
+      .where("date", ">=", day.start).where("date", "<", day.end).get(),
+    db.collection("fee_accounts").get(),
+    db.collection("enquiries").where("createdAt", ">=", day.start).where("createdAt", "<", day.end).get(),
+  ]);
+  // Open enquiries due today or earlier that nobody touched today.
+  const due = await db.collection("enquiries").where("nextFollowUp", "<", day.end).get();
+
+  const valid = payments.docs.map((d) => d.data()).filter((p) => !p.voided);
+  const absent = new Set(attendance.docs.map((d) => d.data())
+    .filter((r) => r.status === "absent").map((r) => r.studentId));
+  // Instalments falling due today aren't overdue until tomorrow.
+  const overdue = accounts.docs.reduce((sum, d) => sum + feeDue(d.data(), day.start).overdue, 0);
+  const missed = due.docs.map((d) => d.data()).filter((e) =>
+    e.status !== "joined" && e.status !== "lost" &&
+    !(e.updatedAt && toDate(e.updatedAt) >= day.start));
+
+  return {
+    date: day.key,
+    collected: valid.reduce((s, p) => s + (Number(p.amount) || 0), 0),
+    payments: valid.length,
+    absent: absent.size,
+    overdue,
+    newEnquiries: enquiries.size,
+    missedFollowUps: missed.length,
+  };
+}
+
+// The six daily_summary template values (no line breaks: WhatsApp rejects them).
+function dailySummaryParams(s, label, institute, symbol) {
+  return [
+    label,
+    institute || "your institute",
+    s.payments ? `${money(s.collected, symbol)} from ${plural(s.payments, "payment", "payments")}` : "nil",
+    String(s.absent),
+    money(s.overdue, symbol),
+    `${s.newEnquiries} new, ${s.missedFollowUps} follow-up${s.missedFollowUps === 1 ? "" : "s"} missed`,
+  ];
+}
+
+async function activeAdminIds() {
+  const [byRole, byFlag] = await Promise.all([
+    db.collection("users").where("role", "==", "admin").get(),
+    db.collection("users").where("isAdmin", "==", true).get(),
+  ]);
+  return [...new Set([...byRole.docs, ...byFlag.docs]
+    .filter((d) => d.data().isActive !== false).map((d) => d.id))];
+}
+
+// Computes, stores (daily_summaries/{day}) and delivers a day's summary.
+// With onlyOnce, a day that already has a summary is skipped (scheduler retries).
+async function runDailySummary(when, { onlyOnce = false } = {}) {
+  const day = istDayBounds(when);
+  const ref = db.collection("daily_summaries").doc(day.key);
+  if (onlyOnce && (await ref.get()).exists) return { skipped: true, date: day.key };
+
+  const settings = (await db.collection("settings").doc("institution").get()).data() || {};
+  const summary = await computeDailySummary(day);
+  const params = dailySummaryParams(summary, day.label, settings.name, settings.currencySymbol);
+
+  const admins = await activeAdminIds();
+  const batch = db.batch();
+  for (const userId of admins) {
+    batch.set(db.collection("notifications").doc(), {
+      userId,
+      title: `Today at ${settings.name || "your institute"} · ${day.label}`,
+      body: `Collected ${params[2]}. ${plural(summary.absent, "student", "students")} absent. ` +
+        `Overdue ${params[4]}. Enquiries: ${params[5]}.`,
+      type: "dailySummary",
+      read: false,
+      createdAt: FieldValue.serverTimestamp(),
+      data: { date: day.key },
+    });
+  }
+  await batch.commit();
+
+  let whatsapp = "off";
+  const to = normalizePhone(settings.ownerPhone);
+  if (to && settings.whatsappSender) {
+    const cfg = await whatsappConfig();
+    if (cfg) {
+      try {
+        await sendWhatsAppTemplate(cfg, to, DAILY_SUMMARY_TEMPLATE.name, params);
+        whatsapp = "sent";
+      } catch (e) {
+        logger.warn("Daily summary WhatsApp failed", { error: String(e) });
+        whatsapp = `failed: ${e.message || e}`;
+      }
+    }
+  }
+
+  const result = { ...summary, params, notified: admins.length, whatsapp };
+  await ref.set({ ...result, createdAt: FieldValue.serverTimestamp() });
+  return result;
+}
+
+exports.dailySummary = onSchedule(
+  { schedule: "0 20 * * *", timeZone: IST, retryCount: 2 },
+  async () => {
+    const r = await runDailySummary(new Date(), { onlyOnce: true });
+    logger.info("Daily summary", r);
+  },
+);
+
+// "Send now" from the app; admins may also pass a past day (YYYY-MM-DD).
+exports.sendDailySummary = onCall(async (request) => {
+  const caller = await getCaller(request);
+  if (!isAdmin(caller)) throw new HttpsError("permission-denied", "Admins only.");
+  const date = request.data && request.data.date;
+  if (date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
+    throw new HttpsError("invalid-argument", "Date must look like 2026-11-02.");
+  }
+  // Midday IST of that date, so the IST day is unambiguous.
+  return runDailySummary(date ? new Date(`${date}T12:00:00+05:30`) : new Date());
 });
 
 // ---------------------------------------------------------------------------

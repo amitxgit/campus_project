@@ -665,6 +665,108 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await expectError(call("setUserPassword", { uid: imported[0].uid, password: "hacked1" }, tTeacher), "PERMISSION_DENIED");
   });
 
+  console.log("Owner's daily summary");
+  // A clean slate for the figures, on a day no other check uses.
+  await db.recursiveDelete(db.collection("fee_accounts"));
+  await db.recursiveDelete(db.collection("enquiries"));
+  const ist = (s) => new Date(`${s}+05:30`);
+  await db.doc("fee_accounts/sumA").set({
+    studentName: "A", totalFee: 20000, discount: 0, paidAmount: 4000,
+    instalments: [
+      { label: "I1", amount: 10000, dueDate: ist("2026-11-01T00:00:00") }, // 6000 overdue
+      { label: "I2", amount: 10000, dueDate: ist("2026-11-20T00:00:00") }, // due today: not overdue yet
+    ],
+  });
+  await db.doc("fee_accounts/sumB").set({
+    studentName: "B", totalFee: 5000, discount: 0, paidAmount: 5000,
+    instalments: [{ label: "I1", amount: 5000, dueDate: ist("2026-10-01T00:00:00") }],
+  });
+  const payAt = (id, amount, at, voided = false) =>
+    db.doc(`fee_accounts/sumA/payments/${id}`).set({ amount, paidOn: ist(at), voided, receiptNo: 1 });
+  await payAt("x1", 4000, "2026-11-20T10:00:00");
+  await payAt("x2", 999, "2026-11-20T11:00:00", true); // void
+  await payAt("x3", 700, "2026-11-19T23:00:00"); // yesterday (IST)
+  await payAt("x4", 500, "2026-11-20T23:30:00"); // late tonight, still today
+  await payAt("x5", 300, "2026-11-21T00:10:00"); // tomorrow
+  const mark = (id, studentId, status, at) =>
+    db.doc(`attendance/${id}`).set({ studentId, status, date: ist(at), subjectId: "phy", sessionId: "s" });
+  await mark("d1", "student1", "absent", "2026-11-20T09:00:00");
+  await mark("d2", "student1", "absent", "2026-11-20T11:00:00"); // same student twice
+  await mark("d3", "student2", "absent", "2026-11-20T09:00:00");
+  await mark("d4", "student3", "present", "2026-11-20T09:00:00");
+  await mark("d5", "student3", "absent", "2026-11-21T01:00:00"); // tomorrow
+  const enquiryAt = (id, data) => db.doc(`enquiries/${id}`).set({ name: id, createdBy: "admin1", ...data });
+  await enquiryAt("n1", { status: "new", createdAt: ist("2026-11-20T10:00:00"), updatedAt: ist("2026-11-20T10:00:00") });
+  await enquiryAt("n2", { status: "new", createdAt: ist("2026-11-20T18:00:00"), updatedAt: ist("2026-11-20T18:00:00") });
+  await enquiryAt("missed", { status: "contacted", createdAt: ist("2026-11-10T10:00:00"),
+    nextFollowUp: ist("2026-11-19T00:00:00"), updatedAt: ist("2026-11-15T10:00:00") });
+  await enquiryAt("done", { status: "demoBooked", createdAt: ist("2026-11-10T10:00:00"),
+    nextFollowUp: ist("2026-11-20T00:00:00"), updatedAt: ist("2026-11-20T09:00:00") });
+  await enquiryAt("joined", { status: "joined", createdAt: ist("2026-11-10T10:00:00"),
+    nextFollowUp: ist("2026-11-18T00:00:00"), updatedAt: ist("2026-11-15T10:00:00") });
+  await enquiryAt("later", { status: "new", createdAt: ist("2026-11-10T10:00:00"),
+    nextFollowUp: ist("2026-11-25T00:00:00"), updatedAt: ist("2026-11-10T10:00:00") });
+
+  const waSent = [];
+  const waMock = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      waSent.push({ url: req.url, body: JSON.parse(body) });
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ messages: [{ id: "wamid.sum" }] }));
+    });
+  });
+  await new Promise((r) => waMock.listen(0, "127.0.0.1", r));
+  await db.doc("secrets/whatsapp").set({ phoneNumberId: "PNID", token: "tok", apiBase: `http://127.0.0.1:${waMock.address().port}` });
+  await db.doc("settings/institution").set(
+    { name: "Apex", currencySymbol: "₹", whatsappSender: "+91 90000 00000", ownerPhone: "98765 43210" }, { merge: true });
+
+  await check("only admins can send the summary; dates are checked", async () => {
+    await expectError(call("sendDailySummary", { date: "2026-11-20" }, tTeacher), "PERMISSION_DENIED");
+    await expectError(call("sendDailySummary", { date: "20/11/2026" }, tAdmin), "INVALID_ARGUMENT");
+  });
+  let summary;
+  await check("summary maths: IST day, void and other days excluded, due-today not overdue", async () => {
+    summary = await call("sendDailySummary", { date: "2026-11-20" }, tAdmin);
+    assert.strictEqual(summary.date, "2026-11-20");
+    assert.strictEqual(summary.collected, 4500);
+    assert.strictEqual(summary.payments, 2);
+    assert.strictEqual(summary.absent, 2);
+    assert.strictEqual(summary.overdue, 6000);
+    assert.strictEqual(summary.newEnquiries, 2);
+    assert.strictEqual(summary.missedFollowUps, 1);
+    assert.match(summary.params[0], /20 Nov/);
+    assert.deepStrictEqual(summary.params.slice(1),
+      ["Apex", "₹4,500 from 2 payments", "2", "₹6,000", "2 new, 1 follow-up missed"]);
+  });
+  await check("every admin gets it in the app", async () => {
+    const n = await db.collection("notifications").where("userId", "==", "admin1").where("type", "==", "dailySummary").get();
+    assert.strictEqual(n.size, 1);
+    assert.match(n.docs[0].data().body, /Collected ₹4,500 from 2 payments\. 2 students absent\. Overdue ₹6,000\./);
+    assert.ok(summary.notified >= 1);
+  });
+  await check("owner gets the daily_summary template on WhatsApp", async () => {
+    assert.strictEqual(summary.whatsapp, "sent");
+    const msg = waSent[waSent.length - 1];
+    assert.strictEqual(msg.body.to, "919876543210");
+    assert.strictEqual(msg.body.template.name, "daily_summary");
+    assert.deepStrictEqual(msg.body.template.components[0].parameters.map((p) => p.text), summary.params);
+  });
+  await check("summaries are stored for admins only", async () => {
+    await assertSucceeds(adminDb.doc("daily_summaries/2026-11-20").get());
+    await assertFails(teacher.doc("daily_summaries/2026-11-20").get());
+    await assertFails(adminDb.doc("daily_summaries/2026-11-20").set({ collected: 1 }));
+  });
+  await check("no owner number: in-app only", async () => {
+    await db.doc("settings/institution").update({ ownerPhone: "" });
+    const before = waSent.length;
+    const r = await call("sendDailySummary", { date: "2026-11-20" }, tAdmin);
+    assert.strictEqual(r.whatsapp, "off");
+    assert.strictEqual(waSent.length, before);
+  });
+  waMock.close();
+
   await env.cleanup();
   console.log(`\n${passed} checks passed${process.exitCode ? ", some FAILED" : ""}`);
 })().catch((e) => {

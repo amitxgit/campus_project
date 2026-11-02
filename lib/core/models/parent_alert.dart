@@ -49,6 +49,19 @@ extension ParentAlertKindX on ParentAlertKind {
   }
 }
 
+/// The owner's 8 pm summary (sent by the dailySummary function, not queued
+/// like parent alerts). Values: date, institute, collected, absent count,
+/// total overdue, enquiries.
+const kDailySummaryTemplateName = 'daily_summary';
+const kDailySummaryTemplateBody = 'Daily summary for {{1}} at {{2}}.\nFees collected: {{3}}\nStudents absent: {{4}}\n'
+    'Total overdue: {{5}}\nEnquiries: {{6}}';
+
+/// Every template to register in Meta, as (name, body).
+List<(String, String)> get allWhatsAppTemplates => [
+      for (final k in ParentAlertKind.values) (k.templateName, k.templateBody),
+      (kDailySummaryTemplateName, kDailySummaryTemplateBody),
+    ];
+
 enum ParentAlertStatus { pending, sent, failed, noPhone, notConfigured, rejected }
 
 class ParentAlert {

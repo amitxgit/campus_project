@@ -137,6 +137,28 @@ class _ParentAlertsPageState extends ConsumerState<ParentAlertsPage> {
                         : null,
                   ),
                   Divider(indent: 16, endIndent: 16, color: p.line),
+                  ListTile(
+                    contentPadding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+                    title: const Text('Daily summary', style: TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(
+                      'Every day at 8 pm: collections, absences, overdue and enquiries, in the app for admins'
+                      '${settings.ownerPhone.isEmpty ? '.' : connected ? ' and on WhatsApp to ${settings.ownerPhone}.' : '. WhatsApp to ${settings.ownerPhone} needs WhatsApp connected.'}',
+                      style: TextStyle(color: p.inkMuted, fontSize: 13),
+                    ),
+                    trailing: PopupMenuButton<String>(
+                      enabled: !_busy,
+                      icon: Icon(Icons.more_vert_rounded, color: p.inkMuted),
+                      onSelected: (v) => v == 'now' ? _sendSummaryNow() : _editOwnerPhone(settings),
+                      itemBuilder: (_) => [
+                        PopupMenuItem(
+                          value: 'phone',
+                          child: Text(settings.ownerPhone.isEmpty ? 'Add owner\'s WhatsApp' : 'Change owner\'s WhatsApp'),
+                        ),
+                        const PopupMenuItem(value: 'now', child: Text('Send today\'s now')),
+                      ],
+                    ),
+                  ),
+                  Divider(indent: 16, endIndent: 16, color: p.line),
                   Theme(
                     data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                     child: ExpansionTile(
@@ -147,7 +169,7 @@ class _ParentAlertsPageState extends ConsumerState<ParentAlertsPage> {
                       title: const Text('Message templates', style: TextStyle(fontWeight: FontWeight.w600)),
                       subtitle: Text('For Meta Business Manager · Utility · English', style: TextStyle(color: p.inkMuted, fontSize: 13)),
                       children: [
-                        for (final k in ParentAlertKind.values)
+                        for (final (name, body) in allWhatsAppTemplates)
                           Padding(
                             padding: const EdgeInsets.only(top: 8),
                             child: Row(
@@ -157,9 +179,9 @@ class _ParentAlertsPageState extends ConsumerState<ParentAlertsPage> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(k.templateName, style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w600, fontSize: 13)),
+                                      Text(name, style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w600, fontSize: 13)),
                                       const SizedBox(height: 2),
-                                      Text(k.templateBody, style: TextStyle(color: p.inkMuted, fontSize: 13, height: 1.4)),
+                                      Text(body, style: TextStyle(color: p.inkMuted, fontSize: 13, height: 1.4)),
                                     ],
                                   ),
                                 ),
@@ -167,7 +189,7 @@ class _ParentAlertsPageState extends ConsumerState<ParentAlertsPage> {
                                   tooltip: 'Copy',
                                   icon: Icon(Icons.copy_rounded, size: 18, color: p.inkMuted),
                                   onPressed: () {
-                                    Clipboard.setData(ClipboardData(text: k.templateBody));
+                                    Clipboard.setData(ClipboardData(text: body));
                                     showMessage(context, 'Template copied');
                                   },
                                 ),
@@ -271,6 +293,52 @@ class _ParentAlertsPageState extends ConsumerState<ParentAlertsPage> {
           );
       await ref.read(settingsRepoProvider).save(ref.read(settingsProvider).copyWith(whatsappSender: '+$number'));
       _snack('WhatsApp connected. Send a test to check it works.');
+    } catch (e) {
+      _snack(FirebaseErrorParser.getMessage(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _editOwnerPhone(InstitutionSettings settings) async {
+    final ctrl = TextEditingController(text: settings.ownerPhone);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Owner\'s WhatsApp'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.phone,
+          decoration: const InputDecoration(
+            labelText: 'Mobile number',
+            helperText: 'Gets the 8 pm summary. Leave empty to stop.',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('Save')),
+        ],
+      ),
+    );
+    if (value == null) return;
+    if (value.isNotEmpty && PhoneNumber.normalize(value) == null) {
+      _snack('Enter a valid mobile number.');
+      return;
+    }
+    await _saveSettings(ref.read(settingsProvider).copyWith(ownerPhone: value));
+  }
+
+  Future<void> _sendSummaryNow() async {
+    setState(() => _busy = true);
+    try {
+      final r = await ref.read(parentAlertRepoProvider).sendDailySummary();
+      final wa = r['whatsapp'] as String? ?? 'off';
+      _snack(wa == 'sent'
+          ? 'Summary sent in the app and on WhatsApp.'
+          : wa.startsWith('failed')
+              ? 'Summary sent in the app. WhatsApp $wa'
+              : 'Summary sent in the app. Check Notifications.');
     } catch (e) {
       _snack(FirebaseErrorParser.getMessage(e));
     } finally {

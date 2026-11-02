@@ -61,6 +61,10 @@ class InstitutionSettings {
   /// live in secrets/razorpay. Empty = no payment links.
   final String razorpayKeyId;
 
+  /// Owner's WhatsApp number for the 8 pm daily summary (needs WhatsApp
+  /// connected). Admins always get it in the app.
+  final String ownerPhone;
+
   const InstitutionSettings({
     required this.name,
     required this.type,
@@ -84,6 +88,7 @@ class InstitutionSettings {
     this.upiId = '',
     this.upiPayeeName = '',
     this.razorpayKeyId = '',
+    this.ownerPhone = '',
   });
 
   bool get whatsappConnected => whatsappSender.isNotEmpty;
@@ -220,6 +225,7 @@ class InstitutionSettings {
         'upiId': upiId,
         'upiPayeeName': upiPayeeName,
         'razorpayKeyId': razorpayKeyId,
+        'ownerPhone': ownerPhone,
       };
 
   factory InstitutionSettings.fromMap(Map<String, dynamic> map) {
@@ -258,6 +264,7 @@ class InstitutionSettings {
       upiId: ((map['upiId'] as String?) ?? '').trim(),
       upiPayeeName: (map['upiPayeeName'] as String?) ?? '',
       razorpayKeyId: (map['razorpayKeyId'] as String?) ?? '',
+      ownerPhone: (map['ownerPhone'] as String?) ?? '',
     );
   }
 
@@ -284,6 +291,7 @@ class InstitutionSettings {
     String? upiId,
     String? upiPayeeName,
     String? razorpayKeyId,
+    String? ownerPhone,
   }) {
     return InstitutionSettings(
       name: name ?? this.name,
@@ -308,6 +316,7 @@ class InstitutionSettings {
       upiId: upiId ?? this.upiId,
       upiPayeeName: upiPayeeName ?? this.upiPayeeName,
       razorpayKeyId: razorpayKeyId ?? this.razorpayKeyId,
+      ownerPhone: ownerPhone ?? this.ownerPhone,
     );
   }
 }
