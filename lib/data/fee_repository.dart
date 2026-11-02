@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../core/models/fee.dart';
 import '../core/utils/firebase_error_parser.dart';
+import '../main.dart' show appFunctions;
 
 class FeeRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -113,5 +114,42 @@ class FeeRepository {
             'updatedAt': FieldValue.serverTimestamp(),
           });
         });
+      });
+
+  // ------------------------------------------------------ Razorpay (optional)
+
+  /// Stores Razorpay keys in a doc clients can write but never read back;
+  /// only Cloud Functions read it. The key id (public) also goes in settings
+  /// so the app knows payment links are available.
+  Future<void> saveRazorpayCredentials({
+    required String keyId,
+    required String keySecret,
+    required String webhookSecret,
+  }) =>
+      _guard(() async {
+        await _db.collection('secrets').doc('razorpay').set({
+          'keyId': keyId,
+          'keySecret': keySecret,
+          'webhookSecret': webhookSecret,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        await _db.collection('settings').doc('institution').set({'razorpayKeyId': keyId}, SetOptions(merge: true));
+      });
+
+  Future<void> deleteRazorpayCredentials() => _guard(() async {
+        await _db.collection('secrets').doc('razorpay').delete();
+        await _db.collection('settings').doc('institution').set({'razorpayKeyId': ''}, SetOptions(merge: true));
+      });
+
+  /// Creates a Razorpay payment link for [studentId]. [amount] defaults (on
+  /// the server) to what is payable now. The payment is recorded
+  /// automatically by the razorpayWebhook function once the parent pays.
+  Future<({String url, double amount})> createPaymentLink(String studentId, {double? amount}) =>
+      _guard(() async {
+        final res = await appFunctions.httpsCallable('createFeePaymentLink').call<Map<String, dynamic>>({
+          'studentId': studentId,
+          if (amount != null) 'amount': amount,
+        });
+        return (url: res.data['url'] as String, amount: (res.data['amount'] as num).toDouble());
       });
 }

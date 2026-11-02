@@ -451,6 +451,137 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   });
   mock.close();
 
+  console.log("Razorpay payment links");
+  // A stand-in for the Razorpay API that records what it was sent.
+  const rzpCalls = [];
+  const rzpMock = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (c) => (body += c));
+    req.on("end", () => {
+      const parsed = JSON.parse(body);
+      rzpCalls.push({ url: req.url, auth: req.headers.authorization, body: parsed });
+      const id = `plink_${rzpCalls.length}`;
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ id, short_url: `https://rzp.io/rzp/${id}`, amount: parsed.amount }));
+    });
+  });
+  await new Promise((r) => rzpMock.listen(0, "127.0.0.1", r));
+  const rzpBase = `http://127.0.0.1:${rzpMock.address().port}`;
+  const WEBHOOK_SECRET = "whsec_test";
+  const webhook = async (event, secret = WEBHOOK_SECRET) => {
+    const raw = JSON.stringify(event);
+    const sig = crypto.createHmac("sha256", secret).update(raw).digest("hex");
+    const res = await fetch(`${FN}/razorpayWebhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Razorpay-Signature": sig },
+      body: raw,
+    });
+    return { status: res.status, text: await res.text() };
+  };
+  const paidEvent = (linkId, paymentId, paise, method = "upi") => ({
+    event: "payment_link.paid",
+    payload: {
+      payment_link: { entity: { id: linkId, status: "paid", amount: paise, amount_paid: paise } },
+      payment: { entity: { id: paymentId, amount: paise, method, status: "captured", created_at: 1793000000 } },
+    },
+  });
+  await db.doc("fee_accounts/student1").set({
+    studentName: "Asha", totalFee: 30000, discount: 0, paidAmount: 5000,
+    instalments: [
+      { label: "Instalment 1", amount: 10000, dueDate: new Date("2026-01-10T00:00:00+05:30") },
+      { label: "Instalment 2", amount: 20000, dueDate: new Date("2099-01-10T00:00:00+05:30") },
+    ],
+  });
+
+  await check("payment link needs Razorpay connected", () =>
+    expectError(call("createFeePaymentLink", { studentId: "student1" }, tAdmin), "FAILED_PRECONDITION"));
+  await check("Razorpay keys are write-only and admin-only", async () => {
+    await assertFails(student.doc("secrets/razorpay").set({ keyId: "rzp_x" }));
+    await assertFails(teacher.doc("secrets/razorpay").set({ keyId: "rzp_x" }));
+    await assertSucceeds(adminDb.doc("secrets/razorpay").set({ keyId: "rzp_test_1", keySecret: "ks", webhookSecret: WEBHOOK_SECRET }));
+    await assertFails(adminDb.doc("secrets/razorpay").get());
+    await db.doc("secrets/razorpay").update({ apiBase: rzpBase });
+  });
+  await check("only admins can create payment links", () =>
+    expectError(call("createFeePaymentLink", { studentId: "student1" }, tTeacher), "PERMISSION_DENIED"));
+  let link;
+  await check("payment link defaults to what's due now (the overdue part)", async () => {
+    link = await call("createFeePaymentLink", { studentId: "student1" }, tAdmin);
+    assert.strictEqual(link.amount, 5000);
+    assert.strictEqual(link.url, `https://rzp.io/rzp/${link.id}`);
+    const sent = rzpCalls[rzpCalls.length - 1];
+    assert.strictEqual(sent.url, "/v1/payment_links");
+    assert.strictEqual(sent.auth, `Basic ${Buffer.from("rzp_test_1:ks").toString("base64")}`);
+    assert.strictEqual(sent.body.amount, 500000);
+    assert.strictEqual(sent.body.currency, "INR");
+    assert.strictEqual(sent.body.customer.contact, "+919812345678");
+    assert.deepStrictEqual(sent.body.notes, { studentId: "student1" });
+    const saved = (await db.doc(`payment_links/${link.id}`).get()).data();
+    assert.strictEqual(saved.studentId, "student1");
+    assert.strictEqual(saved.status, "created");
+  });
+  await check("payment link amount can't exceed the balance", async () => {
+    await expectError(call("createFeePaymentLink", { studentId: "student1", amount: 25001 }, tAdmin), "INVALID_ARGUMENT");
+    await expectError(call("createFeePaymentLink", { studentId: "student1", amount: 0 }, tAdmin), "INVALID_ARGUMENT");
+    await expectError(call("createFeePaymentLink", { studentId: "student2" }, tAdmin), "FAILED_PRECONDITION");
+  });
+  await check("only admins can read payment links; nobody writes them", async () => {
+    await assertSucceeds(adminDb.doc(`payment_links/${link.id}`).get());
+    await assertFails(student.doc(`payment_links/${link.id}`).get());
+    await assertFails(adminDb.doc(`payment_links/${link.id}`).update({ status: "paid" }));
+  });
+  await check("webhook with a bad signature is rejected and records nothing", async () => {
+    const res = await webhook(paidEvent(link.id, "pay_FORGED", 500000), "wrong-secret");
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual((await db.doc("fee_accounts/student1/payments/pay_FORGED").get()).exists, false);
+    assert.strictEqual((await db.doc("fee_accounts/student1").get()).data().paidAmount, 5000);
+  });
+  await check("signed payment_link.paid records the payment with the next receipt number", async () => {
+    const before = (await db.doc("meta/counters").get()).data().receiptSeq;
+    const res = await webhook(paidEvent(link.id, "pay_ABC", 500000, "netbanking"));
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.text, "recorded");
+    const pay = (await db.doc("fee_accounts/student1/payments/pay_ABC").get()).data();
+    assert.strictEqual(pay.amount, 5000);
+    assert.strictEqual(pay.mode, "bankTransfer");
+    assert.strictEqual(pay.reference, "pay_ABC");
+    assert.strictEqual(pay.receiptNo, before + 1);
+    assert.strictEqual(pay.voided, false);
+    assert.strictEqual((await db.doc("meta/counters").get()).data().receiptSeq, before + 1);
+    assert.strictEqual((await db.doc("fee_accounts/student1").get()).data().paidAmount, 10000);
+    const saved = (await db.doc(`payment_links/${link.id}`).get()).data();
+    assert.strictEqual(saved.status, "paid");
+    assert.strictEqual(saved.paymentId, "pay_ABC");
+  });
+  await check("a repeated webhook does not record the payment twice", async () => {
+    const res = await webhook(paidEvent(link.id, "pay_ABC", 500000, "netbanking"));
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.text, "duplicate");
+    const pays = await db.collection("fee_accounts/student1/payments").where("reference", "==", "pay_ABC").get();
+    assert.strictEqual(pays.size, 1);
+    assert.strictEqual((await db.doc("fee_accounts/student1").get()).data().paidAmount, 10000);
+  });
+  await check("concurrent duplicate deliveries still record once", async () => {
+    const l2 = await call("createFeePaymentLink", { studentId: "student1", amount: 1000 }, tAdmin);
+    const results = await Promise.all([1, 2, 3].map(() => webhook(paidEvent(l2.id, "pay_RACE", 100000, "wallet"))));
+    assert.deepStrictEqual(results.map((r) => r.status), [200, 200, 200]);
+    assert.strictEqual(results.filter((r) => r.text === "recorded").length, 1);
+    assert.strictEqual((await db.doc("fee_accounts/student1/payments/pay_RACE").get()).data().mode, "online");
+    assert.strictEqual((await db.doc("fee_accounts/student1").get()).data().paidAmount, 11000);
+  });
+  await check("payments for links the app didn't create are ignored", async () => {
+    const res = await webhook(paidEvent("plink_STRANGER", "pay_X", 999900));
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.text, "unknown link");
+    assert.strictEqual((await db.doc("fee_accounts/student1").get()).data().paidAmount, 11000);
+  });
+  await check("other webhook events are acknowledged and ignored", async () => {
+    const res = await webhook({ event: "payment.failed", payload: {} });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.text, "ignored");
+  });
+  rzpMock.close();
+
   console.log("Bulk import & mobile sign-in");
   let imported;
   await check("teacher cannot bulk import", () =>

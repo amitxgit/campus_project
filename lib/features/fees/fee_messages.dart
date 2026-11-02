@@ -30,13 +30,15 @@ UpiPayment? upiPaymentFor(
 
 /// fee_reminder: amount, student, due date, institute, how to pay.
 /// [amount] defaults to what's left on [due]; bulk reminders pass the whole
-/// overdue amount instead.
+/// overdue amount instead. [payLink] (a Razorpay payment link) replaces the
+/// UPI pay page as the way to pay.
 List<String> feeReminderParams(
   InstitutionSettings s, {
   required String studentName,
   String? roll,
   required InstalmentStatus due,
   double? amount,
+  String? payLink,
   String payPageBase = kPayPageBase,
 }) {
   final ask = amount ?? due.outstanding;
@@ -46,7 +48,7 @@ List<String> feeReminderParams(
     studentName,
     DateFormat('d MMM yyyy').format(due.instalment.dueDate),
     s.name,
-    upi == null ? 'at the office' : upi.payPageUri(payPageBase).toString(),
+    payLink ?? (upi == null ? 'at the office' : upi.payPageUri(payPageBase).toString()),
   ];
 }
 

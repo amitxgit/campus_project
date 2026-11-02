@@ -57,6 +57,10 @@ class InstitutionSettings {
   final String upiId;
   final String upiPayeeName;
 
+  /// Razorpay key id (public) once an admin connects Razorpay; the secrets
+  /// live in secrets/razorpay. Empty = no payment links.
+  final String razorpayKeyId;
+
   const InstitutionSettings({
     required this.name,
     required this.type,
@@ -79,11 +83,14 @@ class InstitutionSettings {
     required this.currencySymbol,
     this.upiId = '',
     this.upiPayeeName = '',
+    this.razorpayKeyId = '',
   });
 
   bool get whatsappConnected => whatsappSender.isNotEmpty;
 
   bool get upiEnabled => upiId.isNotEmpty;
+
+  bool get razorpayConnected => razorpayKeyId.isNotEmpty;
 
   /// Payee name for UPI apps; falls back to the institute name.
   String get upiPayee => upiPayeeName.trim().isNotEmpty ? upiPayeeName.trim() : name;
@@ -212,6 +219,7 @@ class InstitutionSettings {
         'currencySymbol': currencySymbol,
         'upiId': upiId,
         'upiPayeeName': upiPayeeName,
+        'razorpayKeyId': razorpayKeyId,
       };
 
   factory InstitutionSettings.fromMap(Map<String, dynamic> map) {
@@ -249,6 +257,7 @@ class InstitutionSettings {
       currencySymbol: (map['currencySymbol'] as String?) ?? base.currencySymbol,
       upiId: ((map['upiId'] as String?) ?? '').trim(),
       upiPayeeName: (map['upiPayeeName'] as String?) ?? '',
+      razorpayKeyId: (map['razorpayKeyId'] as String?) ?? '',
     );
   }
 
@@ -274,6 +283,7 @@ class InstitutionSettings {
     String? currencySymbol,
     String? upiId,
     String? upiPayeeName,
+    String? razorpayKeyId,
   }) {
     return InstitutionSettings(
       name: name ?? this.name,
@@ -297,6 +307,7 @@ class InstitutionSettings {
       currencySymbol: currencySymbol ?? this.currencySymbol,
       upiId: upiId ?? this.upiId,
       upiPayeeName: upiPayeeName ?? this.upiPayeeName,
+      razorpayKeyId: razorpayKeyId ?? this.razorpayKeyId,
     );
   }
 }

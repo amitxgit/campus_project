@@ -1,6 +1,6 @@
 // functions/index.js
 // Cloud Functions v2 (Node 18/20/22)
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { setGlobalOptions } = require("firebase-functions/v2/options");
 const logger = require("firebase-functions/logger");
@@ -573,6 +573,203 @@ exports.testWhatsApp = onCall(async (request) => {
   return { ok: true };
 });
 
+
+// ---------------------------------------------------------------------------
+// ONLINE FEE PAYMENTS (Razorpay Payment Links)
+// ---------------------------------------------------------------------------
+// Optional. An admin creates a link for a student's fee; the parent pays it
+// and Razorpay calls razorpayWebhook, which records the payment exactly like
+// FeeRepository.recordPayment in the app. Keys live in secrets/razorpay
+// (write-only for admins, like secrets/whatsapp).
+
+const RAZORPAY_MODES = { upi: "upi", card: "card", netbanking: "bankTransfer" };
+
+async function razorpayConfig() {
+  const snap = await db.collection("secrets").doc("razorpay").get();
+  const cfg = snap.exists ? snap.data() : null;
+  if (!cfg || !cfg.keyId || !cfg.keySecret) return null;
+  return cfg;
+}
+
+const istDay = (d) => d.toLocaleDateString("en-CA", { timeZone: IST }); // YYYY-MM-DD
+const toDate = (v) => (v && v.toDate ? v.toDate() : new Date(v));
+const balanceOf = (a) =>
+  (Number(a.totalFee) || 0) - (Number(a.discount) || 0) - (Number(a.paidAmount) || 0);
+
+// Same as FeeAccount.payableNow in the app: everything overdue, else what's
+// left of the next instalment. Payments cover instalments oldest-first.
+function payableNow(account, now = new Date()) {
+  const today = istDay(now);
+  const instalments = (account.instalments || [])
+    .map((i) => ({ amount: Number(i.amount) || 0, due: toDate(i.dueDate) }))
+    .sort((a, b) => a.due - b.due);
+  if (!instalments.length) return Math.max(balanceOf(account), 0);
+  let remaining = Number(account.paidAmount) || 0;
+  let overdue = 0;
+  let next = 0;
+  for (const inst of instalments) {
+    const covered = Math.min(Math.max(remaining, 0), inst.amount);
+    remaining -= covered;
+    const left = inst.amount - covered;
+    if (left <= 0.5) continue;
+    if (istDay(inst.due) < today) overdue += left;
+    else if (!next) next = left;
+  }
+  return overdue > 0.5 ? overdue : next;
+}
+
+exports.createFeePaymentLink = onCall(async (request) => {
+  const caller = await getCaller(request);
+  if (!isAdmin(caller)) throw new HttpsError("permission-denied", "Admins only.");
+  const { studentId, amount } = request.data || {};
+  if (typeof studentId !== "string" || !studentId) {
+    throw new HttpsError("invalid-argument", "Missing studentId.");
+  }
+
+  const [accountSnap, studentSnap, settingsSnap, cfg] = await Promise.all([
+    db.collection("fee_accounts").doc(studentId).get(),
+    db.collection("users").doc(studentId).get(),
+    db.collection("settings").doc("institution").get(),
+    razorpayConfig(),
+  ]);
+  if (!cfg) throw new HttpsError("failed-precondition", "Connect Razorpay in Settings first.");
+  if (!accountSnap.exists) {
+    throw new HttpsError("failed-precondition", "Set up a fee plan for this student first.");
+  }
+  const account = accountSnap.data();
+
+  const ask = amount === undefined || amount === null ? payableNow(account) : Number(amount);
+  if (!Number.isFinite(ask) || ask < 1) {
+    throw new HttpsError("invalid-argument", "Nothing is due for this student.");
+  }
+  if (ask > balanceOf(account) + 0.5) {
+    throw new HttpsError("invalid-argument", "That is more than the balance.");
+  }
+  const paise = Math.round(ask * 100);
+
+  const student = studentSnap.exists ? studentSnap.data() : {};
+  const name = student.name || account.studentName || "Student";
+  const institute = (settingsSnap.exists && settingsSnap.data().name) || "";
+  const phone = normalizePhone(student.parentPhone);
+
+  // apiBase is only overridden by the emulator tests.
+  const base = cfg.apiBase || "https://api.razorpay.com";
+  const auth = Buffer.from(`${cfg.keyId}:${cfg.keySecret}`).toString("base64");
+  const res = await fetch(`${base}/v1/payment_links`, {
+    method: "POST",
+    headers: { "Authorization": `Basic ${auth}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      amount: paise,
+      currency: "INR",
+      accept_partial: false,
+      description: `Fees for ${name}${institute ? `, ${institute}` : ""}`,
+      customer: { name: student.parentName || name, ...(phone ? { contact: `+${phone}` } : {}) },
+      // The institute sends the link itself (WhatsApp), so Razorpay stays quiet.
+      notify: { sms: false, email: false },
+      reminder_enable: false,
+      notes: { studentId },
+    }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body.id || !body.short_url) {
+    const msg = (body.error && body.error.description) || `error ${res.status}`;
+    logger.warn("Razorpay payment link failed", { studentId, error: msg });
+    throw new HttpsError("failed-precondition", `Razorpay rejected the request: ${msg}`);
+  }
+
+  await db.collection("payment_links").doc(body.id).set({
+    studentId,
+    studentName: name,
+    amount: paise / 100,
+    shortUrl: body.short_url,
+    status: "created",
+    createdBy: caller.id,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  return { id: body.id, url: body.short_url, amount: paise / 100 };
+});
+
+function validRazorpaySignature(rawBody, signature, secret) {
+  if (!rawBody || typeof signature !== "string" || !secret) return false;
+  const expected = Buffer.from(crypto.createHmac("sha256", secret).update(rawBody).digest("hex"));
+  const given = Buffer.from(signature);
+  return expected.length === given.length && crypto.timingSafeEqual(expected, given);
+}
+
+// Razorpay Dashboard → Webhooks → this URL, event payment_link.paid. Razorpay
+// retries on any non-2xx reply, so failing here is safe: the payment doc id is
+// the Razorpay payment id, and a repeat delivery finds it and stops.
+exports.razorpayWebhook = onRequest({ invoker: "public" }, async (req, res) => {
+  if (req.method !== "POST") {
+    res.status(405).send("POST only");
+    return;
+  }
+  const cfg = await razorpayConfig();
+  if (!cfg || !validRazorpaySignature(req.rawBody, req.get("X-Razorpay-Signature"), cfg.webhookSecret)) {
+    logger.warn("Razorpay webhook with a bad or missing signature");
+    res.status(400).send("Invalid signature");
+    return;
+  }
+
+  const event = req.body || {};
+  if (event.event !== "payment_link.paid") {
+    res.status(200).send("ignored");
+    return;
+  }
+  const payload = event.payload || {};
+  const link = payload.payment_link && payload.payment_link.entity;
+  const payment = payload.payment && payload.payment.entity;
+  if (!link || !link.id || !payment || !payment.id || !(payment.amount > 0)) {
+    res.status(400).send("Missing payment details");
+    return;
+  }
+
+  // Only links this app created count, so the student comes from our record.
+  const linkRef = db.collection("payment_links").doc(link.id);
+  const linkSnap = await linkRef.get();
+  if (!linkSnap.exists) {
+    logger.warn("Razorpay payment for an unknown link", { link: link.id, payment: payment.id });
+    res.status(200).send("unknown link");
+    return;
+  }
+  const studentId = linkSnap.data().studentId;
+  const accountRef = db.collection("fee_accounts").doc(studentId);
+  const paymentRef = accountRef.collection("payments").doc(payment.id);
+  const countersRef = db.collection("meta").doc("counters");
+  const amount = payment.amount / 100;
+
+  // Same writes as FeeRepository.recordPayment, in one transaction.
+  const outcome = await db.runTransaction(async (tx) => {
+    const [existing, account, counters] = await Promise.all([
+      tx.get(paymentRef), tx.get(accountRef), tx.get(countersRef),
+    ]);
+    if (existing.exists) return "duplicate";
+    if (!account.exists) {
+      tx.update(linkRef, { status: "paidNoAccount", paymentId: payment.id, paidAt: FieldValue.serverTimestamp() });
+      return "noAccount";
+    }
+    const receiptNo = ((counters.exists && counters.data().receiptSeq) || 0) + 1;
+    tx.set(countersRef, { receiptSeq: receiptNo }, { merge: true });
+    tx.set(paymentRef, {
+      amount,
+      mode: RAZORPAY_MODES[payment.method] || "online",
+      reference: payment.id,
+      note: "Paid online (Razorpay link)",
+      paidOn: Timestamp.fromMillis((payment.created_at || Date.now() / 1000) * 1000),
+      receiptNo,
+      receivedBy: "Razorpay",
+      voided: false,
+      paymentLinkId: link.id,
+    });
+    tx.update(accountRef, { paidAmount: FieldValue.increment(amount), updatedAt: FieldValue.serverTimestamp() });
+    tx.update(linkRef, { status: "paid", paymentId: payment.id, receiptNo, paidAt: FieldValue.serverTimestamp() });
+    return "recorded";
+  });
+  if (outcome === "noAccount") {
+    logger.error("Razorpay payment for a student with no fee plan", { studentId, payment: payment.id });
+  }
+  res.status(200).send(outcome);
+});
 
 // ---------------------------------------------------------------------------
 // BULK STUDENT IMPORT

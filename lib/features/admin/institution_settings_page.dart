@@ -6,6 +6,7 @@ import '../../core/models/institution_settings.dart';
 import '../../core/utils/firebase_error_parser.dart';
 import '../../core/utils/upi.dart';
 import '../../data/settings_repository.dart';
+import '../../main.dart' show feeRepoProvider;
 import '../../theme.dart';
 import '../common/widgets/app_drawer.dart';
 import '../common/widgets/async_error_widget.dart';
@@ -27,6 +28,7 @@ class _InstitutionSettingsPageState extends ConsumerState<InstitutionSettingsPag
   final _payeeCtrl = TextEditingController();
   bool _saving = false;
   bool _dirty = false;
+  bool _connecting = false;
 
   @override
   void dispose() {
@@ -259,6 +261,8 @@ class _InstitutionSettingsPageState extends ConsumerState<InstitutionSettingsPag
                         : 'Add a UPI ID to let students and parents pay online.',
                     style: TextStyle(color: p.inkMuted, fontSize: 13, height: 1.4),
                   ),
+                  const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider(height: 1)),
+                  _razorpay(s),
                 ]),
 
               if (s.internalMarksEnabled)
@@ -305,6 +309,119 @@ class _InstitutionSettingsPageState extends ConsumerState<InstitutionSettingsPag
         ),
       ],
     );
+  }
+
+  /// Optional Razorpay payment links. Saved straight away (not through the
+  /// save bar) because the keys go to a write-only doc.
+  Widget _razorpay(InstitutionSettings s) {
+    final p = context.palette;
+    final connected = s.razorpayConnected;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Razorpay payment links', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 2),
+              Text(
+                connected ? 'Connected · ${s.razorpayKeyId}' : 'Optional · payments are recorded automatically',
+                style: TextStyle(color: connected ? p.success : p.inkMuted, fontSize: 13),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ]),
+          ),
+          if (connected)
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: p.danger),
+              onPressed: _connecting ? null : _disconnectRazorpay,
+              child: const Text('Disconnect'),
+            ),
+        ]),
+        const SizedBox(height: 10),
+        OutlinedButton(
+          onPressed: _connecting ? null : _connectRazorpay,
+          child: Text(connected ? 'Update keys' : 'Connect Razorpay'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _connectRazorpay() async {
+    final keyId = TextEditingController();
+    final keySecret = TextEditingController();
+    final webhookSecret = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Connect Razorpay'),
+        content: SizedBox(
+          width: 440,
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('From the Razorpay Dashboard → Account & Settings → API keys, and the webhook you set up.'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: keyId,
+                autocorrect: false,
+                decoration: const InputDecoration(labelText: 'Key ID', hintText: 'rzp_live_…'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: keySecret,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Key secret'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: webhookSecret,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Webhook secret',
+                  helperText: 'Stored securely; secrets cannot be viewed again.',
+                ),
+              ),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final id = keyId.text.trim();
+    if (!id.startsWith('rzp_') || keySecret.text.trim().isEmpty || webhookSecret.text.trim().isEmpty) {
+      showMessage(context, 'All three are required, and the key ID starts with rzp_.', error: true);
+      return;
+    }
+    await _saveRazorpay(id, () => ref.read(feeRepoProvider).saveRazorpayCredentials(
+          keyId: id,
+          keySecret: keySecret.text.trim(),
+          webhookSecret: webhookSecret.text.trim(),
+        ));
+    if (mounted && _draft?.razorpayConnected == true) {
+      showMessage(context, 'Razorpay connected. Fee pages now have “Send payment link”.', success: true);
+    }
+  }
+
+  Future<void> _disconnectRazorpay() async {
+    await _saveRazorpay('', () => ref.read(feeRepoProvider).deleteRazorpayCredentials());
+    if (mounted && _draft?.razorpayConnected == false) showMessage(context, 'Razorpay disconnected.');
+  }
+
+  Future<void> _saveRazorpay(String keyId, Future<void> Function() write) async {
+    setState(() => _connecting = true);
+    try {
+      await write();
+      // Already saved; keep the draft in step without marking it dirty.
+      if (mounted) setState(() => _draft = _draft!.copyWith(razorpayKeyId: keyId));
+    } catch (e) {
+      if (mounted) showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
+    } finally {
+      if (mounted) setState(() => _connecting = false);
+    }
   }
 
   Widget _switch(String title, String subtitle, bool value, ValueChanged<bool> onChanged) {
@@ -373,6 +490,7 @@ class _InstitutionSettingsPageState extends ConsumerState<InstitutionSettingsPag
           autoAbsenceAlerts: d.autoAbsenceAlerts,
           upiId: d.upiId,
           upiPayeeName: d.upiPayeeName,
+          razorpayKeyId: d.razorpayKeyId,
         );
         _labelCtrl.text = _draft!.groupLabel;
       } else {

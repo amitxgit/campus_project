@@ -176,7 +176,9 @@ class FeeAccount {
       );
 }
 
-enum PaymentMode { cash, upi, card, bankTransfer, cheque }
+/// `online` covers gateway payments that aren't UPI, card or netbanking
+/// (wallets, pay-later), as recorded by the Razorpay webhook.
+enum PaymentMode { cash, upi, card, bankTransfer, cheque, online }
 
 extension PaymentModeX on PaymentMode {
   String get label => switch (this) {
@@ -185,6 +187,7 @@ extension PaymentModeX on PaymentMode {
         PaymentMode.card => 'Card',
         PaymentMode.bankTransfer => 'Bank transfer',
         PaymentMode.cheque => 'Cheque',
+        PaymentMode.online => 'Online',
       };
 }
 

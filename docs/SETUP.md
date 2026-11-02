@@ -133,3 +133,38 @@ as *UPI* with the UPI reference number.
 4. Check it works: open **My Fees** as a student with a balance and tap **Pay**,
    or send yourself a fee reminder and tap the link.
 
+
+## 7. Optional: Razorpay payment links (automatic recording)
+
+With UPI (section 6) the office has to record each payment by hand. With
+Razorpay, the office sends a payment link from the app, the parent pays by UPI,
+card or netbanking, and the payment is recorded with a receipt number
+automatically. Razorpay charges a fee on each payment (about 2%; check their
+current pricing) and settles the money to the institute's bank account.
+
+1. **Sign up** at razorpay.com with the institute's details and finish **KYC**
+   (PAN, bank account, business proof). Live payments only work after KYC is
+   approved, which can take a few days. Test mode works straight away.
+2. **API keys.** Razorpay Dashboard → *Account & Settings* → *API keys* →
+   *Generate key*. Note the **Key ID** (`rzp_live_…` or `rzp_test_…`) and the
+   **Key secret** (shown once).
+3. **Webhook.** Deploy the functions first (section 1, step 3), then Razorpay
+   Dashboard → *Account & Settings* → *Webhooks* → *Add new webhook*:
+   - URL: `https://asia-south1-batchwise-2bd30.cloudfunctions.net/razorpayWebhook`
+     (the deploy output prints it too; use the project ID of this institute).
+   - Secret: make up a long random password and keep it for the next step.
+   - Active events: tick only **payment_link.paid**.
+4. **In the app:** **Settings → Online payments → Connect Razorpay**, then enter
+   the Key ID, Key secret and webhook secret. They're stored write-only:
+   nobody can read them back in the app.
+5. **Check it works** (in test mode first): open a student's fees, tap the
+   **link** icon (*Send payment link*), create a link for a small amount, open
+   it and pay with Razorpay's test UPI ID `success@razorpay`. Within a few
+   seconds the payment appears on the student's fees with a receipt number.
+   When you switch to live keys, add the webhook again in live mode and enter
+   the live keys with **Update keys**.
+
+The link goes to the parent in the `fee_reminder` WhatsApp message (as its pay
+link), so no new Meta template is needed. If Razorpay pays for a student with
+no fee plan, the payment is logged in Cloud Functions logs and marked
+`paidNoAccount` in `payment_links`; set up the plan and record it by hand.

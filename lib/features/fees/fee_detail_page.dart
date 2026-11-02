@@ -1,5 +1,6 @@
 // lib/features/fees/fee_detail_page.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -64,6 +65,14 @@ class FeeDetailPage extends ConsumerWidget {
                   ),
                 ]);
               },
+            ),
+          if (settings.razorpayConnected &&
+              async.valueOrNull?.account?.isFullyPaid == false &&
+              async.value!.student != null)
+            IconButton(
+              tooltip: 'Send payment link',
+              icon: const Icon(Icons.link_rounded),
+              onPressed: () => _sendPaymentLink(context, ref, async.value!),
             ),
           if (async.hasValue)
             IconButton(
@@ -215,6 +224,7 @@ class FeeDetailPage extends ConsumerWidget {
                     spacing: 6,
                     runSpacing: 6,
                     children: PaymentMode.values
+                        .where((m) => m != PaymentMode.online) // gateway payments record themselves
                         .map((m) => ChoiceChip(label: Text(m.label), selected: mode == m, onSelected: (_) => setState(() => mode = m)))
                         .toList(),
                   ),
@@ -274,6 +284,102 @@ class FeeDetailPage extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) _error(context, e);
     }
+  }
+
+  /// Razorpay payment link: the parent pays by UPI, card or netbanking and
+  /// the razorpayWebhook function records the payment here by itself.
+  Future<void> _sendPaymentLink(BuildContext context, WidgetRef ref, FeeDetail d) async {
+    final account = d.account!;
+    final student = d.student!;
+    final settings = ref.read(settingsProvider);
+    final cur = settings.currencySymbol;
+    final suggested = account.payableNow();
+    final amountCtrl = TextEditingController(text: suggested > 0.5 ? suggested.toStringAsFixed(0) : '');
+
+    final amount = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Payment link'),
+        content: SizedBox(
+          width: 400,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('The parent pays by UPI, card or netbanking, and the payment is recorded here automatically.',
+                style: TextStyle(color: ctx.palette.inkMuted, height: 1.4)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: amountCtrl,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'Amount',
+                prefixText: '$cur ',
+                helperText: 'Balance ${formatMoney(account.balance, cur)}',
+              ),
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, double.tryParse(amountCtrl.text.trim()) ?? 0),
+            child: const Text('Create link'),
+          ),
+        ],
+      ),
+    );
+    if (amount == null || !context.mounted) return;
+    if (amount < 1 || amount > account.balance + 0.5) {
+      _error(context, 'Enter an amount between ${formatMoney(1, cur)} and ${formatMoney(account.balance, cur)}.');
+      return;
+    }
+
+    final ({String url, double amount}) link;
+    try {
+      showMessage(context, 'Creating link…');
+      link = await ref.read(feeRepoProvider).createPaymentLink(student.id, amount: amount);
+    } catch (e) {
+      if (context.mounted) _error(context, e);
+      return;
+    }
+    if (!context.mounted) return;
+
+    // The fee_reminder template carries the link, so no extra Meta template.
+    final due = account.nextDue() ??
+        InstalmentStatus(FeeInstalment(label: 'Fee', amount: account.balance, dueDate: DateTime.now()), 0,
+            InstalmentState.upcoming);
+    final params = feeReminderParams(settings,
+        studentName: student.name, roll: student.collegeRollNo, due: due, amount: link.amount, payLink: link.url);
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Link for ${formatMoney(link.amount, cur)}'),
+        content: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: ctx.palette.surface, borderRadius: BorderRadius.circular(14)),
+          child: SelectableText(link.url, style: const TextStyle(fontSize: 15)),
+        ),
+        actionsOverflowButtonSpacing: 4,
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.copy_rounded, size: 18),
+            label: const Text('Copy'),
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: link.url));
+              showMessage(ctx, 'Link copied');
+            },
+          ),
+          if (settings.parentAlertsEnabled)
+            TextButton.icon(
+              icon: const Icon(Icons.chat_rounded, size: 18),
+              label: const Text('Send to parent'),
+              onPressed: () => ParentMessenger.send(ctx, ref,
+                  kind: ParentAlertKind.feeReminder, messages: [ParentMessage(student, params)]),
+            ),
+          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Done')),
+        ],
+      ),
+    );
   }
 
   Future<void> _showReceipt(BuildContext context, WidgetRef ref, FeeDetail d, FeePayment p) {
