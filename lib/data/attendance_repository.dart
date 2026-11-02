@@ -88,13 +88,12 @@ class AttendanceRepository {
   // ---------------------------------------------------------------------------
   // READ METHODS
   // ---------------------------------------------------------------------------
-  Future<List<AttendanceRecord>> forStudent(String studentId) async {
+  /// Newest first. [limit] null reads everything (report cards).
+  Future<List<AttendanceRecord>> forStudent(String studentId, {int? limit = 300}) async {
     try {
-      final snapshot = await _attRef
-          .where('studentId', isEqualTo: studentId)
-          .orderBy('date', descending: true)
-          .limit(300) // Performance constraint
-          .get();
+      var query = _attRef.where('studentId', isEqualTo: studentId).orderBy('date', descending: true);
+      if (limit != null) query = query.limit(limit); // Performance constraint
+      final snapshot = await query.get();
       return snapshot.docs.map((e) => e.data()).toList();
     } catch (e) {
       throw Exception(FirebaseErrorParser.getMessage(e));
@@ -113,6 +112,19 @@ class AttendanceRepository {
   Future<List<AttendanceRecord>> forSubject(String subjectId) async {
     try {
       final snapshot = await _attRef.where('subjectId', isEqualTo: subjectId).get();
+      return snapshot.docs.map((e) => e.data()).toList();
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  /// Admin only: records dated in [from, to).
+  Future<List<AttendanceRecord>> between(DateTime from, DateTime to) async {
+    try {
+      final snapshot = await _attRef
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(from))
+          .where('date', isLessThan: Timestamp.fromDate(to))
+          .get();
       return snapshot.docs.map((e) => e.data()).toList();
     } catch (e) {
       throw Exception(FirebaseErrorParser.getMessage(e));

@@ -11,6 +11,7 @@ import '../../theme.dart';
 import '../common/widgets/async_error_widget.dart';
 import '../common/widgets/class_card.dart' show EmptyNote;
 import '../common/widgets/ui_kit.dart';
+import '../reports/report_card_share.dart';
 
 final myResultsProvider = FutureProvider.autoDispose<List<StudentResult>>((ref) async {
   final me = await ref.watch(authRepoProvider).currentUser();
@@ -29,7 +30,25 @@ class MyResultsPage extends ConsumerWidget {
     final p = context.palette;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Results')),
+      appBar: AppBar(
+        title: const Text('Results'),
+        actions: [
+          if (async.valueOrNull?.isNotEmpty == true)
+            IconButton(
+              tooltip: 'Report card (PDF)',
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              onPressed: () async {
+                final me = await ref.read(authRepoProvider).currentUser();
+                if (me == null) return;
+                try {
+                  await shareReportCard(ref, me);
+                } catch (e) {
+                  if (context.mounted) showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
+                }
+              },
+            ),
+        ],
+      ),
       drawer: const AppDrawer(),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
