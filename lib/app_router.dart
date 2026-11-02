@@ -47,6 +47,7 @@ import 'features/admin/institution_settings_page.dart';
 import 'features/admin/import_students_page.dart';
 import 'features/fees/fees_admin_page.dart';
 import 'features/fees/fee_detail_page.dart';
+import 'features/enquiries/enquiries_page.dart';
 import 'features/fees/my_fees_page.dart';
 import 'features/parent_alerts/parent_alerts_page.dart';
 import 'features/tests/tests_page.dart';
@@ -242,6 +243,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/admin/fees', builder: (_, __) => const FeesAdminPage()),
       GoRoute(path: '/admin/import-students', builder: (_, __) => const ImportStudentsPage()),
       GoRoute(path: '/admin/parent-alerts', builder: (_, __) => const ParentAlertsPage()),
+      GoRoute(path: '/admin/enquiries', builder: (_, __) => const EnquiriesPage()),
       GoRoute(
         path: '/admin/fees/:studentId',
         builder: (_, state) => FeeDetailPage(studentId: state.pathParameters['studentId'] ?? ''),

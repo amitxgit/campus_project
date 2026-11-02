@@ -336,6 +336,41 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await check("student cannot read another's results", () => assertFails(as("student2").doc("student_results/student1").get()));
   await check("student cannot write results", () => assertFails(student.doc("student_results/student1").set({ results: {} })));
 
+  console.log("Enquiries");
+  const enq = (by, extra = {}) => ({
+    name: "Riya", phone: "9000011111", parentPhone: "9811122233", course: "Class 11 JEE", batch: "",
+    source: "walkIn", status: "new", nextFollowUp: null, notes: "", createdBy: by,
+    createdAt: new Date(), updatedAt: new Date(), ...extra,
+  });
+  await check("teacher adds an enquiry as themselves", () =>
+    assertSucceeds(teacher.doc("enquiries/e_t1").set(enq("teacher1"))));
+  await check("teacher cannot add one as someone else, or already joined/linked", async () => {
+    await assertFails(teacher.doc("enquiries/e_t2").set(enq("admin1")));
+    await assertFails(teacher.doc("enquiries/e_t3").set(enq("teacher1", { status: "joined" })));
+    await assertFails(teacher.doc("enquiries/e_t4").set(enq("teacher1", { studentId: "student1" })));
+    await assertFails(teacher.doc("enquiries/e_t5").set(enq("teacher1", { name: "" })));
+  });
+  await check("teacher cannot read, list, change or delete enquiries", async () => {
+    await assertFails(teacher.doc("enquiries/e_t1").get());
+    await assertFails(teacher.collection("enquiries").get());
+    await assertFails(teacher.doc("enquiries/e_t1").update({ status: "lost" }));
+    await assertFails(teacher.doc("enquiries/e_t1").delete());
+  });
+  await check("students cannot add or read enquiries", async () => {
+    await assertFails(student.doc("enquiries/e_s1").set(enq("student1")));
+    await assertFails(student.doc("enquiries/e_t1").get());
+  });
+  await check("admin lists this month's enquiries, newest first", () =>
+    assertSucceeds(adminDb.collection("enquiries")
+      .where("createdAt", ">=", new Date(new Date().getFullYear(), new Date().getMonth(), 1)).get()));
+  await check("admin follows up, converts and deletes", async () => {
+    await assertSucceeds(adminDb.collection("enquiries").orderBy("createdAt", "desc").get());
+    await assertSucceeds(adminDb.doc("enquiries/e_t1").update({ status: "demoBooked", nextFollowUp: new Date() }));
+    await assertSucceeds(adminDb.doc("enquiries/e_t1").update({ status: "joined", studentId: "student1", nextFollowUp: null }));
+    await assertSucceeds(adminDb.doc("enquiries/e_a1").set(enq("admin1", { status: "contacted" })));
+    await assertSucceeds(adminDb.doc("enquiries/e_a1").delete());
+  });
+
   console.log("Parent alerts");
   // A stand-in for the WhatsApp Cloud API that records what it was sent.
   const http = require("http");

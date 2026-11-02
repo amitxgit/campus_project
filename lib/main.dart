@@ -28,6 +28,7 @@ import 'data/notification_repository.dart';
 import 'data/notice_repository.dart';
 import 'data/assignment_repository.dart';
 import 'data/fee_repository.dart';
+import 'data/enquiry_repository.dart';
 import 'data/parent_alert_repository.dart';
 import 'data/test_repository.dart';
 
@@ -75,6 +76,7 @@ final assignmentRepoProvider = Provider<AssignmentRepository>((ref) => Assignmen
 final feeRepoProvider = Provider<FeeRepository>((ref) => FeeRepository());
 final parentAlertRepoProvider = Provider<ParentAlertRepository>((ref) => ParentAlertRepository());
 final testRepoProvider = Provider<TestRepository>((ref) => TestRepository());
+final enquiryRepoProvider = Provider<EnquiryRepository>((ref) => EnquiryRepository());
 
 final notificationSyncServiceProvider = Provider<NotificationSyncService>((ref) {
   return NotificationSyncService(ref, FirebaseFirestore.instance);

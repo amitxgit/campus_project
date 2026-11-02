@@ -18,6 +18,7 @@ import '../common/widgets/ui_kit.dart';
 import '../../theme.dart';
 import '../../data/settings_repository.dart';
 import '../../main.dart';
+import '../enquiries/enquiries_page.dart' show addEnquiry;
 
 // ✅ FIX: Corrected the import path to point to your common/widgets folder!
 import '../common/widgets/override_class_dialog.dart';
@@ -226,6 +227,8 @@ class _ActionButtons extends ConsumerWidget {
         if (settings.remarksEnabled)
           ActionTile(label: 'Remarks', icon: Icons.rate_review_outlined, onTap: () => context.push('/teacher/remarks-board')),
         ActionTile(label: 'Students', icon: Icons.people_outline_rounded, onTap: () => context.push('/students/directory')),
+        // Teachers often take walk-in enquiries; only admins see the list.
+        ActionTile(label: 'New enquiry', icon: Icons.person_add_alt_outlined, onTap: () => addEnquiry(context, ref)),
       ],
     );
   }

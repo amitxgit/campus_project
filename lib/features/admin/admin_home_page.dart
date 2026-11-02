@@ -15,6 +15,7 @@ import '../../core/models/query_ticket.dart';
 import '../../data/settings_repository.dart';
 import '../../theme.dart';
 import '../../core/utils/firebase_error_parser.dart';
+import '../enquiries/enquiries_page.dart' show enquiryConversionProvider;
 
 // -----------------------------------------------------------------------------
 // VIEW MODEL & PROVIDER
@@ -88,6 +89,7 @@ class AdminHomePage extends ConsumerWidget {
     final daily = [
       _AdminItem('Attendance', Icons.fact_check_outlined, '/admin/attendance-overrides'),
       if (settings.feesEnabled) _AdminItem('Fees', Icons.currency_rupee_rounded, '/admin/fees'),
+      _AdminItem('Enquiries', Icons.person_search_outlined, '/admin/enquiries'),
       if (settings.testsEnabled) _AdminItem('Tests', Icons.quiz_outlined, '/tests'),
       if (settings.parentAlertsEnabled) _AdminItem('Parent alerts', Icons.chat_outlined, '/admin/parent-alerts'),
       _AdminItem('Queries', Icons.support_agent_rounded, '/admin/query-management'),
@@ -125,7 +127,10 @@ class AdminHomePage extends ConsumerWidget {
       ),
       drawer: const AppDrawer(),
       body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(adminDashboardProvider),
+        onRefresh: () async {
+          ref.invalidate(adminDashboardProvider);
+          ref.invalidate(enquiryConversionProvider);
+        },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: 40),
@@ -177,11 +182,48 @@ class AdminHomePage extends ConsumerWidget {
                 ),
               ),
             ),
+            const _EnquiryConversionLine(),
             const SectionLabel('Today'),
             grid(daily),
             const SectionLabel('Setup'),
             grid(setup),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "November: 12 enquiries → 25% joined". Hidden until there are enquiries.
+class _EnquiryConversionLine extends ConsumerWidget {
+  const _EnquiryConversionLine();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = ref.watch(enquiryConversionProvider).valueOrNull;
+    if (c == null || c.total == 0) return const SizedBox.shrink();
+    final p = context.palette;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Pressable(
+        onTap: () => context.push('/admin/enquiries'),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Text('${c.percent}%', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: p.accent, letterSpacing: -0.5)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${c.joined} of ${c.total} enquir${c.total == 1 ? 'y' : 'ies'} joined in ${DateFormat('MMMM').format(DateTime.now())}',
+                  style: TextStyle(color: p.inkMuted, fontWeight: FontWeight.w500),
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: p.inkFaint),
+            ]),
+            const SizedBox(height: 10),
+            ProgressLine(value: c.total == 0 ? 0 : c.joined / c.total, color: p.accent),
+          ]),
         ),
       ),
     );

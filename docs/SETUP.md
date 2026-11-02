@@ -168,3 +168,15 @@ The link goes to the parent in the `fee_reminder` WhatsApp message (as its pay
 link), so no new Meta template is needed. If Razorpay pays for a student with
 no fee plan, the payment is logged in Cloud Functions logs and marked
 `paidNoAccount` in `payment_links`; set up the plan and record it by hand.
+
+## 8. Enquiries & admissions
+
+Nothing to sign up for. After updating the app, deploy the Firestore rules
+once so the new `enquiries` collection is allowed:
+```bash
+firebase deploy --only firestore:rules --project batchwise-2bd30
+```
+Admins see **Enquiries** on the home screen and in the menu. Teachers get a
+**New enquiry** button for walk-ins but can't see the list. **Convert to
+student** opens Add User already filled in from the enquiry, then offers to set
+up the fee plan.

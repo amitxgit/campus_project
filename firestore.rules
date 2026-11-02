@@ -176,6 +176,20 @@ service cloud.firestore {
       }
     }
 
+    // ---------------------------------------------------------------- enquiries
+    // Prospective students. Teachers can add one (as themselves, as "new")
+    // but only admins see and work the list.
+    match /enquiries/{id} {
+      allow read, update, delete: if isAdmin();
+      allow create: if isAdmin() || (isStaff()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.status == 'new'
+        && !('studentId' in request.resource.data)
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 100);
+    }
+
     // Razorpay payment links, created and settled only by Cloud Functions.
     match /payment_links/{id} {
       allow read: if isAdmin();
