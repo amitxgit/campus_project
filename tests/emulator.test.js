@@ -321,6 +321,22 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await check("student cannot read another's fees", () => assertFails(as("student2").doc("fee_accounts/student1").get()));
   await check("teacher cannot see fees", () => assertFails(teacher.doc("fee_accounts/student1").get()));
   await check("students cannot touch receipt counter", () => assertFails(student.doc("meta/counters").get()));
+  await check("admin reads every payment in a date range (fee ledger)", async () => {
+    await db.doc("fee_accounts/student1/payments/p_led").set({ amount: 1200, receiptNo: 99, voided: false, paidOn: new Date("2026-11-02T06:00:00Z") });
+    const snap = await assertSucceeds(adminDb.collectionGroup("payments")
+      .where("paidOn", ">=", new Date("2026-11-01T00:00:00Z")).where("paidOn", "<", new Date("2026-12-01T00:00:00Z"))
+      .orderBy("paidOn").get());
+    assert.deepStrictEqual(snap.docs.map((d) => d.ref.parent.parent.id), ["student1"]);
+  });
+  await check("students and teachers cannot list everyone's payments", async () => {
+    await assertFails(student.collectionGroup("payments").get());
+    await assertFails(teacher.collectionGroup("payments").get());
+  });
+  await check("admin reads attendance for a date range; teachers cannot list all", async () => {
+    const range = (c) => c.collection("attendance").where("date", ">=", new Date("2026-11-01")).where("date", "<", new Date("2026-12-01")).get();
+    await assertSucceeds(range(adminDb));
+    await assertFails(range(student));
+  });
 
   console.log("Tests & results");
   await check("teacher creates a test as self", () =>

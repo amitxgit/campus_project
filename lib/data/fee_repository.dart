@@ -38,6 +38,21 @@ class FeeRepository {
         return snap.docs.map((d) => FeePayment.fromMap(d.id, d.data())).toList();
       });
 
+  /// Admin only: every payment with paidOn in [from, to), oldest first, with
+  /// the student it belongs to (the payment's parent account).
+  Future<List<({String studentId, FeePayment payment})>> paymentsBetween(DateTime from, DateTime to) =>
+      _guard(() async {
+        final snap = await _db
+            .collectionGroup('payments')
+            .where('paidOn', isGreaterThanOrEqualTo: Timestamp.fromDate(from))
+            .where('paidOn', isLessThan: Timestamp.fromDate(to))
+            .orderBy('paidOn')
+            .get();
+        return snap.docs
+            .map((d) => (studentId: d.reference.parent.parent!.id, payment: FeePayment.fromMap(d.id, d.data())))
+            .toList();
+      });
+
   /// Creates or updates a fee plan. Never touches `paidAmount`, which only
   /// changes together with a payment.
   Future<void> savePlan(FeeAccount account) => _guard(() async {

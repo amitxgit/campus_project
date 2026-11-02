@@ -176,6 +176,11 @@ service cloud.firestore {
       }
     }
 
+    // Fee ledger export: every student's payments in a date range.
+    match /{path=**}/payments/{paymentId} {
+      allow read: if isAdmin();
+    }
+
     // ---------------------------------------------------------------- enquiries
     // Prospective students. Teachers can add one (as themselves, as "new")
     // but only admins see and work the list.

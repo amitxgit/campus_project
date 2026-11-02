@@ -90,6 +90,7 @@ class AdminHomePage extends ConsumerWidget {
       _AdminItem('Attendance', Icons.fact_check_outlined, '/admin/attendance-overrides'),
       if (settings.feesEnabled) _AdminItem('Fees', Icons.currency_rupee_rounded, '/admin/fees'),
       _AdminItem('Enquiries', Icons.person_search_outlined, '/admin/enquiries'),
+      _AdminItem('Reports', Icons.insert_chart_outlined_rounded, '/admin/reports'),
       if (settings.testsEnabled) _AdminItem('Tests', Icons.quiz_outlined, '/tests'),
       if (settings.parentAlertsEnabled) _AdminItem('Parent alerts', Icons.chat_outlined, '/admin/parent-alerts'),
       _AdminItem('Queries', Icons.support_agent_rounded, '/admin/query-management'),

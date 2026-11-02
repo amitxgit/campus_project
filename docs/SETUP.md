@@ -180,3 +180,23 @@ Admins see **Enquiries** on the home screen and in the menu. Teachers get a
 **New enquiry** button for walk-ins but can't see the list. **Convert to
 student** opens Add User already filled in from the enquiry, then offers to set
 up the fee plan.
+
+## 9. Reports, PDFs and exports
+
+Nothing to sign up for. Deploy the rules **and indexes** once after updating:
+```bash
+firebase deploy --only firestore --project batchwise-2bd30
+```
+The fee ledger reads every student's payments at once, which needs the
+`payments.paidOn` index from `firestore.indexes.json`. Without it the ledger
+fails with "requires an index"; the index takes a few minutes to build after
+deploying.
+
+- **Receipts:** tap a payment → *PDF*. Students get the same button in My Fees.
+- **Report cards:** **Reports → Report card**, pick a student and optionally
+  include fee status. Students can download their own from **Results**.
+- **Spreadsheets:** **Reports** → fee ledger, dues list, batch attendance or
+  test results. They open in Excel or Google Sheets.
+
+On a phone these open the share sheet (WhatsApp, Drive, email); in a browser
+they download.

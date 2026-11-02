@@ -222,6 +222,7 @@ class AppDrawer extends ConsumerWidget {
           const _DrawerItem('Attendance', Icons.fact_check_outlined, '/admin/attendance-overrides'),
           if (s.feesEnabled) const _DrawerItem('Fees', Icons.currency_rupee_rounded, '/admin/fees'),
           const _DrawerItem('Enquiries', Icons.person_search_outlined, '/admin/enquiries'),
+          const _DrawerItem('Reports', Icons.insert_chart_outlined_rounded, '/admin/reports'),
           if (s.testsEnabled) const _DrawerItem('Tests', Icons.quiz_outlined, '/tests'),
           if (s.parentAlertsEnabled) const _DrawerItem('Parent alerts', Icons.chat_outlined, '/admin/parent-alerts'),
           const _DrawerItem('Queries', Icons.support_agent_rounded, '/admin/query-management'),
