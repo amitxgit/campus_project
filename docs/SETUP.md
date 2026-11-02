@@ -221,3 +221,75 @@ enquiries and follow-ups that were missed.
 
 The 8 pm run sends once a day even if Cloud Scheduler retries. Each day's
 figures are kept in `daily_summaries` in Firestore.
+
+## 11. Daily backups of the database
+
+Firestore doesn't back itself up. This exports everything every night at 2:30
+am to a storage bucket and deletes exports after 30 days (the privacy policy
+promises backups are overwritten within 30 days). Run once, in Google Cloud
+Shell (console.cloud.google.com, the `>_` button) for project `batchwise-2bd30`:
+
+```bash
+PROJECT=batchwise-2bd30
+BUCKET=gs://$PROJECT-backups
+gcloud config set project $PROJECT
+gcloud services enable cloudscheduler.googleapis.com firestore.googleapis.com
+
+# A bucket in Mumbai that deletes exports older than 30 days.
+gcloud storage buckets create $BUCKET --location=asia-south1 --uniform-bucket-level-access
+echo '{"rule":[{"action":{"type":"Delete"},"condition":{"age":30}}]}' > lifecycle.json
+gcloud storage buckets update $BUCKET --lifecycle-file=lifecycle.json
+
+# A service account that may only export the database and write the bucket.
+gcloud iam service-accounts create firestore-backup --display-name="Firestore backup"
+SA=firestore-backup@$PROJECT.iam.gserviceaccount.com
+gcloud projects add-iam-policy-binding $PROJECT --member=serviceAccount:$SA --role=roles/datastore.importExportAdmin
+gcloud storage buckets add-iam-policy-binding $BUCKET --member=serviceAccount:$SA --role=roles/storage.admin
+
+# Every night at 2:30 am IST. Each run makes its own dated folder.
+gcloud scheduler jobs create http firestore-daily-export \
+  --location=asia-south1 --schedule="30 2 * * *" --time-zone="Asia/Kolkata" \
+  --uri="https://firestore.googleapis.com/v1/projects/$PROJECT/databases/(default):exportDocuments" \
+  --http-method=POST --headers="Content-Type=application/json" \
+  --message-body="{\"outputUriPrefix\":\"$BUCKET\"}" \
+  --oauth-service-account-email=$SA \
+  --oauth-token-scope=https://www.googleapis.com/auth/datastore
+```
+
+Check it: `gcloud scheduler jobs run firestore-daily-export --location=asia-south1`,
+wait a minute, then `gcloud storage ls $BUCKET` should show a dated folder.
+
+**Cost:** each export reads every document once (a few hundred students is a
+few thousand reads, well inside the free 50,000 a day) plus a few paise of
+storage. Cloud Scheduler gives 3 free jobs per billing account; this and the
+8 pm summary use two.
+
+**Restoring** overwrites documents with the backed-up versions, so do it only
+when you mean to:
+`gcloud firestore import gs://batchwise-2bd30-backups/<dated-folder>`.
+Uploaded files (assignment submissions) are in Cloud Storage and aren't part
+of this export.
+
+## 12. Before launch: legal pages and Play Store
+
+1. Open `lib/features/legal/legal_texts.dart` and replace `[BUSINESS NAME]`,
+   `[REGISTERED ADDRESS]`, `[CONTACT EMAIL]`, `[GRIEVANCE OFFICER NAME]` and
+   `[CITY]`. Have a lawyer review the privacy policy and terms; they are a
+   careful draft, not legal advice.
+2. Regenerate the web pages and publish them:
+   ```bash
+   dart run tool/make_legal_pages.dart
+   flutter build web
+   firebase deploy --only hosting --project batchwise-2bd30
+   ```
+   They are then at `https://batchwise-2bd30.web.app/privacy.html`,
+   `/terms.html` and `/delete-account.html` (Play asks for the first and last).
+3. Deploy rules and functions (account deletion requests and the extra
+   clean-up when an account is deleted):
+   `firebase deploy --only firestore,functions --project batchwise-2bd30`.
+4. Work through `docs/PLAY_STORE.md`: store listing, Data safety answers and
+   the decisions marked **Decide**.
+
+Account deletion requests appear as a banner on the admin home. Act on them
+within 30 days. An admin's own request has to be handled by another admin; if
+you are the only admin, delete the account in the Firebase console instead.
