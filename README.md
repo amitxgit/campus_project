@@ -36,6 +36,7 @@ A comprehensive Flutter application designed to modernize the campus experience.
 * **Internal Marks Overrides:** A page to filter and manually edit any student's internal marks for any subject.
 * **Query Management:** View and resolve all queries submitted by students. (Sends a real-time notification on status change).
 * **Password Resets:** Send password reset links to any user.
+* **Fingerprint and Face-Scan Attendance:** Connect existing ZKTeco / eSSL machines (or any system that can send JSON). A punch marks the student present in the class running at that time. See [firebase_functions/BIOMETRIC.md](firebase_functions/BIOMETRIC.md).
 
 ---
 

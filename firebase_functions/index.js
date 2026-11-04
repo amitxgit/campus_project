@@ -1041,3 +1041,41 @@ exports.setUserPassword = onCall(async (request) => {
   }
   return { ok: true };
 });
+
+// ---------------------------------------------------------------------------
+// FINGERPRINT AND FACE-SCAN ATTENDANCE
+// ---------------------------------------------------------------------------
+// ZKTeco / eSSL machines push punches to `biometric` (ADMS protocol); other
+// systems POST JSON to /punches. A punch marks the student present in the
+// class running at that time. See BIOMETRIC.md for setup.
+const attendanceCore = require("./attendance_core");
+const { handleBiometricRequest } = require("./biometric_http");
+
+const serverTimestamp = () => FieldValue.serverTimestamp();
+
+exports.biometric = onRequest({ invoker: "public" }, async (req, res) => {
+  try {
+    const result = await handleBiometricRequest(db, serverTimestamp, {
+      method: req.method,
+      path: req.path,
+      query: req.query,
+      headers: req.headers,
+      body: req.is("application/json") ? req.body : undefined,
+      rawBody: req.rawBody ? req.rawBody.toString("utf8") : "",
+    });
+    res.status(result.status).type(result.contentType).send(result.body);
+  } catch (e) {
+    logger.error("biometric endpoint error", { error: String(e) });
+    res.status(500).type("text/plain").send("ERROR");
+  }
+});
+
+// When a teacher starts a class, apply punches already received for it.
+exports.applyBiometricOnSessionStart = onDocumentCreated("attendance_sessions/{sessionId}", async (event) => {
+  const snap = event.data;
+  if (!snap) return;
+  const marked = await attendanceCore.applyEarlierPunches(db, serverTimestamp, {
+    sessionId: event.params.sessionId, session: snap.data() || {},
+  });
+  if (marked) logger.info("biometric punches applied", { sessionId: event.params.sessionId, marked });
+});

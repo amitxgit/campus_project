@@ -27,6 +27,14 @@
     ],
     "rewrites": [
       {
+        "source": "/iclock/**",
+        "function": { "functionId": "biometric", "region": "asia-south1" }
+      },
+      {
+        "source": "/biometric/**",
+        "function": { "functionId": "biometric", "region": "asia-south1" }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

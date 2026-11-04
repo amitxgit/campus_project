@@ -95,6 +95,17 @@ service cloud.firestore {
       }
     }
 
+    // Fingerprint / face-scan machines. Punches are written by the `biometric`
+    // Cloud Function (Admin SDK); admins approve machines and can read punches.
+    match /biometric_devices/{deviceId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /biometric_punches/{punchId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /attendance/{id} {
       allow read: if isStaff()
         || (active() && resource.data.studentId == request.auth.uid);

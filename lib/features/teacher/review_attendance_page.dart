@@ -102,7 +102,15 @@ class _ReviewAttendancePageState extends ConsumerState<ReviewAttendancePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Review attendance'),
-        actions: const [ProfileAvatarAction()],
+        actions: [
+          // QR scans and fingerprint / face punches keep arriving while the class runs.
+          IconButton(
+            tooltip: 'Refresh',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: () => ref.invalidate(reviewProvider(widget.sessionId)),
+          ),
+          const ProfileAvatarAction(),
+        ],
       ),
       bottomNavigationBar: asyncData.hasValue
           ? SafeArea(
