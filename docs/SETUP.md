@@ -293,3 +293,34 @@ of this export.
 Account deletion requests appear as a banner on the admin home. Act on them
 within 30 days. An admin's own request has to be handled by another admin; if
 you are the only admin, delete the account in the Firebase console instead.
+
+## 13. Attendance: Bluetooth check-in and phone binding
+
+Nothing to sign up for. How it works and its limits are in
+[CHECK_IN.md](CHECK_IN.md). Fingerprint and face-scan machines are in
+[firebase_functions/BIOMETRIC.md](../firebase_functions/BIOMETRIC.md).
+
+**Release the app and the functions together.** The new `markAttendance`
+requires the phone ID that only the new app sends. Installed copies of an
+older version can't mark attendance (students see "Please update the app")
+until they update. So:
+
+1. Build and publish the new app (section 4), so students can update.
+2. Deploy the functions and rules the same day:
+   ```bash
+   firebase deploy --only firestore:rules,functions --project batchwise-2bd30
+   ```
+3. Ask students to update the app before their next class.
+
+**Phones.** The first time, teachers and students are asked to allow
+Bluetooth ("Nearby devices" on Android). On iPhones the app needs iOS 13 or
+later, and teachers must keep the attendance screen open while students check
+in, because iPhones stop broadcasting in the background.
+
+**Changing phones.** A student account checks in from one phone only. After a
+new phone, a reinstall or clearing the app's data, the admin opens the student
+in **Users** and taps **Reset phone link**.
+
+**Bluetooth only.** Once check-in works for a class, the teacher can turn on
+**Bluetooth only** on the attendance screen. The QR is hidden and the server
+refuses QR scans for that class.
