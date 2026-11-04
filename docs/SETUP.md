@@ -324,3 +324,30 @@ in **Users** and taps **Reset phone link**.
 **Bluetooth only.** Once check-in works for a class, the teacher can turn on
 **Bluetooth only** on the attendance screen. The QR is hidden and the server
 refuses QR scans for that class.
+
+## 14. Landing page at batchwise.bluescreenlabs.in
+
+The marketing page is `landing/index.html` (with `favicon.png` and the share
+image `og.png`). `.github/workflows/landing.yml` publishes the folder to its
+own Cloudflare Pages project, `batchwise-landing`, whenever `landing/` changes
+on `main`. It uses the same `CLOUDFLARE_API_TOKEN` secret as the web app.
+
+1. **First publish.** Merge to `main`, or run the workflow by hand: GitHub →
+   *Actions* → *Deploy landing page* → *Run workflow*. The first run creates
+   the Pages project. Cloudflare shows its address, usually
+   `batchwise-landing.pages.dev`.
+2. **Connect the domain.** Cloudflare dashboard → *Workers & Pages* →
+   `batchwise-landing` → *Custom domains* → *Set up a custom domain* →
+   `batchwise.bluescreenlabs.in`.
+3. **Add the DNS record** where `bluescreenlabs.in`'s DNS is managed (Netlify
+   DNS or your domain registrar): a `CNAME` record named `batchwise` pointing
+   to the address from step 1. Cloudflare issues the HTTPS certificate once
+   the record resolves, usually within minutes.
+4. **Check it:** open https://batchwise.bluescreenlabs.in. Paste the address
+   into WhatsApp to check the share preview.
+
+Do this before the website's Batchwise links switch over. The website sends
+`/products/batchwise/` to this address, so it has to be live first.
+
+**Editing the page:** change `landing/index.html` and push. Contact details
+are the `CONTACT` object near the bottom of the file.

@@ -9,6 +9,8 @@ teacher's phone, each from their own phone only, and existing fingerprint and
 face-scan machines plug straight in.
 
 Store listing text: [docs/PLAY_STORE.md](docs/PLAY_STORE.md#store-listing-text).
+Landing page: [landing/index.html](landing/index.html), published at
+https://batchwise.bluescreenlabs.in ([setup](docs/SETUP.md#14-landing-page-at-batchwisebluescreenlabsin)).
 
 *Originally built as Campus Track by Mohit Chauhan & Yash Gulati.*
 
