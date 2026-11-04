@@ -5,7 +5,7 @@
     "display": "standalone",
     "background_color": "#0B0B0D",
     "theme_color": "#0B0B0D",
-    "description": "Attendance, fee collection, tests and parent alerts for coaching institutes.",
+    "description": "Run your coaching institute: fees, attendance, tests and admissions, with WhatsApp updates for parents.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

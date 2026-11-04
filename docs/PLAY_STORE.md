@@ -25,10 +25,10 @@ current form: Google changes the wording now and then. Items marked
 | Item | Requirement | Suggestion |
 |---|---|---|
 | App name | up to 30 characters | `Batchwise` (check no clash in Play and trademarks) |
-| Short description | up to 80 characters | `Attendance, fees, tests and parent alerts for coaching institutes.` |
-| Full description | up to 4000 characters | Lead with "recover overdue fees, keep parents informed"; then attendance, fees and UPI, WhatsApp alerts, tests and ranks, enquiries, reports. |
+| Short description | up to 80 characters | `Run your coaching institute: fees, attendance, tests and WhatsApp for parents` |
+| Full description | up to 4000 characters | See [Store listing text](#store-listing-text) below |
 | App icon | 512 × 512 PNG, 32-bit, up to 1 MB | export from `assets/icon/app_icon.png` |
-| Feature graphic | 1024 × 500 PNG/JPG, no transparency | black background, BrandMark + "Fees, attendance, parents. Sorted." |
+| Feature graphic | 1024 × 500 PNG/JPG, no transparency | black background, BrandMark + "Your whole institute. Parents in the loop." |
 | Phone screenshots | 2–8, 16:9 or 9:16, 320–3840 px per side | admin home, fees with overdue, Pay by UPI, parent WhatsApp message, test results with ranks, enquiries, report card PDF |
 | Tablet screenshots | optional (needed for "designed for tablets") | skip at first |
 | Category | | Education |
@@ -109,3 +109,64 @@ form.
 2. Internal testing track first, then closed testing (required for personal
    accounts), then production.
 3. After publishing, keep the privacy policy URL working: Google checks it.
+
+## Store listing text
+
+Batchwise is positioned as the system that runs a coaching institute and keeps
+parents informed. Attendance is one part of it, not the product. Every claim
+below is a feature in the app today; update this if one changes.
+
+**Short description** (77/80):
+
+```
+Run your coaching institute: fees, attendance, tests and WhatsApp for parents
+```
+
+**Full description** (2119/4000):
+
+```
+Batchwise runs your whole coaching institute from one app: admissions, fees, attendance, tests and timetables. It also keeps every parent informed on WhatsApp, so parents don't need to install anything.
+
+FEES THAT GET PAID
+• Fee plans and instalments, with what's overdue shown first
+• Students and parents pay by UPI or a Razorpay link, and online payments record themselves
+• PDF receipts you can share on WhatsApp
+• Send fee reminders to every parent who owes, in one tap
+
+PARENTS STAY INFORMED, ON WHATSAPP
+• An automatic message when their child misses a class
+• Fee reminders and receipts
+• Test results sent from the results screen
+• Parents need no app and no login
+
+ATTENDANCE THAT CAN'T BE FAKED
+• Students check in by Bluetooth near the teacher's phone, so a code can't be forwarded to someone at home
+• Each student checks in from their own phone only, so nobody can mark friends from theirs
+• Works with the fingerprint and face-scan machines you already have (ZKTeco, eSSL)
+• A rotating QR code as a backup, checked on the server
+
+TESTS AND RESULTS
+• Enter marks, see ranks and publish results to students
+• PDF report cards
+
+MORE ADMISSIONS
+• Track every enquiry and see which follow-ups are due today
+• Turn an enquiry into a student without retyping anything
+
+THE DAY-TO-DAY
+• Timetable, notices, and assignments that students turn in with files
+• Reports and spreadsheet exports for fees, attendance and results
+• A WhatsApp summary for the owner every evening at 8 pm: money collected, students absent, fees overdue, enquiries to follow up
+• Import all your students at once. Students sign in with their mobile number
+
+BUILT FOR EVERY ROLE
+• Owners and admins: the full picture of fees, attendance and admissions
+• Teachers: take attendance in one tap, enter marks, post notices and assignments
+• Students: timetable, attendance, results, fees and assignments in one place
+
+YOUR DATA STAYS YOURS
+Every institute gets its own separate database. No ads.
+
+Batchwise is used by institutes that create accounts for their students and staff. There is no public sign-up. Contact us to set up your institute.
+```
+

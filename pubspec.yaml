@@ -1,5 +1,5 @@
 name: campus_track
-description: Attendance, fee collection, tests and parent alerts for coaching institutes.
+description: Runs a coaching institute (fees, attendance, tests, admissions) and keeps parents informed on WhatsApp.
 publish_to: "none"
 version: 1.0.0+1
 

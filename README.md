@@ -1,7 +1,16 @@
-# 🚀 Campus Track
-**By Mohit Chauhan & Yash Gulati**
+# Batchwise
 
-A comprehensive Flutter application designed to modernize the campus experience. It provides students, teachers, and administrators with a single platform to manage timetables, track attendance via QR codes, handle internal marks, and communicate effectively.
+**Runs a coaching institute, and keeps parents informed.**
+
+Batchwise covers admissions, fees, attendance, tests and timetables in one app.
+Parents get WhatsApp messages about absences, fees and results, with no app to
+install. Attendance can't be faked: students check in by Bluetooth near the
+teacher's phone, each from their own phone only, and existing fingerprint and
+face-scan machines plug straight in.
+
+Store listing text: [docs/PLAY_STORE.md](docs/PLAY_STORE.md#store-listing-text).
+
+*Originally built as Campus Track by Mohit Chauhan & Yash Gulati.*
 
 ---
 
