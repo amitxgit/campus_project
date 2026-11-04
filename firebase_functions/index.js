@@ -152,3 +152,74 @@ exports.broadcastAttendanceMarked = onCall(async (request) => {
   }
   return { ok: true, results };
 });
+// ---------------------------------------------------------------------------
+// Attendance: QR scans and biometric (fingerprint / face) devices
+// See BIOMETRIC.md for device setup.
+// ---------------------------------------------------------------------------
+const { onRequest } = require("firebase-functions/v2/https");
+const { onDocumentCreated, onDocumentCreatedWithAuthContext } = require("firebase-functions/v2/firestore");
+const attendanceCore = require("./attendance_core");
+const { handleBiometricRequest } = require("./biometric_http");
+
+const serverTimestamp = () => admin.firestore.FieldValue.serverTimestamp();
+
+// A student's app writes attendance_scans/<id> after scanning the teacher's QR code.
+// This checks the code against server time (not the phone's clock), its signature,
+// and the student's section, then marks them present.
+exports.verifyQrScan = onDocumentCreatedWithAuthContext("attendance_scans/{scanId}", async (event) => {
+  const snap = event.data;
+  if (!snap) return;
+  const scan = snap.data() || {};
+  const db = admin.firestore();
+  const finish = (status, reason = null) =>
+    snap.ref.set({ status, reason, checkedAt: serverTimestamp() }, { merge: true });
+
+  // The signed-in user must be the student the scan is for.
+  if (event.authType !== "system" && event.authId && event.authId !== scan.studentId) {
+    return finish("rejected", "wrong-user");
+  }
+  const [sessionSnap, studentSnap] = await Promise.all([
+    db.collection("attendance_sessions").doc(String(scan.sessionId || "-")).get(),
+    db.collection("users").doc(String(scan.studentId || "-")).get(),
+  ]);
+  const session = sessionSnap.exists ? sessionSnap.data() : null;
+  const student = studentSnap.exists ? studentSnap.data() : null;
+  const check = attendanceCore.verifyQrScan({
+    scan, session, student, receivedAtMs: snap.createTime.toMillis(),
+  });
+  if (!check.ok) return finish("rejected", check.reason);
+
+  const result = await attendanceCore.markPresent(db, serverTimestamp, {
+    sessionId: scan.sessionId, session, studentId: scan.studentId, source: "qr", method: "qr", at: snap.createTime.toDate(),
+  });
+  return finish(result === "manual" ? "kept-teacher-mark" : "accepted");
+});
+
+// When a teacher starts a class, apply fingerprint / face punches already received for it.
+exports.applyBiometricOnSessionStart = onDocumentCreated("attendance_sessions/{sessionId}", async (event) => {
+  const snap = event.data;
+  if (!snap) return;
+  const marked = await attendanceCore.applyEarlierPunches(admin.firestore(), serverTimestamp, {
+    sessionId: event.params.sessionId, session: snap.data() || {},
+  });
+  if (marked) logger.info("biometric punches applied", { sessionId: event.params.sessionId, marked });
+});
+
+// Endpoint for attendance devices. Point a ZKTeco / eSSL device's cloud server
+// setting at this function's URL; other systems can POST JSON to /punches.
+exports.biometric = onRequest({ cors: false }, async (req, res) => {
+  try {
+    const result = await handleBiometricRequest(admin.firestore(), serverTimestamp, {
+      method: req.method,
+      path: req.path,
+      query: req.query,
+      headers: req.headers,
+      body: req.is("application/json") ? req.body : undefined,
+      rawBody: req.rawBody ? req.rawBody.toString("utf8") : "",
+    });
+    res.status(result.status).type(result.contentType).send(result.body);
+  } catch (e) {
+    logger.error("biometric endpoint error", { error: String(e) });
+    res.status(500).type("text/plain").send("ERROR");
+  }
+});

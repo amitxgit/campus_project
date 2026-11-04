@@ -24,6 +24,7 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
     {'id': 'subjects', 'label': 'Subjects', 'icon': Icons.menu_book_rounded},
     {'id': 'timetable', 'label': 'Timetable', 'icon': Icons.calendar_month_rounded},
     {'id': 'attendance', 'label': 'Attendance', 'icon': Icons.fact_check_rounded},
+    {'id': 'biometric_devices', 'label': 'Biometric devices', 'icon': Icons.fingerprint_rounded},
   ];
 
   String _selectedCollection = 'subjects';

@@ -82,6 +82,7 @@ class _ScanQRPageState extends ConsumerState<ScanQRPage> with WidgetsBindingObse
       await ref.read(attendanceRepoProvider).markPresentSecure(
         sessionId: sessionId,
         studentId: user.id,
+        rawCode: code,
       );
 
       // ✅ FIX: Check the explicitly captured context
@@ -121,7 +122,7 @@ class _ScanQRPageState extends ConsumerState<ScanQRPage> with WidgetsBindingObse
               const Text('Success!', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
               const SizedBox(height: 8),
               Text(
-                'Your attendance has been securely verified and logged.',
+                'Your scan was received. It will show on your teacher\'s list once it is verified.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 14, height: 1.4),
               ),

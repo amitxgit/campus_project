@@ -26,13 +26,22 @@ class AttendanceRepository {
   // ---------------------------------------------------------------------------
   // WRITE METHODS
   // ---------------------------------------------------------------------------
+  /// Records a QR scan. The `verifyQrScan` Cloud Function checks the code against
+  /// server time, its signature and the student's section, then marks the
+  /// student present (see firebase_functions/attendance_core.js).
   Future<void> markPresentSecure({
     required String sessionId,
     required String studentId,
+    required String rawCode,
   }) async {
     try {
-      // Implementation assumes Secure Application verification happens here
-      // Call Cloud Function in real env, but leaving stub as requested in source
+      await _db.collection('attendance_scans').add({
+        'sessionId': sessionId,
+        'studentId': studentId,
+        'payload': rawCode,
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
     } catch (e) {
       throw Exception(FirebaseErrorParser.getMessage(e));
     }

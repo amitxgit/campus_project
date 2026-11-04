@@ -90,6 +90,12 @@ class _ReviewAttendancePageState extends ConsumerState<ReviewAttendancePage> {
       appBar: AppBar(
         title: const Text('Review & Save Attendance'),
         actions: [
+          // QR scans and fingerprint / face punches arrive while the class runs.
+          IconButton(
+            tooltip: 'Refresh',
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: () => ref.invalidate(reviewProvider(widget.sessionId)),
+          ),
           TextButton(
             onPressed: () =>
             asyncData.hasValue ? _save(asyncData.value!) : null,
