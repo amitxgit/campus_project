@@ -24,6 +24,9 @@ Future<UserFormResult?> showUserFormDialog(
   UserAccount u, {
   bool isNew = false,
   VoidCallback? onDelete,
+  // Students only: unlink the phone they check in from (new handset or a
+  // reinstall). See lib/core/attendance/device_id.dart.
+  VoidCallback? onResetPhoneLink,
 }) async {
   final form = GlobalKey<FormState>();
   final nameCtrl = TextEditingController(text: u.name);
@@ -205,6 +208,26 @@ Future<UserFormResult?> showUserFormDialog(
                                   ),
                           ),
                         ],
+                      ),
+                    ],
+                    if (!isNew && role == UserRole.student && onResetPhoneLink != null) ...[
+                      const SizedBox(height: 24),
+                      _sectionHeader('Check-in phone'),
+                      const SizedBox(height: 4),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.phonelink_erase_rounded),
+                        title: const Text('Reset phone link'),
+                        subtitle: const Text(
+                            'Attendance can only be marked from the phone this student first checked in with. '
+                            'Reset it if they changed phones or reinstalled the app.'),
+                        trailing: TextButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            onResetPhoneLink();
+                          },
+                          child: const Text('Reset'),
+                        ),
                       ),
                     ],
                     const SizedBox(height: 32),

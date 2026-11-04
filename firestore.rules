@@ -86,11 +86,17 @@ service cloud.firestore {
       // Sessions are created by the startAttendanceSession function. The
       // owning teacher may only close their own session.
       allow update: if isAdmin()
-        || (isTeacher() && resource.data.teacherId == request.auth.uid && onlyChanges(['isActive']));
+        || (isTeacher() && resource.data.teacherId == request.auth.uid && onlyChanges(['isActive', 'qrEnabled']));
       allow create, delete: if isAdmin();
 
       // Holds the QR signing secret. Server-only.
       match /private/{doc} {
+        allow read, write: if false;
+      }
+
+      // Which phone marked which student in this session (phone binding).
+      // Server-only.
+      match /devices/{deviceHash} {
         allow read, write: if false;
       }
     }

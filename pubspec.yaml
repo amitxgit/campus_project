@@ -30,6 +30,10 @@ dependencies:
   qr_flutter: ^4.1.0      # For generating QR codes on teacher's device
   mobile_scanner: ^5.2.3   # For scanning QR codes on student's device
   secure_application: ^4.1.0
+
+  # Bluetooth check-in: the teacher's phone broadcasts, students' phones scan.
+  flutter_ble_peripheral: ">=3.1.0 <3.2.0"
+  flutter_blue_plus: ^2.3.13
   url_launcher: ^6.3.2
   #flutter_windowmanager: ^0.2.0   # For restricting screenshots on Android
   lottie: ^2.7.0

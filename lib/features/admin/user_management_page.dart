@@ -184,6 +184,7 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
       u,
       isNew: isNew,
       onDelete: () => _confirmDeleteUser(u),
+      onResetPhoneLink: () => _resetPhoneLink(u),
     );
     final updated = result?.user;
 
@@ -202,6 +203,17 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> with Si
         showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
       ref.invalidate(allUsersProvider);
+    }
+  }
+
+  Future<void> _resetPhoneLink(UserAccount user) async {
+    try {
+      await ref.read(attendanceRepoProvider).resetPhoneLink(user.id);
+      if (mounted) {
+        showMessage(context, '${user.name} can now check in from a new phone.', success: true);
+      }
+    } catch (e) {
+      if (mounted) showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
     }
   }
 

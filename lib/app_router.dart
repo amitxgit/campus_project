@@ -25,6 +25,7 @@ import 'features/student/student_attendance_page.dart';
 import 'features/student/timetable_page.dart';
 import 'features/student/raise_query_page.dart';
 import 'features/student/scan_qr_page.dart';
+import 'features/student/check_in_page.dart';
 import 'features/student/internal_marks_page.dart' as student_marks;
 
 // Teacher
@@ -204,6 +205,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/student/raise-query', builder: (_, __) => const RaiseQueryPage()),
       GoRoute(path: '/student/internal-marks', builder: (_, __) => const student_marks.InternalMarksPage()),
       GoRoute(path: '/student/scan-qr', builder: (_, __) => const ScanQRPage()),
+      GoRoute(path: '/student/check-in', builder: (_, __) => const CheckInPage()),
       GoRoute(path: '/student/fees', builder: (_, __) => const MyFeesPage()),
       GoRoute(path: '/student/results', builder: (_, __) => const MyResultsPage()),
       GoRoute(path: AppRoutes.tests, builder: (_, __) => const TestsPage()),

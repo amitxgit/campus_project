@@ -251,6 +251,7 @@ class AppDrawer extends ConsumerWidget {
       case UserRole.student:
         return _RoleMenu('Student', [
           const _DrawerItem('Home', Icons.home_outlined, '/home/student', isHome: true),
+          const _DrawerItem('Check in', Icons.bluetooth_searching_rounded, '/student/check-in'),
           const _DrawerItem('Scan QR', Icons.qr_code_scanner_rounded, '/student/scan-qr'),
           const _DrawerItem('Attendance', Icons.fact_check_outlined, '/student/attendance'),
           const _DrawerItem('Timetable', Icons.calendar_month_outlined, '/student/timetable'),

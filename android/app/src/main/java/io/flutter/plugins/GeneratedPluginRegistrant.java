@@ -46,6 +46,16 @@ public final class GeneratedPluginRegistrant {
       Log.e(TAG, "Error registering plugin firebase_storage, io.flutter.plugins.firebase.storage.FlutterFirebaseStoragePlugin", e);
     }
     try {
+      flutterEngine.getPlugins().add(new dev.steenbakker.flutter_ble_peripheral.FlutterBlePeripheralPlugin());
+    } catch (Exception e) {
+      Log.e(TAG, "Error registering plugin flutter_ble_peripheral, dev.steenbakker.flutter_ble_peripheral.FlutterBlePeripheralPlugin", e);
+    }
+    try {
+      flutterEngine.getPlugins().add(new com.jmx.flutter_blue_plus.FlutterBluePlusPlugin());
+    } catch (Exception e) {
+      Log.e(TAG, "Error registering plugin flutter_blue_plus_android, com.jmx.flutter_blue_plus.FlutterBluePlusPlugin", e);
+    }
+    try {
       flutterEngine.getPlugins().add(new com.dexterous.flutterlocalnotifications.FlutterLocalNotificationsPlugin());
     } catch (Exception e) {
       Log.e(TAG, "Error registering plugin flutter_local_notifications, com.dexterous.flutterlocalnotifications.FlutterLocalNotificationsPlugin", e);

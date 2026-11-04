@@ -71,6 +71,11 @@ async function makeUser(uid, profile) {
   return signIn(`${uid}@test.edu`, "secret123");
 }
 
+const checkin = require("../firebase_functions/checkin");
+const PHONE_1 = "phone-of-student-1-aaaa";
+const PHONE_2 = "phone-of-student-2-bbbb";
+const PHONE_3 = "phone-of-student-3-cccc";
+
 const sign = (secret, sId, n) =>
   crypto.createHmac("sha256", secret).update(`${sId}:${n}`).digest("hex").substring(0, 32);
 
@@ -82,6 +87,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const tTeacher2 = await makeUser("teacher2", { role: "teacher" });
   const tStudent = await makeUser("student1", { role: "student", section: "IV-HE", phone: "111" });
   const tOther = await makeUser("student2", { role: "student", section: "III-HE", phone: "222" });
+  const tStudent3 = await makeUser("student3", { role: "student", section: "IV-HE", phone: "333" });
+  const tStudent4 = await makeUser("student4", { role: "student", section: "IV-HE", phone: "444" });
   await db.collection("timetable").doc("entry1").set({
     subjectId: "sub1", dayOfWeek: "Mon", startTime: "08:30", endTime: "09:30",
     room: "101", section: "IV-HE", teacherIds: ["teacher1"],
@@ -94,12 +101,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await check("teacher starts session", async () => {
     session = await call("startAttendanceSession", { entryId: "entry1" }, tTeacher);
     assert.ok(session.sessionId && session.secret.length === 64);
+    assert.ok(Number.isInteger(session.bleCode));
     const doc = (await db.collection("attendance_sessions").doc(session.sessionId).get()).data();
     assert.strictEqual(doc.slot, "08:30-09:30");
     assert.strictEqual(doc.teacherId, "teacher1");
   });
-  const qr = (n) => ({ sId: session.sessionId, n, sig: sign(session.secret, session.sessionId, n) });
+  const qr = (n, deviceId = PHONE_1) =>
+    ({ sId: session.sessionId, n, sig: sign(session.secret, session.sessionId, n), deviceId });
+  const ble = (n, deviceId = PHONE_1, s = session) =>
+    ({ ble: checkin.buildBleToken(s.secret, s.sessionId, s.bleCode, n), deviceId });
 
+  await check("scan without a phone ID (old app) rejected", () =>
+    expectError(call("markAttendance", { ...qr(0), deviceId: undefined }, tStudent), "FAILED_PRECONDITION"));
   await check("unauthenticated scan rejected", () =>
     expectError(call("markAttendance", qr(0)), "UNAUTHENTICATED"));
   await check("forged signature rejected", () =>
@@ -119,10 +132,57 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     assert.strictEqual(rec.status, "present");
     assert.strictEqual(rec.subjectId, "sub1");
     assert.strictEqual(rec.markedByTeacherId, "teacher1");
+    assert.strictEqual(rec.source, "qr");
+    const u = (await db.collection("users").doc("student1").get()).data();
+    assert.ok(u.deviceBinding && u.deviceBinding.hash, "account is bound to the phone");
   });
   await check("second scan is idempotent", async () => {
     const r = await call("markAttendance", qr(0), tStudent);
     assert.strictEqual(r.alreadyMarked, true);
+  });
+  await check("same phone cannot mark a second student (friend's account)", () =>
+    expectError(call("markAttendance", qr(0, PHONE_1), tStudent3), "PERMISSION_DENIED"));
+  await check("bound account cannot be marked from another phone", () =>
+    expectError(call("markAttendance", ble(0, PHONE_2), tStudent), "PERMISSION_DENIED"));
+
+  console.log("Bluetooth check-in");
+  await check("valid Bluetooth token records attendance", async () => {
+    const r = await call("markAttendance", ble(0, PHONE_3), tStudent3);
+    assert.strictEqual(r.alreadyMarked, false);
+    const rec = (await db.collection("attendance").doc(`${session.sessionId}_student3`).get()).data();
+    assert.strictEqual(rec.source, "ble");
+    assert.strictEqual(rec.status, "present");
+  });
+  await check("forged Bluetooth signature rejected", () => {
+    const t = ble(0, PHONE_2).ble.replace(/-/g, "");
+    const forged = t.slice(0, 16) + "0".repeat(16);
+    return expectError(call("markAttendance", { ble: forged, deviceId: PHONE_2 }, tStudent4), "PERMISSION_DENIED");
+  });
+  await check("QR signature replayed as a Bluetooth token rejected", () => {
+    const qrSig = sign(session.secret, session.sessionId, 0).slice(0, 16);
+    const code = session.bleCode.toString(16).padStart(8, "0");
+    return expectError(call("markAttendance", { ble: `ba7c${code}0000${qrSig}`, deviceId: PHONE_2 }, tStudent4), "PERMISSION_DENIED");
+  });
+  await check("Bluetooth token from a step far in the past rejected", async () => {
+    await db.collection("attendance_sessions").doc(session.sessionId)
+      .update({ createdAt: admin.firestore.Timestamp.fromMillis(Date.now() - 60_000) });
+    await expectError(call("markAttendance", ble(0, "fresh-phone-dddd-0001"), tOther), "PERMISSION_DENIED"); // other section
+    await expectError(call("markAttendance", ble(0, PHONE_2), tStudent4), "DEADLINE_EXCEEDED");
+    await call("markAttendance", ble(12, PHONE_2), tStudent4); // current step is accepted
+  });
+  await check("not a Batchwise token rejected", () =>
+    expectError(call("markAttendance", { ble: "0000180f-0000-1000-8000-00805f9b34fb", deviceId: PHONE_2 }, tStudent4), "INVALID_ARGUMENT"));
+  await check("Bluetooth-only mode rejects QR scans", async () => {
+    await db.collection("attendance_sessions").doc(session.sessionId).update({ qrEnabled: false });
+    await expectError(call("markAttendance", qr(12, PHONE_1), tStudent), "FAILED_PRECONDITION");
+    await db.collection("attendance_sessions").doc(session.sessionId).update({ qrEnabled: true });
+  });
+  await check("after an admin reset the student can use a new phone", async () => {
+    await db.collection("users").doc("student1").update({ deviceBinding: admin.firestore.FieldValue.delete() });
+    const r = await call("markAttendance", ble(12, "new-phone-of-student-1"), tStudent);
+    assert.strictEqual(r.alreadyMarked, true);
+    const u = (await db.collection("users").doc("student1").get()).data();
+    assert.strictEqual(u.deviceBinding.hash, checkin.deviceHash("new-phone-of-student-1"));
   });
   await check("closed session rejects scans", async () => {
     await db.collection("attendance_sessions").doc(session.sessionId).update({ isActive: false });

@@ -9,7 +9,7 @@ A comprehensive Flutter application designed to modernize the campus experience.
 
 ### 👨‍🎓 For Students
 * **Student Dashboard:** A central hub showing overall attendance and the next/ongoing class.
-* **QR Code Scanning:** Securely scan a time-limited QR code from the teacher to mark attendance.
+* **Check in by Bluetooth:** Tap "Mark attendance" near the teacher's phone. It only works in the room, so it can't be forwarded to a friend. QR scanning is the fallback.
 * **Attendance History:** A detailed, filterable list of all past attendance records with subject-wise percentages.
 * **Internal Marks:** View published internal marks (assignments, tests, attendance) from all teachers in one place.
 * **Timetable:** View a full weekly timetable with offline support.
@@ -20,7 +20,7 @@ A comprehensive Flutter application designed to modernize the campus experience.
 
 ### 👩‍🏫 For Teachers
 * **Teacher Dashboard:** A schedule-centric dashboard showing today's classes and what's next.
-* **Generate QR:** Generate a unique, time-limited QR code for a class to take attendance.
+* **Take attendance:** Starting a class broadcasts a rotating Bluetooth check-in signal and shows a rotating QR code. Switch to "Bluetooth only" to hide the QR. See [docs/CHECK_IN.md](docs/CHECK_IN.md).
 * **Review Attendance:** A live-updating list of students who have scanned in, with the ability to manually override/edit marks (Present, Absent, Late, Excused).
 * **Internal Marks System:** A complete grading page to select a subject, enter marks (Assignment/Test), and see auto-calculated attendance marks. Includes a switch to publish/unpublish grades to students.
 * **Assignments:** Create assignments with a due date, then review every submission (late ones flagged) and download attached files.
@@ -36,6 +36,7 @@ A comprehensive Flutter application designed to modernize the campus experience.
 * **Internal Marks Overrides:** A page to filter and manually edit any student's internal marks for any subject.
 * **Query Management:** View and resolve all queries submitted by students. (Sends a real-time notification on status change).
 * **Password Resets:** Send password reset links to any user.
+* **Phone link reset:** Each student checks in from one phone. Reset it from the student's profile when they change phones.
 * **Fingerprint and Face-Scan Attendance:** Connect existing ZKTeco / eSSL machines (or any system that can send JSON). A punch marks the student present in the class running at that time. See [firebase_functions/BIOMETRIC.md](firebase_functions/BIOMETRIC.md).
 
 ---

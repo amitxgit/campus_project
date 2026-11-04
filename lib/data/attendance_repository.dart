@@ -2,6 +2,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
+import '../core/attendance/device_id.dart';
 import '../core/models/attendance.dart';
 import '../core/models/attendance_session.dart';
 import '../core/utils/firebase_error_parser.dart';
@@ -32,7 +33,9 @@ class AttendanceRepository {
 
   /// Creates a session on the server and returns its id plus the secret the
   /// teacher's device uses to sign the rotating QR code.
-  Future<({String sessionId, String secret})> startSession(String entryId) async {
+  /// Also returns the short code the teacher's phone broadcasts over
+  /// Bluetooth for this session.
+  Future<({String sessionId, String secret, int bleCode})> startSession(String entryId) async {
     try {
       final res = await _functions
           .httpsCallable('startAttendanceSession')
@@ -40,6 +43,7 @@ class AttendanceRepository {
       return (
         sessionId: res.data['sessionId'] as String,
         secret: res.data['secret'] as String,
+        bleCode: (res.data['bleCode'] as num).toInt(),
       );
     } catch (e) {
       throw Exception(FirebaseErrorParser.getMessage(e));
@@ -53,11 +57,38 @@ class AttendanceRepository {
   /// Sends a scanned QR payload to the server, which verifies the signature,
   /// freshness and section before writing the attendance record.
   /// Returns true if the student had already been marked for this session.
-  Future<bool> markPresentFromQr(Map<String, dynamic> payload) async {
+  Future<bool> markPresentFromQr(Map<String, dynamic> payload) =>
+      _mark({'sId': payload['sId'], 'n': payload['n'], 'sig': payload['sig']});
+
+  /// Sends a Bluetooth token heard from the teacher's phone. The server
+  /// checks it the same way as a QR scan.
+  Future<bool> markPresentFromBle(String token) => _mark({'ble': token});
+
+  /// Turns QR scans on or off for a live session ("Bluetooth only").
+  Future<void> setQrEnabled(String sessionId, bool enabled) async {
+    try {
+      await sessionsRef.doc(sessionId).update({'qrEnabled': enabled});
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  /// Lets a student check in from a new phone (after a reinstall or a new
+  /// handset). Admin only.
+  Future<void> resetPhoneLink(String userId) async {
+    try {
+      await _db.collection('users').doc(userId).update({'deviceBinding': FieldValue.delete()});
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  // Every check-in carries this phone's installation ID for phone binding.
+  Future<bool> _mark(Map<String, dynamic> data) async {
     try {
       final res = await _functions
           .httpsCallable('markAttendance')
-          .call<Map<String, dynamic>>(payload);
+          .call<Map<String, dynamic>>({...data, 'deviceId': await DeviceId.get()});
       return res.data['alreadyMarked'] == true;
     } catch (e) {
       throw Exception(FirebaseErrorParser.getMessage(e));

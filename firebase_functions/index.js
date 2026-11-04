@@ -8,6 +8,7 @@ const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const { FieldValue, Timestamp } = require("firebase-admin/firestore");
 const crypto = require("crypto");
+const checkin = require("./checkin");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -221,6 +222,16 @@ exports.startAttendanceSession = onCall(async (request) => {
   const secret = crypto.randomBytes(32).toString("hex");
   const createdAt = Timestamp.now();
 
+  // Short code that identifies this session in the Bluetooth broadcast.
+  // Unique among active sessions; collisions are rare (32 bits), so retry.
+  let bleCode = checkin.newBleCode();
+  for (let i = 0; i < 5; i++) {
+    const clash = await db.collection("attendance_sessions")
+      .where("bleCode", "==", bleCode).where("isActive", "==", true).limit(1).get();
+    if (clash.empty) break;
+    bleCode = checkin.newBleCode();
+  }
+
   const batch = db.batch();
   batch.set(ref, {
     teacherId: caller.id,
@@ -229,25 +240,89 @@ exports.startAttendanceSession = onCall(async (request) => {
     slot: `${entry.startTime}-${entry.endTime}`,
     createdAt,
     isActive: true,
+    bleCode,
+    // The teacher can switch to Bluetooth only, which turns QR scans off.
+    qrEnabled: true,
   });
   // Clients have no access to this subcollection (see firestore.rules).
   batch.set(ref.collection("private").doc("key"), { secret });
   await batch.commit();
 
-  return { sessionId: ref.id, secret, createdAtMs: createdAt.toMillis() };
+  return { sessionId: ref.id, secret, bleCode, createdAtMs: createdAt.toMillis() };
 });
 
+const EXPIRED_MSG =
+  "QR code expired. Please scan the live code directly from the teacher's screen.";
+const BLE_EXPIRED_MSG = "That check-in signal has expired. Please try again in class.";
+
+// Students check in with either a scanned QR ({sId, n, sig}) or a Bluetooth
+// token heard from the teacher's phone ({ble}). Both carry the installation ID
+// of the student's phone ({deviceId}) for phone binding (see checkin.js).
 exports.markAttendance = onCall(async (request) => {
   const caller = await getCaller(request);
   if (caller.role !== "student") {
     throw new HttpsError("permission-denied", "Only students can mark attendance.");
   }
 
-  const { sId, n, sig } = request.data || {};
-  if (typeof sId !== "string" || !Number.isInteger(n) || typeof sig !== "string") {
-    throw new HttpsError("invalid-argument", "This is not a valid attendance QR code.");
+  const data = request.data || {};
+  const devHash = checkin.deviceHash(data.deviceId);
+  if (!devHash) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Please update the app to the latest version to mark attendance.",
+    );
   }
 
+  // 1. Work out which session the code is for, and its step and signature.
+  let sId;
+  let step;
+  let verify; // (secret) => boolean
+  let method;
+  let expiredMsg;
+  if (data.ble !== undefined) {
+    const tok = checkin.parseBleToken(data.ble);
+    if (!tok) {
+      throw new HttpsError("invalid-argument", "This is not a valid check-in signal.");
+    }
+    const match = await db.collection("attendance_sessions")
+      .where("bleCode", "==", tok.code).where("isActive", "==", true).limit(2).get();
+    if (match.empty) {
+      throw new HttpsError("failed-precondition", "This attendance session has ended.");
+    }
+    // In the rare case two live sessions share a code, the signature decides.
+    sId = match.docs.length === 1 ? match.docs[0].id : null;
+    step = tok.step;
+    method = "ble";
+    expiredMsg = BLE_EXPIRED_MSG;
+    if (sId === null) {
+      for (const d of match.docs) {
+        const k = await d.ref.collection("private").doc("key").get();
+        if (k.exists && checkin.bleSigOk(k.data().secret, d.id, step, tok.sig)) sId = d.id;
+      }
+      if (sId === null) {
+        throw new HttpsError("permission-denied", "This is not a valid check-in signal.");
+      }
+    }
+    const id = sId;
+    verify = (secret) => checkin.bleSigOk(secret, id, step, tok.sig);
+  } else {
+    const { n, sig } = data;
+    sId = data.sId;
+    if (typeof sId !== "string" || sId.includes("/") || !Number.isInteger(n) || typeof sig !== "string") {
+      throw new HttpsError("invalid-argument", "This is not a valid attendance QR code.");
+    }
+    step = n;
+    method = "qr";
+    expiredMsg = EXPIRED_MSG;
+    const id = sId;
+    verify = (secret) => {
+      const expected = signStep(secret, id, n);
+      return sig.length === expected.length &&
+        crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+    };
+  }
+
+  // 2. Check the session, the signature and freshness.
   const sessionRef = db.collection("attendance_sessions").doc(sId);
   const [sessionSnap, keySnap] = await Promise.all([
     sessionRef.get(),
@@ -262,28 +337,60 @@ exports.markAttendance = onCall(async (request) => {
   if (!session.isActive || elapsed > QR_SESSION_MAX_MS) {
     throw new HttpsError("failed-precondition", "This attendance session has ended.");
   }
+  if (method === "qr" && session.qrEnabled === false) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Your teacher is taking attendance by Bluetooth for this class. Tap \"Check in\" instead of scanning.",
+    );
+  }
   if (session.section !== caller.section) {
     throw new HttpsError("permission-denied", "This class is not for your section.");
   }
-
-  const expected = signStep(keySnap.data().secret, sId, n);
-  const sigOk = sig.length === expected.length &&
-    crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
-  if (!sigOk) {
-    throw new HttpsError("permission-denied", "This is not a valid attendance QR code.");
-  }
-
-  const serverStep = Math.floor(elapsed / QR_STEP_MS);
-  if (n > serverStep + 1 || n < serverStep - QR_MAX_AGE_STEPS) {
+  if (!verify(keySnap.data().secret)) {
     throw new HttpsError(
-      "deadline-exceeded",
-      "QR code expired. Please scan the live code directly from the teacher's screen.",
+      "permission-denied",
+      method === "ble" ? "This is not a valid check-in signal." : "This is not a valid attendance QR code.",
     );
   }
 
+  // The Bluetooth step is 16 bits; sessions end long before it wraps.
+  const serverStep = Math.floor(elapsed / QR_STEP_MS);
+  if (step > serverStep + 1 || step < serverStep - QR_MAX_AGE_STEPS) {
+    throw new HttpsError("deadline-exceeded", expiredMsg);
+  }
+
+  // 3. Phone binding and the attendance record, in one transaction.
+  const userRef = db.collection("users").doc(caller.id);
+  const deviceRef = sessionRef.collection("devices").doc(devHash);
+  const recordRef = db.collection("attendance").doc(`${sId}_${caller.id}`);
   const now = Timestamp.now();
-  try {
-    await db.collection("attendance").doc(`${sId}_${caller.id}`).create({
+
+  return db.runTransaction(async (tx) => {
+    const [userSnap, deviceSnap, recordSnap] = await Promise.all([
+      tx.get(userRef), tx.get(deviceRef), tx.get(recordRef),
+    ]);
+    const binding = userSnap.get("deviceBinding");
+    if (binding && binding.hash && binding.hash !== devHash) {
+      throw new HttpsError(
+        "permission-denied",
+        "Your account is linked to a different phone. Ask your institute to reset your phone link.",
+      );
+    }
+    if (deviceSnap.exists && deviceSnap.get("studentId") !== caller.id) {
+      throw new HttpsError(
+        "permission-denied",
+        "This phone has already marked another student in this class.",
+      );
+    }
+    if (!binding || !binding.hash) {
+      tx.update(userRef, { deviceBinding: { hash: devHash, boundAt: now } });
+    }
+    if (recordSnap.exists) return { ok: true, alreadyMarked: true };
+
+    if (!deviceSnap.exists) {
+      tx.create(deviceRef, { studentId: caller.id, at: now });
+    }
+    tx.create(recordRef, {
       sessionId: sId,
       studentId: caller.id,
       subjectId: session.subjectId,
@@ -292,13 +399,13 @@ exports.markAttendance = onCall(async (request) => {
       status: "present",
       markedByTeacherId: session.teacherId,
       markedAt: now,
+      // Same fields as biometric records (attendance_core.js). Not an auto
+      // source, so a later fingerprint punch never overwrites it.
+      source: method,
+      method,
     });
-  } catch (e) {
-    // ALREADY_EXISTS: scanning twice is fine.
-    if (e.code !== 6) throw e;
-    return { ok: true, alreadyMarked: true };
-  }
-  return { ok: true, alreadyMarked: false };
+    return { ok: true, alreadyMarked: false };
+  });
 });
 
 // ---------------------------------------------------------------------------

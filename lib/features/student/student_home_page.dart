@@ -176,7 +176,7 @@ class StudentHomePage extends ConsumerWidget {
                     pct: vm.attendancePct,
                     threshold: settings.attendanceThreshold,
                     onScan: () async {
-                      await context.push('/student/scan-qr');
+                      await context.push('/student/check-in');
                       ref.invalidate(studentDashboardProvider);
                     },
                     onOpen: () => context.push('/student/attendance'),
@@ -312,8 +312,8 @@ class _AttendanceCard extends StatelessWidget {
               child: FilledButton.icon(
                 onPressed: onScan,
                 style: FilledButton.styleFrom(backgroundColor: p.accent, foregroundColor: p.onAccent),
-                icon: const Icon(Icons.qr_code_scanner_rounded),
-                label: const Text('Scan to mark attendance'),
+                icon: const Icon(Icons.how_to_reg_rounded),
+                label: const Text('Mark attendance'),
               ),
             ),
           ],
