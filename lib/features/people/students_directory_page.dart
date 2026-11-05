@@ -10,6 +10,10 @@ import '../../core/models/role.dart';
 import '../../core/models/user.dart';
 import '../../core/models/remark.dart';
 import '../../main.dart';
+import '../../theme.dart';
+import '../common/widgets/ui_kit.dart';
+import '../common/widgets/class_card.dart' show EmptyNote;
+import '../../core/utils/firebase_error_parser.dart';
 
 // -------------------- PROVIDER --------------------
 final directoryProvider = FutureProvider.autoDispose((ref) async {
@@ -47,6 +51,7 @@ class StudentsDirectoryPage extends ConsumerStatefulWidget {
 
 class _StudentsDirectoryPageState extends ConsumerState<StudentsDirectoryPage> {
   String _query = '';
+  String? _batch;
 
   @override
   Widget build(BuildContext context) {
@@ -54,14 +59,14 @@ class _StudentsDirectoryPageState extends ConsumerState<StudentsDirectoryPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Students Directory'),
+        title: const Text('Students'),
         actions: const [ProfileAvatarAction()],
       ),
       drawer: const AppDrawer(),
       body: asyncData.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => AsyncErrorWidget(
-          message: err.toString(),
+          message: FirebaseErrorParser.getMessage(err),
           onRetry: () => ref.refresh(directoryProvider),
         ),
         data: (data) {
@@ -69,80 +74,100 @@ class _StudentsDirectoryPageState extends ConsumerState<StudentsDirectoryPage> {
           final students = data['students'] as List<UserAccount>;
           final remarks = data['remarks'] as List<StudentRemark>;
 
-          final filtered = students.where((s) {
-            final q = _query.toLowerCase();
-            return s.name.toLowerCase().contains(q) ||
-                (s.collegeRollNo ?? '').toLowerCase().contains(q);
-          }).toList();
+          final p = context.palette;
+          final batches = students.map((s) => s.section ?? '').where((b) => b.isNotEmpty).toSet().toList()..sort();
+          final q = _query.toLowerCase();
+          final filtered = students
+              .where((s) =>
+                  (_batch == null || s.section == _batch) &&
+                  (q.isEmpty || s.name.toLowerCase().contains(q) || s.phone.contains(q) || (s.collegeRollNo ?? '').toLowerCase().contains(q)))
+              .toList();
 
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                 child: TextField(
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.search),
-                    hintText: 'Search by name or roll number...',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: const InputDecoration(prefixIcon: Icon(Icons.search_rounded), hintText: 'Search name or phone', isDense: true),
                   onChanged: (v) => setState(() => _query = v),
                 ),
               ),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final student = filtered[index];
-                    final studentRemarks =
-                    remarks.where((r) => r.studentId == student.id).toList();
-
-                    return ListTile(
-                      leading: CircleAvatar(
-                        child: Text(student.name.isNotEmpty ? student.name[0] : '?'),
-                      ),
-                      title: Text(student.name),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                              '${student.section ?? "N/A"} • ${student.collegeRollNo ?? "No Roll"}'),
-                          if (studentRemarks.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Wrap(
-                                spacing: 4,
-                                children: studentRemarks
-                                    .map((r) => Chip(
-                                  label: Text(
-                                    r.tag,
-                                    style: const TextStyle(fontSize: 10),
-                                  ),
-                                  visualDensity: VisualDensity.compact,
-                                  padding: EdgeInsets.zero,
-                                ))
-                                    .toList(),
-                              ),
-                            ),
-                        ],
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.phone),
-                            onPressed: () => _launchUrl('tel:${student.phone}'),
+              if (batches.length > 1)
+                SizedBox(
+                  height: 40,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      for (final b in <String?>[null, ...batches])
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: ChoiceChip(
+                            label: Text(b ?? 'All'),
+                            selected: _batch == b,
+                            showCheckmark: false,
+                            onSelected: (_) => setState(() => _batch = b),
                           ),
-                          if (me.role == UserRole.teacher)
-                            IconButton(
-                              icon: const Icon(Icons.edit_note),
-                              onPressed: () => _addRemark(context, ref, me.id, student.id),
-                            ),
-                        ],
-                      ),
-                    );
-                  },
+                        ),
+                    ],
+                  ),
                 ),
+              Expanded(
+                child: filtered.isEmpty
+                    ? Center(
+                        child: EmptyNote(
+                          icon: Icons.person_search_outlined,
+                          text: students.isEmpty ? 'No students yet. Add them from Users or Import students.' : 'No students match.',
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.only(top: 4, bottom: 32),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final student = filtered[index];
+                          final studentRemarks = remarks.where((r) => r.studentId == student.id).toList();
+                          return Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 8, 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(student.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                      Text(
+                                        [
+                                          if ((student.section ?? '').isNotEmpty) student.section!,
+                                          if ((student.collegeRollNo ?? '').isNotEmpty) 'Roll ${student.collegeRollNo}',
+                                        ].join(' · '),
+                                        style: TextStyle(color: p.inkMuted, fontSize: 13),
+                                      ),
+                                      if (studentRemarks.isNotEmpty) ...[
+                                        const SizedBox(height: 6),
+                                        Wrap(spacing: 4, runSpacing: 4, children: [
+                                          for (final r in studentRemarks) StatusPill(text: r.tag, color: p.accent, background: p.accentSoft),
+                                        ]),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                if (student.phone.isNotEmpty)
+                                  IconButton(
+                                    tooltip: 'Call',
+                                    icon: Icon(Icons.call_outlined, color: p.inkMuted),
+                                    onPressed: () => _launchUrl('tel:${student.phone}'),
+                                  ),
+                                if (me.role == UserRole.teacher)
+                                  IconButton(
+                                    tooltip: 'Add remark',
+                                    icon: Icon(Icons.rate_review_outlined, color: p.inkMuted),
+                                    onPressed: () => _addRemark(context, ref, me.id, student.id),
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
               ),
             ],
           );
@@ -168,7 +193,7 @@ class _StudentsDirectoryPageState extends ConsumerState<StudentsDirectoryPage> {
       isScrollControlled: true,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) {
-          final tags = ['Good Performance', 'Needs Improvement', 'Absentee', 'Late'];
+          final tags = ['Doing well', 'Needs help', 'Often absent', 'Often late'];
 
           return Padding(
             padding: EdgeInsets.only(
@@ -179,16 +204,20 @@ class _StudentsDirectoryPageState extends ConsumerState<StudentsDirectoryPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Add Remark',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Add remark', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                ),
                 const SizedBox(height: 12),
                 Wrap(
-                  spacing: 8,
+                  spacing: 6,
+                  runSpacing: 6,
                   children: tags.map((t) {
                     final isSel = selected == t;
                     return ChoiceChip(
                       label: Text(t),
                       selected: isSel,
+                      showCheckmark: false,
                       onSelected: (v) => setState(() => selected = v ? t : null),
                     );
                   }).toList(),
@@ -196,7 +225,7 @@ class _StudentsDirectoryPageState extends ConsumerState<StudentsDirectoryPage> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: customCtrl,
-                  decoration: const InputDecoration(labelText: 'Custom tag (optional)'),
+                  decoration: const InputDecoration(labelText: 'Or write your own'),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -229,8 +258,7 @@ class _StudentsDirectoryPageState extends ConsumerState<StudentsDirectoryPage> {
             teacherId: teacherId, studentId: studentId, tag: val);
         ref.invalidate(directoryProvider);
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Remark saved')));
+          showMessage(context, 'Remark saved.', success: true);
         }
       }
     });

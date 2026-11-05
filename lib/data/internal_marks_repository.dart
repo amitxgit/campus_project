@@ -1,5 +1,6 @@
 // lib/data/internal_marks_repository.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/models/institution_settings.dart';
 import '../core/models/internal_marks.dart';
 
 class InternalMarksRepository {
@@ -35,13 +36,12 @@ class InternalMarksRepository {
 
   // ---------------- WRITE METHODS ----------------
 
-  Future<void> updateMarks(InternalMarks marks) async {
-    // SECURITY FIX: Defensive Programming.
-    // Do not blindly trust the total or individual scores coming from the UI layer.
-    final safeAssign = marks.assignmentMarks.clamp(0.0, 12.0);
-    final safeTest = marks.testMarks.clamp(0.0, 12.0);
-    final safeAtt = marks.attendanceMarks.clamp(0.0, 6.0);
-    final safeTotal = (safeAssign + safeTest + safeAtt).clamp(0.0, 30.0);
+  /// Clamps each component to the institute's marks scheme before saving.
+  Future<void> updateMarks(InternalMarks marks, InstitutionSettings scheme) async {
+    final safeAssign = marks.assignmentMarks.clamp(0.0, scheme.assignmentMax);
+    final safeTest = marks.testMarks.clamp(0.0, scheme.testMax);
+    final safeAtt = marks.attendanceMarks.clamp(0.0, scheme.attendanceMax);
+    final safeTotal = safeAssign + safeTest + safeAtt;
 
     final safeMarks = marks.copyWith(
       assignmentMarks: safeAssign,
@@ -81,8 +81,8 @@ class InternalMarksRepository {
     }
   }
 
-  Future<void> adminOverride(InternalMarks marks) async {
-    await updateMarks(marks); // Uses the new safe boundary constraints
+  Future<void> adminOverride(InternalMarks marks, InstitutionSettings scheme) async {
+    await updateMarks(marks, scheme);
   }
 
   Future<void> deleteMarks(String id) async {

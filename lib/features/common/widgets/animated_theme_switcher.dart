@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Needed for Haptic Feedback
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/theme_provider.dart';
+import '../../../theme.dart';
 
 class AnimatedThemeSwitcher extends ConsumerWidget {
   const AnimatedThemeSwitcher({super.key});
@@ -18,18 +19,10 @@ class AnimatedThemeSwitcher extends ConsumerWidget {
 
     final notifier = ref.read(themeProvider.notifier);
 
-    // Premium Color Palettes
-    final bgColor = isDark
-        ? Colors.indigoAccent.withValues(alpha: 0.15)
-        : Colors.orange.withValues(alpha: 0.15);
-
-    final borderColor = isDark
-        ? Colors.indigoAccent.withValues(alpha: 0.4)
-        : Colors.orange.withValues(alpha: 0.4);
-
-    final iconColor = isDark
-        ? Colors.indigoAccent.shade100
-        : Colors.orange.shade700;
+    final p = context.palette;
+    final bgColor = p.surface;
+    final borderColor = p.line;
+    final iconColor = p.ink;
 
     return Material(
       color: Colors.transparent,
@@ -48,11 +41,11 @@ class AnimatedThemeSwitcher extends ConsumerWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 400),
           curve: Curves.easeInOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             color: bgColor,
             borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: borderColor, width: 1.5),
+            border: Border.all(color: borderColor),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -75,8 +68,8 @@ class AnimatedThemeSwitcher extends ConsumerWidget {
                   );
                 },
                 child: isDark
-                    ? Icon(Icons.nightlight_round, key: const ValueKey('moon'), color: iconColor, size: 20)
-                    : Icon(Icons.wb_sunny_rounded, key: const ValueKey('sun'), color: iconColor, size: 20),
+                    ? Icon(Icons.dark_mode_outlined, key: const ValueKey('moon'), color: iconColor, size: 18)
+                    : Icon(Icons.light_mode_outlined, key: const ValueKey('sun'), color: iconColor, size: 18),
               ),
               const SizedBox(width: 8),
 
@@ -99,7 +92,7 @@ class AnimatedThemeSwitcher extends ConsumerWidget {
                   isDark ? 'Dark' : 'Light',
                   key: ValueKey(isDark ? 'dark_text' : 'light_text'),
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                     fontSize: 13,
                     color: iconColor,
                     letterSpacing: 0.5,

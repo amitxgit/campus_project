@@ -1,12 +1,16 @@
 // lib/data/attendance_repository.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
+import '../core/attendance/device_id.dart';
 import '../core/models/attendance.dart';
 import '../core/models/attendance_session.dart';
 import '../core/utils/firebase_error_parser.dart';
+import '../main.dart' show appFunctions;
 
 class AttendanceRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFunctions _functions = appFunctions;
 
   // ---------------------------------------------------------------------------
   // COLLECTION REFERENCES
@@ -26,13 +30,66 @@ class AttendanceRepository {
   // ---------------------------------------------------------------------------
   // WRITE METHODS
   // ---------------------------------------------------------------------------
-  Future<void> markPresentSecure({
-    required String sessionId,
-    required String studentId,
-  }) async {
+
+  /// Creates a session on the server and returns its id plus the secret the
+  /// teacher's device uses to sign the rotating QR code.
+  /// Also returns the short code the teacher's phone broadcasts over
+  /// Bluetooth for this session.
+  Future<({String sessionId, String secret, int bleCode})> startSession(String entryId) async {
     try {
-      // Implementation assumes Secure Application verification happens here
-      // Call Cloud Function in real env, but leaving stub as requested in source
+      final res = await _functions
+          .httpsCallable('startAttendanceSession')
+          .call<Map<String, dynamic>>({'entryId': entryId});
+      return (
+        sessionId: res.data['sessionId'] as String,
+        secret: res.data['secret'] as String,
+        bleCode: (res.data['bleCode'] as num).toInt(),
+      );
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  Future<void> endSession(String sessionId) async {
+    await sessionsRef.doc(sessionId).update({'isActive': false});
+  }
+
+  /// Sends a scanned QR payload to the server, which verifies the signature,
+  /// freshness and section before writing the attendance record.
+  /// Returns true if the student had already been marked for this session.
+  Future<bool> markPresentFromQr(Map<String, dynamic> payload) =>
+      _mark({'sId': payload['sId'], 'n': payload['n'], 'sig': payload['sig']});
+
+  /// Sends a Bluetooth token heard from the teacher's phone. The server
+  /// checks it the same way as a QR scan.
+  Future<bool> markPresentFromBle(String token) => _mark({'ble': token});
+
+  /// Turns QR scans on or off for a live session ("Bluetooth only").
+  Future<void> setQrEnabled(String sessionId, bool enabled) async {
+    try {
+      await sessionsRef.doc(sessionId).update({'qrEnabled': enabled});
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  /// Lets a student check in from a new phone (after a reinstall or a new
+  /// handset). Admin only.
+  Future<void> resetPhoneLink(String userId) async {
+    try {
+      await _db.collection('users').doc(userId).update({'deviceBinding': FieldValue.delete()});
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  // Every check-in carries this phone's installation ID for phone binding.
+  Future<bool> _mark(Map<String, dynamic> data) async {
+    try {
+      final res = await _functions
+          .httpsCallable('markAttendance')
+          .call<Map<String, dynamic>>({...data, 'deviceId': await DeviceId.get()});
+      return res.data['alreadyMarked'] == true;
     } catch (e) {
       throw Exception(FirebaseErrorParser.getMessage(e));
     }
@@ -62,13 +119,12 @@ class AttendanceRepository {
   // ---------------------------------------------------------------------------
   // READ METHODS
   // ---------------------------------------------------------------------------
-  Future<List<AttendanceRecord>> forStudent(String studentId) async {
+  /// Newest first. [limit] null reads everything (report cards).
+  Future<List<AttendanceRecord>> forStudent(String studentId, {int? limit = 300}) async {
     try {
-      final snapshot = await _attRef
-          .where('studentId', isEqualTo: studentId)
-          .orderBy('date', descending: true)
-          .limit(300) // Performance constraint
-          .get();
+      var query = _attRef.where('studentId', isEqualTo: studentId).orderBy('date', descending: true);
+      if (limit != null) query = query.limit(limit); // Performance constraint
+      final snapshot = await query.get();
       return snapshot.docs.map((e) => e.data()).toList();
     } catch (e) {
       throw Exception(FirebaseErrorParser.getMessage(e));
@@ -78,6 +134,28 @@ class AttendanceRepository {
   Future<List<AttendanceRecord>> getRecordsForSession(String sessionId) async {
     try {
       final snapshot = await _attRef.where('sessionId', isEqualTo: sessionId).get();
+      return snapshot.docs.map((e) => e.data()).toList();
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  Future<List<AttendanceRecord>> forSubject(String subjectId) async {
+    try {
+      final snapshot = await _attRef.where('subjectId', isEqualTo: subjectId).get();
+      return snapshot.docs.map((e) => e.data()).toList();
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  /// Admin only: records dated in [from, to).
+  Future<List<AttendanceRecord>> between(DateTime from, DateTime to) async {
+    try {
+      final snapshot = await _attRef
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(from))
+          .where('date', isLessThan: Timestamp.fromDate(to))
+          .get();
       return snapshot.docs.map((e) => e.data()).toList();
     } catch (e) {
       throw Exception(FirebaseErrorParser.getMessage(e));

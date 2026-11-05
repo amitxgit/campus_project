@@ -1,15 +1,13 @@
 // lib/data/remark_repository.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/models/remark.dart';
-import '../core/models/notification.dart'; // For NotificationType enum
-import '../core/services/firestore_notifier.dart';
 
 class RemarkRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final FirestoreNotifier _notifier;
 
-  // Inject FirestoreNotifier for push notifications
-  RemarkRepository(this._notifier);
+  /// Remarks are private to the teacher who wrote them (admins can audit),
+  /// so saving one deliberately does not notify the student.
+  RemarkRepository();
 
   CollectionReference<StudentRemark> get _remarksRef =>
       _db.collection('remarks').withConverter<StudentRemark>(
@@ -46,7 +44,7 @@ class RemarkRepository {
 
   // --- WRITE METHODS ---
 
-  /// Upsert a remark and notify the student
+  /// Create or update the teacher's remark on a student.
   Future<void> upsertRemark({
     required String teacherId,
     required String studentId,
@@ -64,14 +62,6 @@ class RemarkRepository {
     );
 
     await _remarksRef.doc(docId).set(remark, SetOptions(merge: true));
-
-    // Notify student about new/updated remark
-    await _notifier.sendToUsers(
-      userIds: [studentId],
-      title: 'New Remark',
-      body: 'A teacher has added a remark: "$tag"',
-      type: NotificationType.remarkSaved,
-    );
   }
 
   /// Delete a remark by teacher-student pair

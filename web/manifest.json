@@ -1,11 +1,11 @@
 {
-    "name": "Campus_Track",
-    "short_name": "Campus_Track",
+    "name": "Batchwise",
+    "short_name": "Batchwise",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0B0B0D",
+    "theme_color": "#0B0B0D",
+    "description": "Run your coaching institute: fees, attendance, tests and admissions, with WhatsApp updates for parents.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

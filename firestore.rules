@@ -1,0 +1,302 @@
+rules_version = '2';
+
+// Role-based access for Campus Track.
+//
+// Writes that need to be trusted (QR attendance, creating/deleting logins,
+// fanning out notifications) go through Cloud Functions, which use the Admin
+// SDK and bypass these rules. Everything else is checked here.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------ helpers
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function me() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function active() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && me().get('isActive', true) != false;
+    }
+
+    function isAdmin() {
+      return active() && (me().role == 'admin' || me().get('isAdmin', false) == true);
+    }
+
+    function isTeacher() {
+      return active() && me().role == 'teacher';
+    }
+
+    function isStaff() {
+      return isTeacher() || isAdmin();
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // -------------------------------------------------------------------- users
+    match /users/{uid} {
+      // Students may see their own profile and teacher profiles (directory,
+      // timetable names) but not other students' personal details.
+      allow read: if isSelf(uid) || isStaff()
+        || (active() && resource.data.role == 'teacher');
+
+      allow create: if isAdmin();
+      allow update: if isAdmin()
+        || (isSelf(uid) && active() && onlyChanges(
+             ['name', 'phone', 'bio', 'qualifications', 'gender', 'date_of_birth', 'idCardPhotoPath']));
+      allow delete: if isAdmin();
+    }
+
+    // ----------------------------------------------------------------- settings
+    // Institute name/branding is shown on the login screen, so it is public.
+    match /settings/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------- timetable & subjects
+    match /subjects/{id} {
+      allow read: if active();
+      allow write: if isAdmin();
+    }
+
+    match /timetable/{id} {
+      allow read: if active();
+      allow write: if isAdmin();
+    }
+
+    match /timetable_overrides/{id} {
+      allow read: if active();
+      allow write: if isStaff();
+    }
+
+    // --------------------------------------------------------------- attendance
+    match /attendance_sessions/{sessionId} {
+      allow read: if isStaff();
+      // Sessions are created by the startAttendanceSession function. The
+      // owning teacher may only close their own session.
+      allow update: if isAdmin()
+        || (isTeacher() && resource.data.teacherId == request.auth.uid && onlyChanges(['isActive', 'qrEnabled']));
+      allow create, delete: if isAdmin();
+
+      // Holds the QR signing secret. Server-only.
+      match /private/{doc} {
+        allow read, write: if false;
+      }
+
+      // Which phone marked which student in this session (phone binding).
+      // Server-only.
+      match /devices/{deviceHash} {
+        allow read, write: if false;
+      }
+    }
+
+    // Fingerprint / face-scan machines. Punches are written by the `biometric`
+    // Cloud Function (Admin SDK); admins approve machines and can read punches.
+    match /biometric_devices/{deviceId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /biometric_punches/{punchId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /attendance/{id} {
+      allow read: if isStaff()
+        || (active() && resource.data.studentId == request.auth.uid);
+      // Students mark themselves present only via the markAttendance function.
+      allow create, update: if isAdmin()
+        || (isTeacher() && request.resource.data.markedByTeacherId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // ----------------------------------------------------------- internal marks
+    match /internal_marks/{id} {
+      allow read: if isStaff()
+        || (active()
+            && resource.data.studentId == request.auth.uid
+            && resource.data.isVisibleToStudent == true);
+      allow write: if isStaff();
+    }
+
+    // ------------------------------------------------------------------ notices
+    match /notices/{id} {
+      allow read: if isStaff()
+        || (active() && resource.data.targetAudience in ['all', 'students']);
+      allow create: if isStaff()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.targetAudience in ['all', 'students', 'teachers'];
+      allow delete: if isAdmin()
+        || (isStaff() && resource.data.authorId == request.auth.uid);
+    }
+
+    // -------------------------------------------------------------- assignments
+    match /assignments/{assignmentId} {
+      allow read: if isStaff()
+        || (active() && resource.data.section == me().get('section', null));
+      allow create: if isAdmin()
+        || (isTeacher() && request.resource.data.teacherId == request.auth.uid);
+      allow update, delete: if isAdmin()
+        || (isTeacher() && resource.data.teacherId == request.auth.uid);
+
+      // One doc per student, keyed by their uid. Students may only turn in
+      // work for assignments given to their own section.
+      match /submissions/{studentId} {
+        allow read: if isStaff() || (isSelf(studentId) && active());
+        allow create, update: if isSelf(studentId) && active()
+          && request.resource.data.studentId == studentId
+          && get(/databases/$(database)/documents/assignments/$(assignmentId)).data.section
+             == me().get('section', null);
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ---------------------------------------------------------- tests & results
+    match /tests/{testId} {
+      allow read: if isStaff();
+      allow create: if isAdmin()
+        || (isTeacher() && request.resource.data.createdBy == request.auth.uid);
+      allow update, delete: if isStaff();
+
+      // Raw marks for the whole batch: staff only.
+      match /marks/{doc} {
+        allow read, write: if isStaff();
+      }
+    }
+
+    // Published results, one doc per student (written on publish).
+    match /student_results/{studentId} {
+      allow read: if isStaff() || (isSelf(studentId) && active());
+      allow write: if isStaff();
+    }
+
+    // --------------------------------------------------------------------- fees
+    // Admins manage fees; students can see their own plan and receipts.
+    match /fee_accounts/{studentId} {
+      allow read: if isAdmin() || (isSelf(studentId) && active());
+      allow write: if isAdmin();
+
+      match /payments/{paymentId} {
+        allow read: if isAdmin() || (isSelf(studentId) && active());
+        allow create, update: if isAdmin();
+      }
+    }
+
+    // Fee ledger export: every student's payments in a date range.
+    match /{path=**}/payments/{paymentId} {
+      allow read: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------- enquiries
+    // Prospective students. Teachers can add one (as themselves, as "new")
+    // but only admins see and work the list.
+    match /enquiries/{id} {
+      allow read, update, delete: if isAdmin();
+      allow create: if isAdmin() || (isStaff()
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.status == 'new'
+        && !('studentId' in request.resource.data)
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 100);
+    }
+
+    // Account deletion requests (Play Store requirement), one per user, keyed
+    // by uid. The user asks; an admin deletes the account or rejects it.
+    match /deletion_requests/{uid} {
+      allow read: if isAdmin() || isSelf(uid);
+      allow create: if isSelf(uid)
+        && request.resource.data.userId == uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.keys().hasOnly(['userId', 'name', 'role', 'contact', 'reason', 'status', 'createdAt'])
+        && (!('reason' in request.resource.data) || request.resource.data.reason.size() <= 500);
+      // Ask again after a rejection.
+      allow update: if isAdmin() || (isSelf(uid)
+        && resource.data.status == 'rejected'
+        && request.resource.data.status == 'pending'
+        && request.resource.data.userId == uid);
+      allow delete: if isAdmin() || (isSelf(uid) && resource.data.status == 'pending');
+    }
+
+    // Owner's daily summaries, written by the dailySummary function.
+    match /daily_summaries/{day} {
+      allow read: if isAdmin();
+    }
+
+    // Razorpay payment links, created and settled only by Cloud Functions.
+    match /payment_links/{id} {
+      allow read: if isAdmin();
+    }
+
+    // ------------------------------------------------------------ parent alerts
+    // Queued by staff, sent by the processParentAlert function.
+    match /parent_alerts/{id} {
+      allow read: if isAdmin();
+      allow create: if isStaff()
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.kind in ['absence', 'feeReminder', 'feeReceipt', 'testResult']
+        && request.resource.data.params is list
+        && request.resource.data.params.size() <= 5;
+    }
+
+    // Integration credentials (WhatsApp token, Razorpay keys). Admins can set or remove
+    // them but nobody can read them back; only Cloud Functions do.
+    match /secrets/{doc} {
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Receipt numbering and other internal counters.
+    match /meta/{doc} {
+      allow read, write: if isAdmin();
+    }
+
+    // ------------------------------------------------------------------ remarks
+    // Private to the teacher who wrote them (admins can audit).
+    match /remarks/{id} {
+      allow read: if isAdmin()
+        || (isTeacher() && resource.data.teacherId == request.auth.uid);
+      allow create, update: if isAdmin()
+        || (isTeacher() && request.resource.data.teacherId == request.auth.uid);
+      allow delete: if isAdmin()
+        || (isTeacher() && resource.data.teacherId == request.auth.uid);
+    }
+
+    // ------------------------------------------------------------------ queries
+    match /queries/{id} {
+      allow read: if isAdmin()
+        || (active() && resource.data.raisedByStudentId == request.auth.uid)
+        || (isTeacher() && resource.data.get('assignedToTeacherId', null) == request.auth.uid);
+      allow create: if active()
+        && request.resource.data.raisedByStudentId == request.auth.uid
+        && request.resource.data.status == 'open';
+      allow update, delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------ notifications
+    match /notifications/{id} {
+      // Created only by the processNotificationRequest function.
+      allow read, delete: if signedIn() && resource.data.userId == request.auth.uid;
+      allow update: if signedIn() && resource.data.userId == request.auth.uid
+        && onlyChanges(['read']);
+    }
+
+    match /notification_requests/{id} {
+      allow create: if isStaff() && request.resource.data.requestedBy == request.auth.uid;
+    }
+
+    // Device tokens are managed by Cloud Functions only. Anything not matched
+    // above is denied by default.
+  }
+}

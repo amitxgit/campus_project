@@ -1,6 +1,9 @@
 // lib/features/profile/my_profile_page.dart
 import 'package:flutter/material.dart';
+import '../../core/utils/login_id.dart';
+import '../../theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
@@ -10,6 +13,9 @@ import '../../core/models/attendance.dart';
 import '../../core/utils/firebase_error_parser.dart';
 import '../../main.dart';
 import '../common/widgets/async_error_widget.dart';
+import '../../data/settings_repository.dart';
+import '../common/widgets/ui_kit.dart';
+import '../../data/deletion_request_repository.dart';
 
 // -----------------------------------------------------------------------------
 // ROLE-SPECIFIC & PROFILE PROVIDERS
@@ -79,16 +85,12 @@ class MyProfilePage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Profile', style: TextStyle(fontWeight: FontWeight.bold)),
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: Colors.transparent,
+        title: const Text('Profile'),
       ),
-      extendBodyBehindAppBar: true,
       body: userAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => AsyncErrorWidget(
-          message: e.toString(),
+          message: FirebaseErrorParser.getMessage(e),
           onRetry: () => ref.invalidate(profileUserProvider),
         ),
         data: (user) {
@@ -103,7 +105,7 @@ class MyProfilePage extends ConsumerWidget {
                 child: _ModernAestheticProfileHeader(user: user),
               ),
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: EdgeInsets.zero,
                 sliver: SliverToBoxAdapter(
                   child: switch (user.role) {
                     UserRole.student => _StudentProfileView(user: user),
@@ -130,92 +132,34 @@ class _ModernAestheticProfileHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final p = context.palette;
 
-    return Column(
-      children: [
-        Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.bottomCenter,
-          children: [
-            Container(
-              height: 200,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    colorScheme.primary,
-                    colorScheme.tertiary.withValues(alpha: 0.8),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+      child: Column(
+        children: [
+          CircleAvatar(
+            radius: 44,
+            backgroundColor: p.ink,
+            foregroundColor: p.background,
+            child: Text(
+              user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
+              style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w700),
             ),
-            Positioned(
-              bottom: -50,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  shape: BoxShape.circle,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.3), width: 1.5),
-                  ),
-                  child: CircleAvatar(
-                    radius: 50,
-                    backgroundColor: colorScheme.surface,
-                    foregroundColor: colorScheme.primary,
-                    child: Text(
-                      user.name.isNotEmpty ? user.name[0].toUpperCase() : '?',
-                      style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 60),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
+          ),
+          const SizedBox(height: 16),
+          Text(
             user.name,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.5,
-              color: colorScheme.onSurface,
-            ),
+            style: Theme.of(context).textTheme.headlineSmall,
           ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(
-            color: colorScheme.primaryContainer.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: colorScheme.primary.withValues(alpha: 0.2)),
+          const SizedBox(height: 4),
+          Text(
+            [user.role.label, if (user.role == UserRole.student && (user.section ?? '').isNotEmpty) user.section!].join(' · '),
+            style: TextStyle(color: p.inkMuted, fontWeight: FontWeight.w500),
           ),
-          child: Text(
-            user.role.label.toUpperCase(),
-            style: TextStyle(
-              color: colorScheme.primary,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.0,
-            ),
-          ),
-        ),
-        const SizedBox(height: 32),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -230,38 +174,39 @@ class _StudentProfileView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    String? v(String? x) => (x == null || x.trim().isEmpty) ? null : x;
+    final enrolment = <_InfoRow>[
+      if (v(user.section) != null) _InfoRow(label: 'Batch', value: user.section!),
+      if (v(user.collegeRollNo) != null) _InfoRow(label: 'Roll no.', value: user.collegeRollNo!),
+      if (v(user.course) != null) _InfoRow(label: 'Course', value: user.course!),
+      if (user.semester != null) _InfoRow(label: 'Semester', value: '${user.semester}'),
+      if (v(user.examRollNo) != null) _InfoRow(label: 'Exam roll no.', value: user.examRollNo!),
+    ];
     return Column(
       children: [
         _AttendanceSummaryCard(),
-        const SizedBox(height: 24),
         _ModernInfoCard(
-          title: 'Personal Information',
+          title: 'Contact',
           icon: Icons.person_outline_rounded,
           children: [
-            _InfoRow(label: 'Email', value: user.email ?? 'Not provided'),
-            _InfoRow(label: 'Phone Number', value: user.phone),
-            _InfoRow(label: 'Gender', value: user.gender ?? 'Not Specified'),
-            if (user.dateOfBirth != null)
-              _InfoRow(
-                label: 'Date of Birth',
-                value: DateFormat('dd MMMM yyyy').format(user.dateOfBirth!),
-              ),
+            _InfoRow(label: 'Mobile', value: user.phone),
+            if (!LoginId.isPhoneLogin(user.email) && v(user.email) != null) _InfoRow(label: 'Email', value: user.email!),
+            if (v(user.gender) != null) _InfoRow(label: 'Gender', value: user.gender!),
+            if (user.dateOfBirth != null) _InfoRow(label: 'Date of birth', value: DateFormat('d MMM yyyy').format(user.dateOfBirth!)),
           ],
         ),
-        const SizedBox(height: 24),
-        _ModernInfoCard(
-          title: 'Academic Profile',
-          icon: Icons.school_outlined,
-          children: [
-            _InfoRow(label: 'Course', value: user.course ?? 'Not Assigned'),
-            _InfoRow(label: 'Semester', value: user.semester?.toString() ?? 'Not Assigned'),
-            _InfoRow(label: 'College Roll No', value: user.collegeRollNo ?? 'N/A'),
-            _InfoRow(label: 'Exam Roll No', value: user.examRollNo ?? 'N/A'),
-          ],
-        ),
-        const SizedBox(height: 24),
+        if (enrolment.isNotEmpty) _ModernInfoCard(title: 'Enrolment', icon: Icons.school_outlined, children: enrolment),
+        if (v(user.parentName) != null || v(user.parentPhone) != null)
+          _ModernInfoCard(
+            title: 'Parent',
+            icon: Icons.family_restroom_rounded,
+            children: [
+              if (v(user.parentName) != null) _InfoRow(label: 'Name', value: user.parentName!),
+              if (v(user.parentPhone) != null) _InfoRow(label: 'Mobile', value: user.parentPhone!),
+            ],
+          ),
         _CommonSettingsSection(user: user),
-        const SizedBox(height: 60),
+        const SizedBox(height: 48),
       ],
     );
   }
@@ -280,21 +225,18 @@ class _TeacherProfileView extends StatelessWidget {
     return Column(
       children: [
         _ModernInfoCard(
-          title: 'Personal Information',
+          title: 'Contact',
           icon: Icons.person_outline_rounded,
           children: [
-            _InfoRow(label: 'Email', value: user.email ?? 'Not provided'),
-            _InfoRow(label: 'Phone Number', value: user.phone),
-            _InfoRow(label: 'Gender', value: user.gender ?? 'Not Specified'),
+            _InfoRow(label: 'Mobile', value: user.phone),
+            if (!LoginId.isPhoneLogin(user.email) && (user.email ?? '').isNotEmpty) _InfoRow(label: 'Email', value: user.email!),
+            if ((user.gender ?? '').isNotEmpty) _InfoRow(label: 'Gender', value: user.gender!),
           ],
         ),
-        const SizedBox(height: 24),
         _QualificationsCard(user: user),
-        const SizedBox(height: 24),
         _SubjectsSummaryCard(),
-        const SizedBox(height: 24),
         _CommonSettingsSection(user: user),
-        const SizedBox(height: 60),
+        const SizedBox(height: 48),
       ],
     );
   }
@@ -313,19 +255,17 @@ class _AdminProfileView extends StatelessWidget {
     return Column(
       children: [
         _AppSummaryCard(),
-        const SizedBox(height: 24),
         _ModernInfoCard(
-          title: 'Admin Details',
-          icon: Icons.admin_panel_settings_outlined,
+          title: 'Contact',
+          icon: Icons.person_outline_rounded,
           children: [
-            _InfoRow(label: 'Email', value: user.email ?? 'Not provided'),
-            _InfoRow(label: 'Phone Number', value: user.phone),
-            _InfoRow(label: 'Gender', value: user.gender ?? 'Not Specified'),
+            _InfoRow(label: 'Mobile', value: user.phone),
+            if (!LoginId.isPhoneLogin(user.email) && (user.email ?? '').isNotEmpty) _InfoRow(label: 'Email', value: user.email!),
+            if ((user.gender ?? '').isNotEmpty) _InfoRow(label: 'Gender', value: user.gender!),
           ],
         ),
-        const SizedBox(height: 24),
         _CommonSettingsSection(user: user),
-        const SizedBox(height: 60),
+        const SizedBox(height: 48),
       ],
     );
   }
@@ -341,7 +281,7 @@ class _AttendanceSummaryCard extends ConsumerWidget {
     final asyncStats = ref.watch(studentProfileStatsProvider);
 
     return _ModernInfoCard(
-      title: 'Attendance Overview',
+      title: 'Attendance',
       icon: Icons.analytics_outlined,
       children: [
         asyncStats.when(
@@ -349,23 +289,21 @@ class _AttendanceSummaryCard extends ConsumerWidget {
             padding: EdgeInsets.all(24),
             child: Center(child: CircularProgressIndicator()),
           ),
-          error: (e, _) => AsyncErrorWidget(
-            message: e.toString(),
-            onRetry: () => ref.invalidate(studentProfileStatsProvider),
-          ),
+          error: (e, _) => Text(FirebaseErrorParser.getMessage(e), style: TextStyle(color: context.palette.danger)),
           data: (stats) {
-            final Color pctColor = stats.pct < 75
-                ? Colors.red
-                : (stats.pct < 85 ? Colors.orange : Colors.green);
-
-            return Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+            final threshold = ref.watch(settingsProvider).attendanceThreshold;
+            final p = context.palette;
+            final tone = stats.pct < threshold ? p.danger : (stats.pct < threshold + 10 ? p.warning : p.success);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _StatBlock(value: '${stats.pct}%', label: 'Health', color: pctColor, isLarge: true),
-                Container(height: 40, width: 1, color: Theme.of(context).dividerColor),
-                _StatBlock(value: stats.present.toString(), label: 'Attended'),
-                Container(height: 40, width: 1, color: Theme.of(context).dividerColor),
-                _StatBlock(value: stats.total.toString(), label: 'Total'),
+                Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Text('${stats.pct}%', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, letterSpacing: -1.2, color: tone)),
+                  const Spacer(),
+                  Text('${stats.present} of ${stats.total} classes', style: TextStyle(color: p.inkMuted)),
+                ]),
+                const SizedBox(height: 10),
+                ProgressLine(value: stats.pct / 100, color: tone),
               ],
             );
           },
@@ -385,18 +323,18 @@ class _SubjectsSummaryCard extends ConsumerWidget {
     final asyncData = ref.watch(teacherProfileSubjectsProvider);
 
     return _ModernInfoCard(
-      title: 'Teaching Assignments',
+      title: 'Teaching',
       icon: Icons.class_outlined,
       padding: EdgeInsets.zero,
       children: [
         asyncData.when(
           loading: () => const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),
-          error: (e, _) => AsyncErrorWidget(message: e.toString(), onRetry: () => ref.invalidate(teacherProfileSubjectsProvider)),
+          error: (e, _) => Padding(padding: const EdgeInsets.all(20), child: Text(FirebaseErrorParser.getMessage(e), style: TextStyle(color: context.palette.danger))),
           data: (data) {
             if (data.subjects.isEmpty) {
               return const Padding(
                 padding: EdgeInsets.all(20),
-                child: Text('No subjects assigned yet.', style: TextStyle(color: Colors.grey)),
+                child: Text('No subjects assigned yet.'),
               );
             }
             return Column(
@@ -410,25 +348,17 @@ class _SubjectsSummaryCard extends ConsumerWidget {
                       runSpacing: 8,
                       children: data.sections.map((s) => Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(s, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        decoration: BoxDecoration(color: context.palette.accentSoft, borderRadius: BorderRadius.circular(8)),
+                        child: Text(s, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.palette.accent)),
                       )).toList(),
                     ),
                   ),
-                  const Divider(),
                 ],
                 ...data.subjects.map((s) => ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                  leading: CircleAvatar(
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    child: Icon(Icons.book_rounded, size: 18, color: Theme.of(context).colorScheme.primary),
-                  ),
-                  title: Text(s.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(s.code),
-                  trailing: Text('Sec: ${s.section}', style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                  title: Text(s.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(s.code, style: TextStyle(color: context.palette.inkMuted)),
+                  trailing: Text(s.section, style: TextStyle(fontWeight: FontWeight.w500, color: context.palette.inkMuted)),
                 )),
               ],
             );
@@ -449,20 +379,17 @@ class _AppSummaryCard extends ConsumerWidget {
     final asyncData = ref.watch(adminProfileStatsProvider);
 
     return _ModernInfoCard(
-      title: 'System Overview',
+      title: 'Institute',
       icon: Icons.dashboard_outlined,
       children: [
         asyncData.when(
           loading: () => const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),
-          error: (e, _) => AsyncErrorWidget(message: e.toString(), onRetry: () => ref.invalidate(adminProfileStatsProvider)),
+          error: (e, _) => Text(FirebaseErrorParser.getMessage(e), style: TextStyle(color: context.palette.danger)),
           data: (data) => Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _StatBlock(value: data.users.toString(), label: 'Users', color: Colors.blue),
-              Container(height: 40, width: 1, color: Theme.of(context).dividerColor),
-              _StatBlock(value: data.subjects.toString(), label: 'Subjects', color: Colors.purple),
-              Container(height: 40, width: 1, color: Theme.of(context).dividerColor),
-              _StatBlock(value: data.records.toString(), label: 'Records', color: Colors.teal),
+              _StatBlock(value: data.users.toString(), label: 'Users'),
+              _StatBlock(value: data.subjects.toString(), label: 'Subjects'),
+              _StatBlock(value: data.records.toString(), label: 'Attendance records'),
             ],
           ),
         ),
@@ -489,24 +416,21 @@ class _QualificationsCard extends ConsumerWidget {
         if (user.qualifications.isEmpty)
           const Padding(
             padding: EdgeInsets.all(20),
-            child: Text('No qualifications added yet.', style: TextStyle(color: Colors.grey)),
+            child: Text('No qualifications added yet.'),
           )
         else
           ...user.qualifications.map(
                 (q) => ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-              leading: const Icon(Icons.check_circle_outline, color: Colors.green),
               title: Text(q, style: const TextStyle(fontWeight: FontWeight.w500)),
             ),
           ),
-        const Divider(height: 1),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
           child: Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              icon: const Icon(Icons.edit_note_rounded),
-              label: const Text('Manage Qualifications'),
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              child: const Text('Edit qualifications'),
               onPressed: () => showDialog(
                 context: context,
                 builder: (_) => _EditQualificationsDialog(user: user),
@@ -570,7 +494,7 @@ class _EditQualificationsDialogState extends ConsumerState<_EditQualificationsDi
 
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to save: $e')));
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     }
   }
@@ -578,8 +502,7 @@ class _EditQualificationsDialogState extends ConsumerState<_EditQualificationsDi
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text('Manage Qualifications', style: TextStyle(fontWeight: FontWeight.bold)),
+      title: const Text('Qualifications'),
       content: SizedBox(
         width: double.maxFinite,
         child: Column(
@@ -589,8 +512,8 @@ class _EditQualificationsDialogState extends ConsumerState<_EditQualificationsDi
               Flexible(
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(12),
+                    color: context.palette.surface,
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   child: ListView.separated(
                     shrinkWrap: true,
@@ -599,7 +522,8 @@ class _EditQualificationsDialogState extends ConsumerState<_EditQualificationsDi
                     itemBuilder: (_, i) => ListTile(
                       title: Text(_quals[i], style: const TextStyle(fontSize: 14)),
                       trailing: IconButton(
-                        icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 20),
+                        tooltip: 'Remove',
+                        icon: Icon(Icons.close_rounded, color: context.palette.inkMuted, size: 20),
                         onPressed: () => _remove(i),
                       ),
                     ),
@@ -610,11 +534,11 @@ class _EditQualificationsDialogState extends ConsumerState<_EditQualificationsDi
             TextField(
               controller: _ctrl,
               decoration: InputDecoration(
-                labelText: 'Add new qualification',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                labelText: 'Add a qualification',
+                hintText: 'e.g. M.Sc. Physics',
                 suffixIcon: IconButton(
-                  icon: const Icon(Icons.add_circle),
-                  color: Theme.of(context).colorScheme.primary,
+                  icon: const Icon(Icons.add_rounded),
+                  color: context.palette.accent,
                   onPressed: _add,
                 ),
               ),
@@ -642,63 +566,68 @@ class _CommonSettingsSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return _ModernInfoCard(
-      title: 'Account Settings',
+      title: 'Account',
       icon: Icons.settings_outlined,
       padding: EdgeInsets.zero,
       children: [
         ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-          leading: const Icon(Icons.lock_outline),
-          title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.w600)),
-          trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-          onTap: () => _showChangePasswordDialog(context, ref, user.email ?? ''),
+          title: const Text('Edit details', style: TextStyle(fontWeight: FontWeight.w500)),
+          trailing: Icon(Icons.chevron_right_rounded, color: context.palette.inkFaint),
+          onTap: () async {
+            await GoRouter.of(context).push('/profile/update');
+            ref.invalidate(profileUserProvider);
+          },
         ),
-        const Divider(height: 1),
+        Divider(height: 1, indent: 20, endIndent: 20, color: context.palette.line),
         ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-          leading: Icon(Icons.logout, color: Theme.of(context).colorScheme.error),
-          title: Text(
-            'Logout',
-            style: TextStyle(color: Theme.of(context).colorScheme.error, fontWeight: FontWeight.bold),
-          ),
+          title: const Text('Change password', style: TextStyle(fontWeight: FontWeight.w500)),
+          trailing: Icon(Icons.chevron_right_rounded, color: context.palette.inkFaint),
+          onTap: () => _showChangePasswordDialog(context, ref, user.email ?? ''),
+        ),
+        Divider(height: 1, indent: 20, endIndent: 20, color: context.palette.line),
+        ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          title: Text('Sign out', style: TextStyle(color: context.palette.danger, fontWeight: FontWeight.w600)),
           onTap: () async {
             await ref.read(authRepoProvider).logout();
           },
         ),
 
-        // 🔴 SECURITY FIX: Only show "Delete Account" if the user is an Admin
-        if (user.role == UserRole.admin) ...[
-          const Divider(height: 1),
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-            leading: Icon(Icons.delete_forever, color: Theme.of(context).colorScheme.error),
-            title: Text(
-              'Delete Account',
-              style: TextStyle(color: Theme.of(context).colorScheme.error, fontWeight: FontWeight.bold),
-            ),
-            onTap: () => showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (_) => _SecureDeleteDialog(user: user),
-            ),
-          ),
-        ],
+        Divider(height: 1, indent: 20, endIndent: 20, color: context.palette.line),
+        _DeletionRequestTile(user: user),
+        Divider(height: 1, indent: 20, endIndent: 20, color: context.palette.line),
+        ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          title: const Text('Privacy policy', style: TextStyle(fontWeight: FontWeight.w500)),
+          trailing: Icon(Icons.chevron_right_rounded, color: context.palette.inkFaint),
+          onTap: () => GoRouter.of(context).push('/legal/privacy'),
+        ),
       ],
     );
   }
 
   Future<void> _showChangePasswordDialog(BuildContext context, WidgetRef ref, String email) async {
-    if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No email found to reset password.')));
+    // Mobile-number logins use an internal address with no inbox, so a
+    // reset link would go nowhere. The office sets a new password instead.
+    if (email.isEmpty || LoginId.isPhoneLogin(email)) {
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Change password'),
+          content: const Text('You sign in with your mobile number. Ask the office to set a new password for you.'),
+          actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+        ),
+      );
       return;
     }
 
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Change Password'),
-        content: Text('A password reset link will be sent to:\n\n$email'),
+        title: const Text('Change password'),
+        content: Text('We\'ll email a reset link to $email.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           FilledButton(
@@ -707,13 +636,13 @@ class _CommonSettingsSection extends ConsumerWidget {
                 await ref.read(authRepoProvider).requestPasswordReset(email);
                 if (!context.mounted) return;
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password reset link sent!')));
+                showMessage(context, 'Reset link sent.', success: true);
               } catch (e) {
                 if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red));
+                showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
               }
             },
-            child: const Text('Send Link'),
+            child: const Text('Send link'),
           ),
         ],
       ),
@@ -722,111 +651,114 @@ class _CommonSettingsSection extends ConsumerWidget {
 }
 
 // -----------------------------------------------------------------------------
-// SECURE DELETE DIALOG (FOR ADMINS ONLY)
+// ACCOUNT DELETION REQUEST (everyone, admins included)
 // -----------------------------------------------------------------------------
 
-class _SecureDeleteDialog extends ConsumerStatefulWidget {
+/// Asks the institute's admins to delete this account (an admin can't delete
+/// their own, so the institute is never left without one). Shows the state of
+/// a request already made.
+class _DeletionRequestTile extends ConsumerWidget {
   final UserAccount user;
-  const _SecureDeleteDialog({required this.user});
+  const _DeletionRequestTile({required this.user});
 
   @override
-  ConsumerState<_SecureDeleteDialog> createState() => _SecureDeleteDialogState();
-}
-
-class _SecureDeleteDialogState extends ConsumerState<_SecureDeleteDialog> {
-  final TextEditingController _verifyCtrl = TextEditingController();
-  bool _canDelete = false;
-  bool _isProcessing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _verifyCtrl.addListener(() {
-      setState(() => _canDelete = _verifyCtrl.text.trim() == 'DELETE');
-    });
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = context.palette;
+    final req = ref.watch(_myDeletionRequestProvider(user.id)).valueOrNull;
+    final pending = req?.status == DeletionStatus.pending;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      title: Text(
+        pending ? 'Deletion requested' : 'Request account deletion',
+        style: TextStyle(color: pending ? p.ink : p.danger, fontWeight: FontWeight.w500),
+      ),
+      subtitle: pending
+          ? Text('Your institute will delete your account. Tap to cancel.', style: TextStyle(color: p.inkMuted, fontSize: 13))
+          : req?.status == DeletionStatus.rejected
+              ? Text('Your last request was declined. Contact the office.', style: TextStyle(color: p.inkMuted, fontSize: 13))
+              : null,
+      onTap: () => pending ? _cancel(context, ref) : _request(context, ref),
+    );
   }
 
-  @override
-  void dispose() {
-    _verifyCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _executeDelete() async {
-    if (!_canDelete) return;
-    setState(() => _isProcessing = true);
+  Future<void> _request(BuildContext context, WidgetRef ref) async {
+    final reason = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete your account?'),
+        content: SizedBox(
+          width: 420,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              'Your institute\'s admin will delete your sign-in, profile, notifications and uploads. '
+              'Fee receipts, attendance and results may be kept as the institute\'s records.',
+              style: TextStyle(color: ctx.palette.inkMuted, height: 1.45),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reason,
+              maxLength: 500,
+              maxLines: 3,
+              minLines: 1,
+              decoration: const InputDecoration(labelText: 'Reason (optional)'),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(padding: EdgeInsets.zero),
+              onPressed: () => GoRouter.of(ctx).push('/legal/delete-account'),
+              child: const Text('What is deleted and what is kept'),
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: ctx.palette.danger, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Request deletion'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
     try {
-      await ref.read(authRepoProvider).deleteAccount(widget.user.id);
-      await ref.read(authRepoProvider).logout();
+      await ref.read(deletionRepoProvider).request(user, reason.text.trim());
+      if (context.mounted) showMessage(context, 'Request sent to your institute.', success: true);
     } catch (e) {
-      if (mounted) {
-        setState(() => _isProcessing = false);
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Theme.of(context).colorScheme.error),
-        );
-      }
+      if (context.mounted) showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      icon: Icon(Icons.warning_rounded, color: colorScheme.error, size: 48),
-      title: const Text('Permanently Delete Account?'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('This action is highly destructive and cannot be undone.', style: TextStyle(fontWeight: FontWeight.w500)),
-          const SizedBox(height: 24),
-          RichText(
-            text: TextSpan(
-              style: TextStyle(color: colorScheme.onSurface),
-              children: const [
-                TextSpan(text: 'To confirm, type '),
-                TextSpan(text: 'DELETE', style: TextStyle(fontWeight: FontWeight.bold)),
-                TextSpan(text: ' below:'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _verifyCtrl,
-            enabled: !_isProcessing,
-            textCapitalization: TextCapitalization.characters,
-            decoration: InputDecoration(
-              hintText: 'DELETE',
-              filled: true,
-              fillColor: colorScheme.errorContainer.withValues(alpha: 0.2),
-              focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: colorScheme.error, width: 2), borderRadius: BorderRadius.circular(12)),
-              enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: colorScheme.error.withValues(alpha: 0.5)), borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
+  Future<void> _cancel(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel your deletion request?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep it')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Cancel request')),
         ],
       ),
-      actions: [
-        TextButton(onPressed: _isProcessing ? null : () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: _canDelete ? colorScheme.error : colorScheme.surfaceContainerHighest,
-            foregroundColor: _canDelete ? colorScheme.onError : colorScheme.onSurface.withValues(alpha: 0.5),
-          ),
-          onPressed: (_canDelete && !_isProcessing) ? _executeDelete : null,
-          child: _isProcessing ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Delete Permanently'),
-        ),
-      ],
     );
+    if (ok != true) return;
+    try {
+      await ref.read(deletionRepoProvider).cancel(user.id);
+    } catch (e) {
+      if (context.mounted) showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
+    }
   }
 }
+
+final _myDeletionRequestProvider = StreamProvider.autoDispose.family<DeletionRequest?, String>(
+  (ref, uid) => ref.watch(deletionRepoProvider).watchMine(uid),
+);
 
 // -----------------------------------------------------------------------------
 // SHARED UI WIDGETS
 // -----------------------------------------------------------------------------
 
+/// Section label over a soft panel. [icon] is kept for call sites; the
+/// label alone is enough.
 class _ModernInfoCard extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -837,52 +769,23 @@ class _ModernInfoCard extends StatelessWidget {
     required this.title,
     required this.icon,
     required this.children,
-    this.padding = const EdgeInsets.all(20),
+    this.padding = const EdgeInsets.fromLTRB(20, 16, 20, 4),
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isDark ? Colors.white24 : Colors.black12,
-          width: 1.5,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionLabel(title, padding: const EdgeInsets.fromLTRB(20, 20, 20, 10)),
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(color: context.palette.surface, borderRadius: BorderRadius.circular(20)),
+          clipBehavior: Clip.antiAlias,
+          child: Padding(padding: padding, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children)),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Icon(icon, color: Theme.of(context).colorScheme.primary, size: 24),
-                const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-          ),
-          Divider(height: 1, color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05)),
-          Padding(
-            padding: padding,
-            child: Column(children: children),
-          ),
-        ],
-      ),
+      ],
     );
   }
 }
@@ -896,31 +799,14 @@ class _InfoRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            flex: 2,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-            ),
-          ),
+          Expanded(flex: 2, child: Text(label, style: TextStyle(color: context.palette.inkMuted))),
           Expanded(
             flex: 3,
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
-              textAlign: TextAlign.right,
-            ),
+            child: Text(value, textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w500)),
           ),
         ],
       ),
@@ -931,39 +817,20 @@ class _InfoRow extends StatelessWidget {
 class _StatBlock extends StatelessWidget {
   final String value;
   final String label;
-  final Color? color;
-  final bool isLarge;
 
-  const _StatBlock({
-    required this.value,
-    required this.label,
-    this.color,
-    this.isLarge = false,
-  });
+  const _StatBlock({required this.value, required this.label});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: isLarge ? 32 : 24,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.5,
-            color: color ?? Theme.of(context).colorScheme.onSurface,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: -0.8)),
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(color: context.palette.inkMuted, fontSize: 12)),
+        ],
+      ),
     );
   }
 }

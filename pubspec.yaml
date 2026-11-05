@@ -1,5 +1,5 @@
 name: campus_track
-description: College Attendance & Timetable App (Spark plan, Firestore in-app notifications)
+description: Runs a coaching institute (fees, attendance, tests, admissions) and keeps parents informed on WhatsApp.
 publish_to: "none"
 version: 1.0.0+1
 
@@ -11,34 +11,38 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   flutter_local_notifications: ^17.2.2
-  timezone: ^0.9.4
   flutter_riverpod: ^2.5.1
   go_router: ^14.8.1
   shared_preferences: ^2.2.3
-  image_picker: ^1.1.2
   uuid: ^4.4.2
   intl: ^0.19.0
   crypto: ^3.0.3
   google_fonts: ^6.3.0
-  shimmer: ^3.0.0
-  http: ^1.6.0
-  flutter_markdown: ^0.6.14
-  google_generative_ai: 0.4.0
 
   # Firebase packages
   firebase_core: ^3.15.2
   cloud_firestore: ^5.6.12
   firebase_auth: ^5.2.2
   firebase_storage: ^12.2.2
+  cloud_functions: ^5.6.2
 
   # --- NEW PACKAGES FOR QR ATTENDANCE ---
   qr_flutter: ^4.1.0      # For generating QR codes on teacher's device
   mobile_scanner: ^5.2.3   # For scanning QR codes on student's device
   secure_application: ^4.1.0
+
+  # Bluetooth check-in: the teacher's phone broadcasts, students' phones scan.
+  flutter_ble_peripheral: ">=3.1.0 <3.2.0"
+  flutter_blue_plus: ^2.3.13
   url_launcher: ^6.3.2
   #flutter_windowmanager: ^0.2.0   # For restricting screenshots on Android
   lottie: ^2.7.0
+  file_picker: ^13.3.0
 
+  collection: ^1.18.0
+  pdf: ^3.12.0
+  printing: ^5.14.3
+  share_plus: ^13.3.1
 dev_dependencies:
   path: ^1.9.0
   flutter_test:
@@ -51,11 +55,19 @@ flutter:
   assets:
     - assets/logo_foreground.jpg
     - assets/loader.json   # Remove this line if you're not using any Lottie animation
+    - assets/fonts/NotoSans-Regular.ttf   # PDFs (receipts, report cards): covers ₹
+    - assets/fonts/NotoSans-Bold.ttf
 
 flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/icon/app_icon.png"
-  adaptive_icon_background: "#ffffff"
+  adaptive_icon_background: "#0B0B0D"
   adaptive_icon_foreground: "assets/icon/logo_foreground.png"
   min_sdk_android: 21
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    background_color: "#0B0B0D"
+    theme_color: "#0B0B0D"

@@ -12,6 +12,18 @@
 @import cloud_firestore;
 #endif
 
+#if __has_include(<cloud_functions/FirebaseFunctionsPlugin.h>)
+#import <cloud_functions/FirebaseFunctionsPlugin.h>
+#else
+@import cloud_functions;
+#endif
+
+#if __has_include(<file_picker_darwin/FilePickerPlugin.h>)
+#import <file_picker_darwin/FilePickerPlugin.h>
+#else
+@import file_picker_darwin;
+#endif
+
 #if __has_include(<firebase_auth/FLTFirebaseAuthPlugin.h>)
 #import <firebase_auth/FLTFirebaseAuthPlugin.h>
 #else
@@ -30,16 +42,22 @@
 @import firebase_storage;
 #endif
 
+#if __has_include(<flutter_ble_peripheral/FlutterBlePeripheralPlugin.h>)
+#import <flutter_ble_peripheral/FlutterBlePeripheralPlugin.h>
+#else
+@import flutter_ble_peripheral;
+#endif
+
+#if __has_include(<flutter_blue_plus_darwin/FlutterBluePlusPlugin.h>)
+#import <flutter_blue_plus_darwin/FlutterBluePlusPlugin.h>
+#else
+@import flutter_blue_plus_darwin;
+#endif
+
 #if __has_include(<flutter_local_notifications/FlutterLocalNotificationsPlugin.h>)
 #import <flutter_local_notifications/FlutterLocalNotificationsPlugin.h>
 #else
 @import flutter_local_notifications;
-#endif
-
-#if __has_include(<image_picker_ios/FLTImagePickerPlugin.h>)
-#import <image_picker_ios/FLTImagePickerPlugin.h>
-#else
-@import image_picker_ios;
 #endif
 
 #if __has_include(<mobile_scanner/MobileScannerPlugin.h>)
@@ -48,16 +66,22 @@
 @import mobile_scanner;
 #endif
 
-#if __has_include(<path_provider_foundation/PathProviderPlugin.h>)
-#import <path_provider_foundation/PathProviderPlugin.h>
+#if __has_include(<printing/PrintingPlugin.h>)
+#import <printing/PrintingPlugin.h>
 #else
-@import path_provider_foundation;
+@import printing;
 #endif
 
 #if __has_include(<secure_application/SecureApplicationPlugin.h>)
 #import <secure_application/SecureApplicationPlugin.h>
 #else
 @import secure_application;
+#endif
+
+#if __has_include(<share_plus/FPPSharePlusPlugin.h>)
+#import <share_plus/FPPSharePlusPlugin.h>
+#else
+@import share_plus;
 #endif
 
 #if __has_include(<shared_preferences_foundation/SharedPreferencesPlugin.h>)
@@ -76,14 +100,18 @@
 
 + (void)registerWithRegistry:(NSObject<FlutterPluginRegistry>*)registry {
   [FLTFirebaseFirestorePlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTFirebaseFirestorePlugin"]];
+  [FirebaseFunctionsPlugin registerWithRegistrar:[registry registrarForPlugin:@"FirebaseFunctionsPlugin"]];
+  [FilePickerPlugin registerWithRegistrar:[registry registrarForPlugin:@"FilePickerPlugin"]];
   [FLTFirebaseAuthPlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTFirebaseAuthPlugin"]];
   [FLTFirebaseCorePlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTFirebaseCorePlugin"]];
   [FLTFirebaseStoragePlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTFirebaseStoragePlugin"]];
+  [FlutterBlePeripheralPlugin registerWithRegistrar:[registry registrarForPlugin:@"FlutterBlePeripheralPlugin"]];
+  [FlutterBluePlusPlugin registerWithRegistrar:[registry registrarForPlugin:@"FlutterBluePlusPlugin"]];
   [FlutterLocalNotificationsPlugin registerWithRegistrar:[registry registrarForPlugin:@"FlutterLocalNotificationsPlugin"]];
-  [FLTImagePickerPlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTImagePickerPlugin"]];
   [MobileScannerPlugin registerWithRegistrar:[registry registrarForPlugin:@"MobileScannerPlugin"]];
-  [PathProviderPlugin registerWithRegistrar:[registry registrarForPlugin:@"PathProviderPlugin"]];
+  [PrintingPlugin registerWithRegistrar:[registry registrarForPlugin:@"PrintingPlugin"]];
   [SecureApplicationPlugin registerWithRegistrar:[registry registrarForPlugin:@"SecureApplicationPlugin"]];
+  [FPPSharePlusPlugin registerWithRegistrar:[registry registrarForPlugin:@"FPPSharePlusPlugin"]];
   [SharedPreferencesPlugin registerWithRegistrar:[registry registrarForPlugin:@"SharedPreferencesPlugin"]];
   [URLLauncherPlugin registerWithRegistrar:[registry registrarForPlugin:@"URLLauncherPlugin"]];
 }

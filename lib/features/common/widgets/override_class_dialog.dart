@@ -6,7 +6,11 @@ import 'package:intl/intl.dart';
 
 import '../../../core/models/timetable_entry.dart';
 import '../../../core/models/notification.dart';
+import '../../../core/utils/firebase_error_parser.dart';
+import '../../../core/utils/time_formatter.dart';
 import '../../../main.dart';
+import '../../../theme.dart';
+import 'ui_kit.dart';
 
 class OverrideClassDialog extends ConsumerStatefulWidget {
   final TimetableEntry entry;
@@ -48,54 +52,61 @@ class _OverrideClassDialogState extends ConsumerState<OverrideClassDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return AlertDialog(
-      title: Text('Manage: ${widget.subjectName}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Scheduled: ${widget.entry.startTime} – ${widget.entry.endTime}',
-            style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _action,
-            decoration: const InputDecoration(labelText: 'Action', border: OutlineInputBorder()),
-            items: const [
-              DropdownMenuItem(value: 'Cancel', child: Text('Cancel Class', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))),
-              DropdownMenuItem(value: 'Reschedule', child: Text('Reschedule (Time/Room)')),
-              DropdownMenuItem(value: 'Restore', child: Text('Restore Original Schedule')),
+      title: Text(widget.subjectName),
+      content: SizedBox(
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Today, ${TimeFormatter.formatTime(widget.entry.startTime)} – ${TimeFormatter.formatTime(widget.entry.endTime)}',
+              style: TextStyle(color: p.inkMuted),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final (value, label) in const [('Cancel', 'Cancel'), ('Reschedule', 'Reschedule'), ('Restore', 'Restore')])
+                  ChoiceChip(
+                    label: Text(label),
+                    selected: _action == value,
+                    showCheckmark: false,
+                    onSelected: (_) => setState(() => _action = value),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              switch (_action) {
+                'Cancel' => 'Students in ${widget.entry.section} are notified that today\'s class is off.',
+                'Reschedule' => 'Students are notified of the new time and room.',
+                _ => 'Undo today\'s change and go back to the normal schedule.',
+              },
+              style: TextStyle(color: p.inkMuted, fontSize: 13),
+            ),
+            if (_action == 'Reschedule') ...[
+              const SizedBox(height: 16),
+              TextField(controller: _timeCtrl, decoration: const InputDecoration(labelText: 'New time (HH:MM)')),
+              const SizedBox(height: 12),
+              TextField(controller: _roomCtrl, decoration: const InputDecoration(labelText: 'Room')),
             ],
-            onChanged: (v) => setState(() => _action = v!),
-          ),
-          if (_action == 'Reschedule') ...[
-            const SizedBox(height: 16),
-            TextField(
-              controller: _timeCtrl,
-              decoration: const InputDecoration(labelText: 'New Time (e.g. 10:30)', border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _roomCtrl,
-              decoration: const InputDecoration(labelText: 'New Room', border: OutlineInputBorder()),
-            ),
-          ]
-        ],
+          ],
+        ),
       ),
       actions: [
-        TextButton(
-          onPressed: _isLoading ? null : () => Navigator.pop(context),
-          child: const Text('Close'),
-        ),
+        TextButton(onPressed: _isLoading ? null : () => Navigator.pop(context), child: const Text('Close')),
         FilledButton(
           onPressed: _isLoading ? null : _submitOverride,
-          style: FilledButton.styleFrom(
-            backgroundColor: _action == 'Cancel' ? Colors.red : Theme.of(context).colorScheme.primary,
-          ),
+          style: _action == 'Cancel'
+              ? FilledButton.styleFrom(backgroundColor: p.danger, foregroundColor: Colors.white)
+              : null,
           child: _isLoading
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-              : const Text('Apply Update'),
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              : Text(switch (_action) { 'Cancel' => 'Cancel class', 'Reschedule' => 'Reschedule', _ => 'Restore' }),
         ),
       ],
     );
@@ -116,6 +127,7 @@ class _OverrideClassDialogState extends ConsumerState<OverrideClassDialog> {
         // Create or Update the override
         await db.collection('timetable_overrides').doc(docId).set({
           'entryId': widget.entry.id,
+          'section': widget.entry.section,
           'date': todayDateStr,
           'teacherId': widget.currentTeacherId,
           'isCancelled': _action == 'Cancel',
@@ -137,7 +149,7 @@ class _OverrideClassDialogState extends ConsumerState<OverrideClassDialog> {
             body: _action == 'Cancel'
                 ? 'Your class today has been cancelled.'
                 : 'Class rescheduled to ${_timeCtrl.text.trim()} in Room ${_roomCtrl.text.trim()}.',
-            type: NotificationType.general,
+            type: NotificationType.classChange,
           );
         }
       }
@@ -147,17 +159,12 @@ class _OverrideClassDialogState extends ConsumerState<OverrideClassDialog> {
 
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_action == 'Restore' ? 'Schedule Restored' : 'Class updated successfully!'),
-              backgroundColor: Colors.green,
-            )
-        );
+        showMessage(context, _action == 'Restore' ? 'Schedule restored.' : (_action == 'Cancel' ? 'Class cancelled.' : 'Class rescheduled.'), success: true);
       }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     }
   }

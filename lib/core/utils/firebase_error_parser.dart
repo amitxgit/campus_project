@@ -1,6 +1,6 @@
 // lib/core/utils/firebase_error_parser.dart
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 class FirebaseErrorParser {
   /// Translates a Firebase error or general error into a user-friendly message.
@@ -8,6 +8,11 @@ class FirebaseErrorParser {
     // Handle Firebase Authentication errors
     if (e is FirebaseAuthException) {
       return _authError(e);
+    }
+
+    // Cloud Functions errors carry a message written for the user by the server
+    if (e is FirebaseFunctionsException) {
+      return e.message ?? 'Server error. Please try again.';
     }
 
     // Handle Firestore & general Firebase errors

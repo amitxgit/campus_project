@@ -6,11 +6,16 @@ import 'package:intl/intl.dart';
 import '../common/widgets/profile_avatar_action.dart';
 import '../common/widgets/app_drawer.dart';
 import '../common/widgets/async_error_widget.dart';
+import '../common/widgets/attendance_toggle.dart';
 import '../../core/models/attendance.dart';
 import '../../core/models/subject.dart';
 import '../../core/models/user.dart';
 import '../../core/models/role.dart';
 import '../../main.dart';
+import '../common/widgets/ui_kit.dart';
+import '../../theme.dart';
+import '../common/widgets/class_card.dart' show EmptyNote;
+import '../../core/utils/firebase_error_parser.dart';
 
 // -----------------------------------------------------------------------------
 // PROVIDER
@@ -64,344 +69,115 @@ class _AttendanceOverridesPageState extends ConsumerState<AttendanceOverridesPag
   @override
   Widget build(BuildContext context) {
     final asyncData = ref.watch(adminAttendanceProvider);
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final p = context.palette;
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu_rounded, color: Colors.white),
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
-          ),
-        ),
-        title: const Text('Attendance Log', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Attendance'),
         actions: const [ProfileAvatarAction()],
       ),
       drawer: const AppDrawer(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: UnsavedChangesBar(
+        visible: _edited.isNotEmpty,
+        label: _edited.length == 1 ? '1 change' : '${_edited.length} changes',
+        saving: _isSaving,
+        onDiscard: () => setState(() => _edited.clear()),
+        onSave: () => _saveChanges(ref),
+      ),
       body: asyncData.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => AsyncErrorWidget(
-          message: err.toString(),
+          message: FirebaseErrorParser.getMessage(err),
           onRetry: () => ref.invalidate(adminAttendanceProvider),
         ),
         data: (data) {
           final allRecords = data['records'] as List<AttendanceRecord>;
           final subjects = data['subjects'] as List<Subject>;
           final students = data['students'] as List<UserAccount>;
+          final studentsById = {for (final st in students) st.id: st};
+          final subjectsById = {for (final sb in subjects) sb.id: sb};
 
-          // Apply Search Filter
+          final q = _searchQuery.toLowerCase();
           final filtered = allRecords.where((r) {
-            if (_searchQuery.isEmpty) return true;
-
-            final st = students.firstWhere((s) => s.id == r.studentId, orElse: () => _unknownUser);
-            final matchName = st.name.toLowerCase().contains(_searchQuery.toLowerCase());
-            final matchRoll = (st.collegeRollNo ?? '').toLowerCase().contains(_searchQuery.toLowerCase());
-
-            final sub = subjects.firstWhere((s) => s.id == r.subjectId,
-                orElse: () => const Subject(id: '', code: '?', name: 'Unknown', department: '', semester: '', section: '', teacherId: ''));
-            final matchSubject = sub.name.toLowerCase().contains(_searchQuery.toLowerCase());
-
-            return matchName || matchRoll || matchSubject;
+            if (q.isEmpty) return true;
+            final st = studentsById[r.studentId];
+            final sub = subjectsById[r.subjectId];
+            return (st?.name.toLowerCase().contains(q) ?? false) ||
+                (st?.section?.toLowerCase().contains(q) ?? false) ||
+                (sub?.name.toLowerCase().contains(q) ?? false);
           }).toList();
 
-          return Stack(
+          return Column(
             children: [
-              Column(
-                children: [
-                  // -----------------------------------------------------------
-                  // 1. PREMIUM SEARCH HEADER
-                  // -----------------------------------------------------------
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(20, 100, 20, 24),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [colorScheme.primary, colorScheme.tertiary.withValues(alpha: 0.8)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(32),
-                        bottomRight: Radius.circular(32),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Master Records',
-                          style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Select any record to manually override its status.',
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.w500),
-                        ),
-                        const SizedBox(height: 20),
-                        TextField(
-                          style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w500),
-                          decoration: InputDecoration(
-                            hintText: 'Search by Student, Roll No, or Subject...',
-                            hintStyle: const TextStyle(color: Colors.black54),
-                            prefixIcon: const Icon(Icons.search_rounded, color: Colors.black54),
-                            filled: true,
-                            fillColor: Colors.white.withValues(alpha: 0.95),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                          ),
-                          onChanged: (v) => setState(() => _searchQuery = v),
-                        ),
-                      ],
-                    ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: TextField(
+                  decoration: const InputDecoration(
+                    hintText: 'Search student, batch or subject',
+                    prefixIcon: Icon(Icons.search_rounded),
+                    isDense: true,
                   ),
-
-                  // -----------------------------------------------------------
-                  // 2. LIST VIEW
-                  // -----------------------------------------------------------
-                  Expanded(
-                    child: filtered.isEmpty
-                        ? _buildEmptyState(context)
-                        : ListView.builder(
-                      padding: EdgeInsets.only(top: 16, bottom: _edited.isNotEmpty ? 100 : 16), // Padding for sticky bottom bar
-                      itemCount: filtered.length,
-                      itemBuilder: (ctx, i) {
-                        final r = filtered[i];
-                        final st = students.firstWhere((s) => s.id == r.studentId, orElse: () => _unknownUser);
-                        final sub = subjects.firstWhere((s) => s.id == r.subjectId,
-                            orElse: () => const Subject(id: '', code: '?', name: 'Unknown', department: '', semester: '', section: '', teacherId: ''));
-
-                        final isEdited = _edited.containsKey(r.id);
-                        final currentStatus = _edited[r.id] ?? r.status;
-
-                        return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: isEdited ? colorScheme.primaryContainer.withValues(alpha: 0.2) : Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                                color: isEdited ? colorScheme.primary : (isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05)),
-                                width: isEdited ? 2.0 : 1.5
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.03),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                  onChanged: (v) => setState(() => _searchQuery = v),
+                ),
+              ),
+              Expanded(
+                child: filtered.isEmpty
+                    ? const Center(child: EmptyNote(icon: Icons.search_off_rounded, text: 'No records match.'))
+                    : ListView.builder(
+                        padding: const EdgeInsets.only(bottom: 104),
+                        itemCount: filtered.length,
+                        itemBuilder: (ctx, i) {
+                          final r = filtered[i];
+                          final st = studentsById[r.studentId] ?? _unknownUser;
+                          final sub = subjectsById[r.subjectId];
+                          final isEdited = _edited.containsKey(r.id);
+                          final current = _edited[r.id] ?? r.status;
+                          return AnimatedContainer(
+                            duration: Motion.fast,
+                            color: isEdited ? p.accentSoft : Colors.transparent,
+                            padding: const EdgeInsets.fromLTRB(20, 10, 16, 10),
+                            child: Row(
                               children: [
-                                // Header: Student Info
-                                Row(
-                                  children: [
-                                    CircleAvatar(
-                                      radius: 18,
-                                      backgroundColor: colorScheme.secondaryContainer,
-                                      child: Text(
-                                        st.name.isNotEmpty ? st.name[0].toUpperCase() : '?',
-                                        style: TextStyle(color: colorScheme.onSecondaryContainer, fontWeight: FontWeight.bold),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(st.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        [sub?.name ?? 'Unknown subject', DateFormat('d MMM').format(r.date), if (r.slot.isNotEmpty) r.slot].join(' · '),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(color: p.inkMuted, fontSize: 13),
                                       ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(st.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                                          Text(st.collegeRollNo ?? 'No Roll No', style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600)),
-                                        ],
-                                      ),
-                                    ),
-                                    if (isEdited)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(color: colorScheme.primary, borderRadius: BorderRadius.circular(8)),
-                                        child: const Text('Modified', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-                                      )
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-
-                                // Middle: Subject & Context
-                                Row(
-                                  children: [
-                                    Icon(Icons.menu_book_rounded, size: 14, color: colorScheme.onSurfaceVariant),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(sub.name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: colorScheme.onSurface), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Icon(Icons.calendar_today_rounded, size: 14, color: colorScheme.onSurfaceVariant),
-                                    const SizedBox(width: 6),
-                                    Text(DateFormat('MMM d, yyyy').format(r.date), style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600)),
-                                    const SizedBox(width: 16),
-                                    Icon(Icons.access_time_rounded, size: 14, color: colorScheme.onSurfaceVariant),
-                                    const SizedBox(width: 6),
-                                    Text(r.slot, style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600)),
-                                  ],
-                                ),
-
-                                const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Divider(height: 1)),
-
-                                // Bottom: Status Selector
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: SegmentedButton<AttendanceStatus>(
-                                    showSelectedIcon: false,
-                                    style: SegmentedButton.styleFrom(
-                                      selectedBackgroundColor: _getStatusColor(currentStatus, isDark).withValues(alpha: 0.2),
-                                      selectedForegroundColor: _getStatusColor(currentStatus, isDark),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    ),
-                                    segments: [
-                                      ButtonSegment(value: AttendanceStatus.present, label: _buildSegmentLabel('Present', currentStatus == AttendanceStatus.present)),
-                                      ButtonSegment(value: AttendanceStatus.absent, label: _buildSegmentLabel('Absent', currentStatus == AttendanceStatus.absent)),
-                                      ButtonSegment(value: AttendanceStatus.late, label: _buildSegmentLabel('Late', currentStatus == AttendanceStatus.late)),
-                                      ButtonSegment(value: AttendanceStatus.excused, label: _buildSegmentLabel('Excused', currentStatus == AttendanceStatus.excused)),
                                     ],
-                                    selected: {currentStatus},
-                                    onSelectionChanged: (val) {
-                                      setState(() {
-                                        if (val.first == r.status) {
-                                          _edited.remove(r.id); // Reverted to original
-                                        } else {
-                                          _edited[r.id] = val.first; // Overridden
-                                        }
-                                      });
-                                    },
                                   ),
+                                ),
+                                const SizedBox(width: 8),
+                                AttendanceToggle(
+                                  value: current,
+                                  showExcused: true,
+                                  onChanged: (v) => setState(() {
+                                    if (v == r.status) {
+                                      _edited.remove(r.id);
+                                    } else {
+                                      _edited[r.id] = v;
+                                    }
+                                  }),
                                 ),
                               ],
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-
-              // ---------------------------------------------------------------
-              // 3. STICKY ACTION BAR (ANIMATED)
-              // ---------------------------------------------------------------
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOutCubic,
-                bottom: _edited.isNotEmpty ? 24 : -100, // Slides up when items are edited
-                left: 20,
-                right: 20,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: isDark ? colorScheme.surfaceContainerHighest : Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 20, offset: const Offset(0, 10)),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Unsaved Changes',
-                            style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
-                          ),
-                          Row(
-                            children: [
-                              Text(
-                                '${_edited.length}',
-                                style: TextStyle(color: colorScheme.primary, fontSize: 24, fontWeight: FontWeight.w900),
-                              ),
-                              const SizedBox(width: 8),
-                              const Text('Records', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                            ],
-                          ),
-                        ],
+                          );
+                        },
                       ),
-                      Row(
-                        children: [
-                          TextButton(
-                            onPressed: _isSaving ? null : () => setState(() => _edited.clear()),
-                            child: const Text('Discard', style: TextStyle(fontWeight: FontWeight.bold)),
-                          ),
-                          const SizedBox(width: 8),
-                          FilledButton.icon(
-                            style: FilledButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ),
-                            onPressed: _isSaving ? null : () => _saveChanges(ref),
-                            icon: _isSaving
-                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                : const Icon(Icons.save_rounded, size: 18),
-                            label: const Text('Apply All', style: TextStyle(fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-                      )
-                    ],
-                  ),
-                ),
               ),
             ],
           );
         },
       ),
     );
-  }
-
-  // ---------------------------------------------------------------------------
-  // HELPERS
-  // ---------------------------------------------------------------------------
-
-  Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_off_rounded, size: 64, color: Theme.of(context).colorScheme.outline),
-          const SizedBox(height: 16),
-          const Text('No records found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          const Text('Try adjusting your search criteria.', style: TextStyle(color: Colors.grey)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSegmentLabel(String text, bool isSelected) {
-    return Text(
-      text,
-      style: TextStyle(
-        fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-        fontSize: 12,
-      ),
-    );
-  }
-
-  Color _getStatusColor(AttendanceStatus status, bool isDark) {
-    switch (status) {
-      case AttendanceStatus.present: return isDark ? Colors.greenAccent : Colors.green;
-      case AttendanceStatus.absent: return isDark ? Colors.redAccent : Colors.red;
-      case AttendanceStatus.late: return isDark ? Colors.orangeAccent : Colors.orange;
-      case AttendanceStatus.excused: return isDark ? Colors.blueAccent : Colors.blue;
-    }
   }
 
   // ---------------------------------------------------------------------------
@@ -414,7 +190,6 @@ class _AttendanceOverridesPageState extends ConsumerState<AttendanceOverridesPag
     try {
       final user = await ref.read(authRepoProvider).currentUser();
 
-      // ✅ FIX: Admins can bypass base role check if the flag is active
       if (user == null || (!user.role.isAdmin && !user.isAdmin)) {
         throw Exception('Unauthorized');
       }
@@ -427,14 +202,12 @@ class _AttendanceOverridesPageState extends ConsumerState<AttendanceOverridesPag
           _isSaving = false;
         });
         ref.invalidate(adminAttendanceProvider);
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('All overrides applied successfully.'), backgroundColor: Colors.green)
-        );
+        showMessage(context, 'Attendance updated.', success: true);
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     }
   }

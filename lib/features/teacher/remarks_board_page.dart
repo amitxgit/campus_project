@@ -10,6 +10,10 @@ import '../../core/models/user.dart';
 import '../../core/models/remark.dart';
 import '../../core/models/role.dart';
 import '../../main.dart';
+import '../../theme.dart';
+import '../common/widgets/ui_kit.dart';
+import '../common/widgets/class_card.dart' show EmptyNote;
+import '../../core/utils/firebase_error_parser.dart';
 
 // -----------------------------------------------------------------------------
 // PROVIDER
@@ -59,14 +63,14 @@ class _RemarksBoardPageState extends ConsumerState<RemarksBoardPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Remarks Board'),
+        title: const Text('Remarks'),
         actions: const [ProfileAvatarAction()],
       ),
       drawer: const AppDrawer(),
       body: asyncData.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => AsyncErrorWidget(
-          message: err.toString(),
+          message: FirebaseErrorParser.getMessage(err),
           onRetry: () => ref.invalidate(remarksBoardProvider),
         ),
         data: (data) {
@@ -88,100 +92,103 @@ class _RemarksBoardPageState extends ConsumerState<RemarksBoardPage> {
             return true;
           }).toList();
 
+          final p = context.palette;
+          final knownTags = remarks.map((r) => r.tag).toSet().toList()..sort();
+
           return Column(
             children: [
-              // Search & Filter Header
               Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
                 child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search remarks by student name...',
-                    prefixIcon: const Icon(Icons.search),
-                    filled: true,
-                    fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
+                  decoration: const InputDecoration(
+                    hintText: 'Search student',
+                    prefixIcon: Icon(Icons.search_rounded),
+                    isDense: true,
                   ),
                   onChanged: (v) => setState(() => _searchQuery = v),
                 ),
               ),
-              if (uniqueTags.length > 1)
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Row(
-                    children: uniqueTags.map((tag) {
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: ChoiceChip(
-                          label: Text(tag),
-                          selected: _filterTag == tag,
-                          onSelected: (selected) {
-                            setState(() => _filterTag = selected ? tag : 'All');
-                          },
+              if (uniqueTags.length > 2)
+                SizedBox(
+                  height: 40,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      for (final tag in uniqueTags)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: ChoiceChip(
+                            label: Text(tag),
+                            selected: _filterTag == tag,
+                            showCheckmark: false,
+                            onSelected: (_) => setState(() => _filterTag = tag),
+                          ),
                         ),
-                      );
-                    }).toList(),
+                    ],
                   ),
                 ),
-              const SizedBox(height: 8),
-
-              // Remarks List
+              const SizedBox(height: 4),
               Expanded(
                 child: filteredRemarks.isEmpty
                     ? Center(
-                  child: Text(
-                    remarks.isEmpty ? 'No remarks added yet.' : 'No remarks match your search.',
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                )
+                        child: EmptyNote(
+                          icon: Icons.rate_review_outlined,
+                          text: remarks.isEmpty
+                              ? 'Add short notes on students to keep track of them.'
+                              : 'No remarks match.',
+                        ),
+                      )
                     : ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 80),
-                  itemCount: filteredRemarks.length,
-                  itemBuilder: (context, index) {
-                    final r = filteredRemarks[index];
-                    final st = students.firstWhere((s) => s.id == r.studentId, orElse: () => _unknownUser);
-
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                      elevation: 0,
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-                      ),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                          child: Text(st.name.isNotEmpty ? st.name[0] : '?'),
-                        ),
-                        title: Text(st.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('CR: ${st.collegeRollNo ?? 'N/A'} • Year: ${st.year ?? '?'}'),
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.secondaryContainer,
-                                borderRadius: BorderRadius.circular(6),
+                        padding: const EdgeInsets.only(bottom: 104),
+                        itemCount: filteredRemarks.length,
+                        itemBuilder: (context, index) {
+                          final r = filteredRemarks[index];
+                          final st = students.firstWhere((s) => s.id == r.studentId, orElse: () => _unknownUser);
+                          return FadeSlideIn(
+                            index: index,
+                            child: InkWell(
+                              onTap: () => _editRemarkDialog(context, ref, teacherId, st, knownTags, existingTag: r.tag),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(st.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            [
+                                              if ((st.section ?? '').isNotEmpty) st.section!,
+                                              DateFormat('d MMM').format(r.updatedAt),
+                                            ].join(' · '),
+                                            style: TextStyle(fontSize: 13, color: p.inkMuted),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Flexible(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                        decoration: BoxDecoration(color: p.accentSoft, borderRadius: BorderRadius.circular(8)),
+                                        child: Text(
+                                          r.tag,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(color: p.accent, fontWeight: FontWeight.w600, fontSize: 13),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              child: Text(r.tag, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSecondaryContainer)),
                             ),
-                          ],
-                        ),
-                        trailing: Text(
-                          DateFormat('MMM d').format(r.updatedAt),
-                          style: const TextStyle(color: Colors.grey, fontSize: 12),
-                        ),
-                        onTap: () => _editRemarkDialog(context, ref, teacherId, st, existingTag: r.tag),
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
               ),
             ],
           );
@@ -189,268 +196,192 @@ class _RemarksBoardPageState extends ConsumerState<RemarksBoardPage> {
       ),
       floatingActionButton: asyncData.maybeWhen(
         data: (data) => FloatingActionButton.extended(
-          onPressed: () {
-            _showModernStudentSelector(
-              context,
-              ref,
-              data['students'] as List<UserAccount>,
-              (data['me'] as UserAccount).id,
-            );
-          },
-          icon: const Icon(Icons.add_comment),
-          label: const Text('Add Remark'),
+          onPressed: () => _pickStudent(
+            context,
+            ref,
+            data['students'] as List<UserAccount>,
+            (data['me'] as UserAccount).id,
+            (data['remarks'] as List<StudentRemark>).map((r) => r.tag).toSet().toList()..sort(),
+          ),
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('Add remark'),
         ),
         orElse: () => null,
       ),
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // MODERN STUDENT SELECTOR BOTTOM SHEET
-  // ---------------------------------------------------------------------------
-  void _showModernStudentSelector(
-      BuildContext context,
-      WidgetRef ref,
-      List<UserAccount> allStudents,
-      String teacherId,
-      ) {
+  void _pickStudent(BuildContext context, WidgetRef ref, List<UserAccount> students, String teacherId, List<String> knownTags) {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // Allows sheet to take up more screen height
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _ModernStudentSelector(
-        students: allStudents,
-        onStudentSelected: (selectedStudent) {
-          Navigator.pop(ctx); // Close the sheet
-          _editRemarkDialog(context, ref, teacherId, selectedStudent); // Open remark input
+      isScrollControlled: true,
+      builder: (ctx) => _StudentPicker(
+        students: students,
+        onSelected: (st) {
+          Navigator.pop(ctx);
+          _editRemarkDialog(context, ref, teacherId, st, knownTags);
         },
       ),
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // EDIT/ADD REMARK DIALOG
-  // ---------------------------------------------------------------------------
-  Future<void> _editRemarkDialog(BuildContext context, WidgetRef ref, String teacherId, UserAccount student, {String? existingTag}) async {
+  Future<void> _editRemarkDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String teacherId,
+    UserAccount student,
+    List<String> knownTags, {
+    String? existingTag,
+  }) async {
     final controller = TextEditingController(text: existingTag);
-
     await showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('${existingTag == null ? 'Add' : 'Edit'} Remark'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Student: ${student.name}', style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                labelText: 'Remark / Tag',
-                hintText: 'e.g. Excellent, Needs Improvement, Warned',
-                border: OutlineInputBorder(),
-              ),
-              textCapitalization: TextCapitalization.words,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: Text(student.name),
+          content: SizedBox(
+            width: 400,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: controller,
+                  autofocus: existingTag == null,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(labelText: 'Remark', hintText: 'e.g. Needs help with organic chemistry'),
+                  onChanged: (_) => setState(() {}),
+                ),
+                if (knownTags.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Text('Used before', style: TextStyle(fontSize: 13, color: ctx.palette.inkMuted)),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final t in knownTags.take(8))
+                        ChoiceChip(
+                          label: Text(t),
+                          selected: controller.text.trim() == t,
+                          showCheckmark: false,
+                          onSelected: (_) => setState(() => controller.text = t),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () async {
+                final tag = controller.text.trim();
+                if (tag.isEmpty) return;
+                try {
+                  await ref.read(remarkRepoProvider).upsertRemark(teacherId: teacherId, studentId: student.id, tag: tag);
+                  ref.invalidate(remarksBoardProvider);
+                  if (context.mounted) showMessage(context, 'Remark saved.', success: true);
+                } catch (e) {
+                  if (context.mounted) showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
+                }
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: const Text('Save'),
             ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () async {
-              if (controller.text.trim().isNotEmpty) {
-                try {
-                  await ref.read(remarkRepoProvider).upsertRemark(
-                    teacherId: teacherId,
-                    studentId: student.id,
-                    tag: controller.text.trim(),
-                  );
-                  ref.invalidate(remarksBoardProvider);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Remark saved successfully')));
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                  }
-                }
-              }
-              if (context.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
   }
 }
 
-// -----------------------------------------------------------------------------
-// SEPARATE STATEFUL WIDGET FOR THE BOTTOM SHEET TO MANAGE ITS OWN FILTER STATE
-// -----------------------------------------------------------------------------
-class _ModernStudentSelector extends StatefulWidget {
+/// Search plus batch chips, then a plain list of students.
+class _StudentPicker extends StatefulWidget {
   final List<UserAccount> students;
-  final Function(UserAccount) onStudentSelected;
-
-  const _ModernStudentSelector({
-    required this.students,
-    required this.onStudentSelected,
-  });
+  final ValueChanged<UserAccount> onSelected;
+  const _StudentPicker({required this.students, required this.onSelected});
 
   @override
-  State<_ModernStudentSelector> createState() => _ModernStudentSelectorState();
+  State<_StudentPicker> createState() => _StudentPickerState();
 }
 
-class _ModernStudentSelectorState extends State<_ModernStudentSelector> {
+class _StudentPickerState extends State<_StudentPicker> {
   String _search = '';
-  int _selectedYear = 0; // 0 = All Years
-  bool _sortAscending = true;
+  String? _batch;
 
   @override
   Widget build(BuildContext context) {
-    // 1. Filter
-    var filtered = widget.students.where((s) {
-      final matchSearch = s.name.toLowerCase().contains(_search.toLowerCase()) ||
-          (s.collegeRollNo ?? '').toLowerCase().contains(_search.toLowerCase());
-      final matchYear = _selectedYear == 0 || s.year == _selectedYear;
-      return matchSearch && matchYear;
-    }).toList();
-
-    // 2. Sort
-    filtered.sort((a, b) {
-      final cmp = a.name.compareTo(b.name);
-      return _sortAscending ? cmp : -cmp;
-    });
+    final p = context.palette;
+    final batches = widget.students.map((s) => s.section ?? '').where((b) => b.isNotEmpty).toSet().toList()..sort();
+    final q = _search.toLowerCase();
+    final filtered = widget.students
+        .where((s) => (_batch == null || s.section == _batch) && (q.isEmpty || s.name.toLowerCase().contains(q) || s.phone.contains(q)))
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.85, // Takes up 85% of screen
+      initialChildSize: 0.85,
       minChildSize: 0.5,
       maxChildSize: 0.95,
-      builder: (_, controller) {
-        return Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).scaffoldBackgroundColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      expand: false,
+      builder: (_, controller) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Text('Choose a student', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
           ),
-          child: Column(
-            children: [
-              // Drag Handle
-              const SizedBox(height: 12),
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Header & Sort Button
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Select Student', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                    TextButton.icon(
-                      onPressed: () => setState(() => _sortAscending = !_sortAscending),
-                      icon: Icon(_sortAscending ? Icons.arrow_downward : Icons.arrow_upward, size: 18),
-                      label: Text(_sortAscending ? 'A-Z' : 'Z-A'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Theme.of(context).colorScheme.primary,
-                        backgroundColor: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Search Bar
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: TextField(
-                  autofocus: false,
-                  decoration: InputDecoration(
-                    hintText: 'Search by name or roll no...',
-                    prefixIcon: const Icon(Icons.search),
-                    filled: true,
-                    fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  ),
-                  onChanged: (v) => setState(() => _search = v),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Year Filter Chips
-              SingleChildScrollView(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: TextField(
+              decoration: const InputDecoration(hintText: 'Name or phone', prefixIcon: Icon(Icons.search_rounded), isDense: true),
+              onChanged: (v) => setState(() => _search = v.trim()),
+            ),
+          ),
+          if (batches.length > 1)
+            SizedBox(
+              height: 52,
+              child: ListView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: [0, 1, 2, 3, 4].map((year) {
-                    final isSelected = _selectedYear == year;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: FilterChip(
-                        label: Text(year == 0 ? 'All Years' : 'Year $year'),
-                        selected: isSelected,
-                        onSelected: (val) => setState(() => _selectedYear = year),
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+                children: [
+                  for (final b in <String?>[null, ...batches])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: ChoiceChip(
+                        label: Text(b ?? 'All'),
+                        selected: _batch == b,
                         showCheckmark: false,
-                        backgroundColor: Theme.of(context).colorScheme.surface,
-                        selectedColor: Theme.of(context).colorScheme.primaryContainer,
-                        labelStyle: TextStyle(
-                          color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey.shade700,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        ),
+                        onSelected: (_) => setState(() => _batch = b),
                       ),
-                    );
-                  }).toList(),
-                ),
+                    ),
+                ],
               ),
-              const Divider(height: 24),
-
-              // Student List
-              Expanded(
-                child: filtered.isEmpty
-                    ? const Center(child: Text('No students found.', style: TextStyle(color: Colors.grey)))
-                    : ListView.builder(
-                  controller: controller,
-                  padding: const EdgeInsets.only(bottom: 24),
-                  itemCount: filtered.length,
-                  itemBuilder: (ctx, i) {
-                    final s = filtered[i];
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                      leading: CircleAvatar(
-                        backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                        foregroundColor: Theme.of(context).colorScheme.primary,
-                        child: Text(s.name.isNotEmpty ? s.name[0] : '?'),
-                      ),
-                      title: Text(s.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text('CR: ${s.collegeRollNo ?? 'N/A'} • Year ${s.year ?? '?'}'),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.add_circle),
-                        color: Theme.of(context).colorScheme.primary,
-                        onPressed: () => widget.onStudentSelected(s),
-                      ),
-                      onTap: () => widget.onStudentSelected(s),
-                    );
-                  },
-                ),
-              ),
-            ],
+            ),
+          const SizedBox(height: 6),
+          Expanded(
+            child: filtered.isEmpty
+                ? Center(child: Text('No students found.', style: TextStyle(color: p.inkMuted)))
+                : ListView.builder(
+                    controller: controller,
+                    padding: const EdgeInsets.only(bottom: 24),
+                    itemCount: filtered.length,
+                    itemBuilder: (_, i) {
+                      final s = filtered[i];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                        title: Text(s.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        subtitle: Text(s.section ?? '', style: TextStyle(color: p.inkMuted)),
+                        trailing: Icon(Icons.chevron_right_rounded, color: p.inkFaint),
+                        onTap: () => widget.onSelected(s),
+                      );
+                    },
+                  ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

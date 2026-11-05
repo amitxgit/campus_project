@@ -66,23 +66,18 @@ class _ScanQRPageState extends ConsumerState<ScanQRPage> with WidgetsBindingObse
     final currentContext = context;
 
     try {
-      final user = await ref.read(authRepoProvider).currentUser();
-      if (user == null) throw Exception('User not logged in');
-
-      final payload = jsonDecode(code);
-      final String sessionId = payload['sId'];
-      final int timestamp = payload['ts'];
-
-      final now = DateTime.now().millisecondsSinceEpoch;
-      // 15 seconds maximum validity window to prevent screenshot sharing
-      if (now - timestamp > 15000) {
-        throw Exception('QR Code expired. Please scan the live code directly from the teacher\'s screen.');
+      final Object? payload;
+      try {
+        payload = jsonDecode(code);
+      } on FormatException {
+        throw Exception('This is not a valid attendance QR code.');
+      }
+      if (payload is! Map<String, dynamic>) {
+        throw Exception('This is not a valid attendance QR code.');
       }
 
-      await ref.read(attendanceRepoProvider).markPresentSecure(
-        sessionId: sessionId,
-        studentId: user.id,
-      );
+      // Signature, freshness and section are all checked server-side.
+      await ref.read(attendanceRepoProvider).markPresentFromQr(payload);
 
       // ✅ FIX: Check the explicitly captured context
       if (currentContext.mounted) {

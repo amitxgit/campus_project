@@ -25,6 +25,7 @@ import 'features/student/student_attendance_page.dart';
 import 'features/student/timetable_page.dart';
 import 'features/student/raise_query_page.dart';
 import 'features/student/scan_qr_page.dart';
+import 'features/student/check_in_page.dart';
 import 'features/student/internal_marks_page.dart' as student_marks;
 
 // Teacher
@@ -43,6 +44,19 @@ import 'features/admin/internal_marks_overrides_page.dart';
 import 'features/admin/import_export_page.dart';
 import 'features/admin/reset_passwords_page.dart';
 import 'features/admin/query_management_page.dart';
+import 'features/admin/institution_settings_page.dart';
+import 'features/admin/import_students_page.dart';
+import 'features/fees/fees_admin_page.dart';
+import 'features/fees/fee_detail_page.dart';
+import 'features/enquiries/enquiries_page.dart';
+import 'features/reports/reports_page.dart';
+import 'features/legal/legal_page.dart';
+import 'features/admin/deletion_requests_page.dart';
+import 'features/fees/my_fees_page.dart';
+import 'features/parent_alerts/parent_alerts_page.dart';
+import 'features/tests/tests_page.dart';
+import 'features/tests/test_detail_page.dart';
+import 'features/tests/my_results_page.dart';
 
 // ============================
 // 🔹 ROUTE CONSTANTS
@@ -61,6 +75,7 @@ class AppRoutes {
 
   static const studentsDirectory = '/students/directory';
   static const teachersDirectory = '/teachers/directory';
+  static const tests = '/tests';
 }
 
 // ============================
@@ -119,6 +134,7 @@ class RouteConfig {
     AppRoutes.studentHome: [UserRole.student],
     AppRoutes.studentsDirectory: [UserRole.admin, UserRole.teacher],
     AppRoutes.teachersDirectory: [UserRole.admin, UserRole.teacher, UserRole.student],
+    AppRoutes.tests: [UserRole.admin, UserRole.teacher],
   };
 }
 
@@ -142,8 +158,11 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (isLoading) return AppRoutes.splash;
 
+      // Privacy policy and terms are public (linked from the login screen).
+      final isLegal = location.startsWith('/legal/');
+
       if (user == null) {
-        return isLogin ? null : AppRoutes.login;
+        return isLogin || isLegal ? null : AppRoutes.login;
       }
 
       // ✅ Use the selected workspace role, or default to the database role
@@ -168,6 +187,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // ===== COMMON =====
       GoRoute(path: '/about', builder: (_, __) => const AboutPage()),
+      GoRoute(path: '/legal/:slug', builder: (_, state) => LegalPage(slug: state.pathParameters['slug'] ?? '')),
       GoRoute(path: '/profile', builder: (_, __) => const MyProfilePage()),
       GoRoute(path: '/profile/update', builder: (_, __) => const UpdateProfilePage()),
       GoRoute(path: '/notifications', builder: (_, __) => const NotificationsPage()),
@@ -185,6 +205,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/student/raise-query', builder: (_, __) => const RaiseQueryPage()),
       GoRoute(path: '/student/internal-marks', builder: (_, __) => const student_marks.InternalMarksPage()),
       GoRoute(path: '/student/scan-qr', builder: (_, __) => const ScanQRPage()),
+      GoRoute(path: '/student/check-in', builder: (_, __) => const CheckInPage()),
+      GoRoute(path: '/student/fees', builder: (_, __) => const MyFeesPage()),
+      GoRoute(path: '/student/results', builder: (_, __) => const MyResultsPage()),
+      GoRoute(path: AppRoutes.tests, builder: (_, __) => const TestsPage()),
+      GoRoute(
+        path: '/tests/:testId',
+        builder: (_, state) => TestDetailPage(testId: state.pathParameters['testId'] ?? ''),
+      ),
 
       // ===== TEACHER =====
       GoRoute(path: AppRoutes.teacherHome, builder: (_, __) => const TeacherHomePage()),
@@ -220,6 +248,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/admin/import-export', builder: (_, __) => const ImportExportPage()),
       GoRoute(path: '/admin/reset-passwords', builder: (_, __) => const ResetPasswordsPage()),
       GoRoute(path: '/admin/query-management', builder: (_, __) => const QueryManagementPage()),
+      GoRoute(path: '/admin/settings', builder: (_, __) => const InstitutionSettingsPage()),
+      GoRoute(path: '/admin/fees', builder: (_, __) => const FeesAdminPage()),
+      GoRoute(path: '/admin/import-students', builder: (_, __) => const ImportStudentsPage()),
+      GoRoute(path: '/admin/parent-alerts', builder: (_, __) => const ParentAlertsPage()),
+      GoRoute(path: '/admin/enquiries', builder: (_, __) => const EnquiriesPage()),
+      GoRoute(path: '/admin/reports', builder: (_, __) => const ReportsPage()),
+      GoRoute(path: '/admin/deletion-requests', builder: (_, __) => const DeletionRequestsPage()),
+      GoRoute(
+        path: '/admin/fees/:studentId',
+        builder: (_, state) => FeeDetailPage(studentId: state.pathParameters['studentId'] ?? ''),
+      ),
     ],
 
     errorBuilder: (_, state) => Scaffold(

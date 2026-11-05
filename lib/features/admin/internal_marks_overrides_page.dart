@@ -13,6 +13,11 @@ import '../../core/models/subject.dart';
 import '../../core/models/user.dart';
 import '../../core/models/role.dart';
 import '../../main.dart';
+import '../../data/settings_repository.dart';
+import '../common/widgets/ui_kit.dart';
+import '../../theme.dart';
+import '../common/widgets/class_card.dart' show EmptyNote;
+import '../../core/utils/firebase_error_parser.dart';
 
 // -----------------------------------------------------------------------------
 // PROVIDER
@@ -53,28 +58,16 @@ class _InternalMarksOverridesPageState
   @override
   Widget build(BuildContext context) {
     final asyncData = ref.watch(adminMarksProvider);
+    final scheme = ref.watch(settingsProvider);
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu_rounded, color: Colors.white),
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
-          ),
-        ),
-        title: const Text(
-          'Academic Overrides',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Internal marks'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+            tooltip: 'Refresh',
+            icon: const Icon(Icons.refresh_rounded),
             onPressed: () => ref.invalidate(adminMarksProvider),
           ),
           const ProfileAvatarAction(),
@@ -84,7 +77,7 @@ class _InternalMarksOverridesPageState
       body: asyncData.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => AsyncErrorWidget(
-          message: err.toString(),
+          message: FirebaseErrorParser.getMessage(err),
           onRetry: () => ref.refresh(adminMarksProvider),
         ),
         data: (data) {
@@ -107,43 +100,15 @@ class _InternalMarksOverridesPageState
                   // --- PREMIUM HEADER ---
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(20, 100, 20, 32),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [colorScheme.primary, colorScheme.tertiary],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(32),
-                        bottomRight: Radius.circular(32),
-                      ),
-                    ),
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Internal Marks Ledger',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
                         TextField(
-                          style: const TextStyle(color: Colors.black87),
-                          decoration: InputDecoration(
-                            hintText: 'Search student name or roll number...',
-                            hintStyle: const TextStyle(color: Colors.black54),
-                            prefixIcon: const Icon(Icons.search_rounded, color: Colors.black54),
-                            filled: true,
-                            fillColor: Colors.white.withValues(alpha: 0.9),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: const InputDecoration(
+                            hintText: 'Search student',
+                            prefixIcon: Icon(Icons.search_rounded),
+                            isDense: true,
                           ),
                           onChanged: (v) => setState(() => _query = v),
                         ),
@@ -171,63 +136,37 @@ class _InternalMarksOverridesPageState
                         final hasChanges = _edited.containsKey(original.id);
 
                         return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
+                          margin: const EdgeInsets.only(bottom: 8),
                           decoration: BoxDecoration(
-                            color: colorScheme.surface,
+                            color: hasChanges ? context.palette.accentSoft : context.palette.surface,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: hasChanges
-                                  ? colorScheme.primary
-                                  : (isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05)),
-                              width: hasChanges ? 2 : 1,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.03),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
                           ),
+                          clipBehavior: Clip.antiAlias,
                           child: ExpansionTile(
-                            shape: const RoundedRectangleBorder(side: BorderSide.none),
-                            leading: CircleAvatar(
-                              backgroundColor: colorScheme.primaryContainer,
-                              child: Text(
-                                student.name.isNotEmpty ? student.name[0] : '?',
-                                style: TextStyle(color: colorScheme.onPrimaryContainer, fontWeight: FontWeight.bold),
-                              ),
-                            ),
+                            shape: const Border(),
+                            collapsedShape: const Border(),
                             title: Text(
                               student.name,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                             ),
                             subtitle: Text(
-                              '${subject.name} • Sem ${subject.semester}',
-                              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                              [subject.name, if (subject.semester.isNotEmpty) 'Sem ${subject.semester}'].join(' · '),
+                              style: TextStyle(fontSize: 13, color: context.palette.inkMuted),
                             ),
                             trailing: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Text(
-                                  '${current.totalMarks.toStringAsFixed(1)} / 30',
+                                  '${current.totalMarks.toStringAsFixed(1)} / ${ref.watch(settingsProvider).totalMarksMax.toStringAsFixed(0)}',
                                   style: TextStyle(
-                                    fontWeight: FontWeight.w900,
+                                    fontWeight: FontWeight.w700,
                                     fontSize: 16,
-                                    color: hasChanges ? colorScheme.primary : colorScheme.onSurface,
+                                    color: hasChanges ? context.palette.accent : context.palette.ink,
                                   ),
                                 ),
                                 if (hasChanges)
-                                  Text(
-                                    'MODIFIED',
-                                    style: TextStyle(
-                                      color: colorScheme.primary,
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1,
-                                    ),
-                                  ),
+                                  Text('Edited', style: TextStyle(color: context.palette.accent, fontSize: 12, fontWeight: FontWeight.w600)),
                               ],
                             ),
                             children: [
@@ -238,21 +177,21 @@ class _InternalMarksOverridesPageState
                                     _buildScoreEditor(
                                       label: 'Attendance',
                                       current: current.attendanceMarks,
-                                      max: 6,
+                                      max: scheme.attendanceMax,
                                       onChanged: (v) => _updateLocalEntry(current, attendance: v),
                                     ),
                                     const SizedBox(width: 12),
                                     _buildScoreEditor(
                                       label: 'Assignment',
                                       current: current.assignmentMarks,
-                                      max: 12,
+                                      max: scheme.assignmentMax,
                                       onChanged: (v) => _updateLocalEntry(current, assignment: v),
                                     ),
                                     const SizedBox(width: 12),
                                     _buildScoreEditor(
                                       label: 'Mid-Term',
                                       current: current.testMarks,
-                                      max: 12,
+                                      max: scheme.testMax,
                                       onChanged: (v) => _updateLocalEntry(current, test: v),
                                     ),
                                   ],
@@ -280,16 +219,7 @@ class _InternalMarksOverridesPageState
   // --- UI COMPONENTS ---
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.person_search_rounded, size: 64, color: Theme.of(context).colorScheme.outlineVariant),
-          const SizedBox(height: 16),
-          const Text('No records match your search', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        ],
-      ),
-    );
+    return const Center(child: EmptyNote(icon: Icons.person_search_outlined, text: 'No records match.'));
   }
 
   Widget _buildScoreEditor({
@@ -303,20 +233,19 @@ class _InternalMarksOverridesPageState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '$label (Max $max)',
-            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey),
+            '$label / ${max.toStringAsFixed(0)}',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: context.palette.inkMuted),
           ),
           const SizedBox(height: 6),
           TextFormField(
             initialValue: current.toStringAsFixed(0),
             keyboardType: TextInputType.number,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontWeight: FontWeight.bold),
+            style: const TextStyle(fontWeight: FontWeight.w600),
             decoration: InputDecoration(
-              filled: true,
-              fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-              contentPadding: const EdgeInsets.symmetric(vertical: 8),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              fillColor: context.palette.background,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
             inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'(^\d*\.?\d*)'))],
             onChanged: (v) {
@@ -331,65 +260,15 @@ class _InternalMarksOverridesPageState
 
   Widget _buildFloatingSaveBar(BuildContext context, ColorScheme colorScheme) {
     return Positioned(
-      bottom: 20,
-      left: 20,
-      right: 20,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: BoxDecoration(
-          color: colorScheme.primaryContainer,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${_edited.length} OVERRIDES PENDING',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    color: colorScheme.onPrimaryContainer,
-                    letterSpacing: 1,
-                  ),
-                ),
-                Text(
-                  'Unsaved Changes',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            TextButton(
-              onPressed: _isSaving ? null : () => setState(() => _edited.clear()),
-              child: Text('Discard', style: TextStyle(color: colorScheme.onPrimaryContainer)),
-            ),
-            const SizedBox(width: 8),
-            FilledButton(
-              onPressed: _isSaving ? null : () => _saveAll(context),
-              style: FilledButton.styleFrom(
-                backgroundColor: colorScheme.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: _isSaving
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Apply Changes'),
-            ),
-          ],
-        ),
+      bottom: 16,
+      left: 16,
+      right: 16,
+      child: UnsavedChangesBar(
+        visible: true,
+        label: _edited.length == 1 ? '1 change' : '${_edited.length} changes',
+        saving: _isSaving,
+        onDiscard: () => setState(() => _edited.clear()),
+        onSave: () => _saveAll(context),
       ),
     );
   }
@@ -410,9 +289,17 @@ class _InternalMarksOverridesPageState
     setState(() => _isSaving = true);
     final batch = FirebaseFirestore.instance.batch();
 
+    final scheme = ref.read(settingsProvider);
     for (final mark in _edited.values) {
-      final total = mark.attendanceMarks + mark.assignmentMarks + mark.testMarks;
-      final toSave = mark.copyWith(totalMarks: total);
+      final assign = mark.assignmentMarks.clamp(0.0, scheme.assignmentMax);
+      final test = mark.testMarks.clamp(0.0, scheme.testMax);
+      final att = mark.attendanceMarks.clamp(0.0, scheme.attendanceMax);
+      final toSave = mark.copyWith(
+        assignmentMarks: assign,
+        testMarks: test,
+        attendanceMarks: att,
+        totalMarks: assign + test + att,
+      );
 
       final ref = FirebaseFirestore.instance.collection('internal_marks').doc(toSave.id);
       batch.set(ref, toSave.toMap(), SetOptions(merge: true));
@@ -426,21 +313,13 @@ class _InternalMarksOverridesPageState
       });
       ref.invalidate(adminMarksProvider);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Academic records updated successfully!'),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+      if (context.mounted) {
+        showMessage(context, 'Academic records updated successfully!', success: true);
       }
     } catch (e) {
       setState(() => _isSaving = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+      if (context.mounted) {
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     }
   }

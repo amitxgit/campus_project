@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/date_parser.dart';
 
 enum NotificationType {
-  general, classChange, lowAttendance, queryUpdate, remarkSaved,
+  general, classChange, lowAttendance, queryUpdate, remarkSaved, dailySummary,
 }
 
 class AppNotification {

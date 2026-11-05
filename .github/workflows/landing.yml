@@ -1,0 +1,36 @@
+name: Deploy landing page
+
+# Publishes landing/ (the Batchwise marketing page) to its own Cloudflare Pages
+# project, which serves batchwise.bluescreenlabs.in. See docs/SETUP.md §14.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'landing/**'
+      - '.github/workflows/landing.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Creates the Pages project the first time. Fails harmlessly once it exists.
+      - name: Create Cloudflare Pages project
+        continue-on-error: true
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages project create batchwise-landing --production-branch=main
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy landing --project-name=batchwise-landing --branch=main

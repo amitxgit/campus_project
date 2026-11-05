@@ -2,11 +2,13 @@
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../common/widgets/profile_avatar_action.dart';
 import '../common/widgets/app_drawer.dart';
 import '../../core/utils/firebase_error_parser.dart';
+import '../common/widgets/ui_kit.dart';
 
 class ImportExportPage extends ConsumerStatefulWidget {
   const ImportExportPage({super.key});
@@ -24,6 +26,7 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
     {'id': 'subjects', 'label': 'Subjects', 'icon': Icons.menu_book_rounded},
     {'id': 'timetable', 'label': 'Timetable', 'icon': Icons.calendar_month_rounded},
     {'id': 'attendance', 'label': 'Attendance', 'icon': Icons.fact_check_rounded},
+    {'id': 'biometric_devices', 'label': 'Biometric devices', 'icon': Icons.fingerprint_rounded},
   ];
 
   String _selectedCollection = 'subjects';
@@ -36,22 +39,16 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
         leading: Builder(
           builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu_rounded, color: Colors.white),
+            icon: const Icon(Icons.menu_rounded),
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
-        title: const Text('Data Migration', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Backup & raw data'),
         actions: const [ProfileAvatarAction()],
       ),
       drawer: const AppDrawer(),
@@ -62,57 +59,25 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
           // -------------------------------------------------------------------
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 100, 20, 24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [colorScheme.primary, colorScheme.tertiary.withValues(alpha: 0.8)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(32),
-                bottomRight: Radius.circular(32),
-              ),
-            ),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
-                      child: const Icon(Icons.data_object_rounded, color: Colors.white, size: 28),
-                    ),
-                    const SizedBox(width: 16),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('JSON Import Engine', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
-                          Text('Batch execute records directly into Firestore.', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
                 // Warning Banner
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.redAccent.withValues(alpha: 0.2),
+                    color: context.palette.warningSoft,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
-                      SizedBox(width: 12),
-                      Expanded(
+                      Icon(Icons.warning_amber_rounded, size: 20, color: context.palette.warning),
+                      const SizedBox(width: 12),
+                      const Expanded(
                         child: Text(
-                          'Warning: Raw database tool. Malformed JSON or incorrect schemas will cause app failures.',
-                          style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold, height: 1.3),
+                          'Advanced tool. Wrongly formatted data can break the app — use Import students for everyday imports.',
+                          style: TextStyle(fontSize: 13, height: 1.35),
                         ),
                       ),
                     ],
@@ -131,7 +96,7 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('1. SELECT TARGET COLLECTION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: colorScheme.primary, letterSpacing: 1.0)),
+                  const SectionLabel('Collection', padding: EdgeInsets.zero),
                   const SizedBox(height: 12),
 
                   // Collection Selector Chips
@@ -144,17 +109,9 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
                           padding: const EdgeInsets.only(right: 8),
                           child: ChoiceChip(
                             label: Text(c['label']),
-                            avatar: Icon(c['icon'], size: 18, color: isSel ? colorScheme.onPrimary : colorScheme.onSurfaceVariant),
+                            avatar: Icon(c['icon'], size: 18, color: isSel ? context.palette.accent : context.palette.inkMuted),
                             selected: isSel,
                             showCheckmark: false,
-                            selectedColor: colorScheme.primary,
-                            backgroundColor: colorScheme.surface,
-                            labelStyle: TextStyle(
-                              color: isSel ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
-                              fontWeight: isSel ? FontWeight.bold : FontWeight.w600,
-                            ),
-                            side: BorderSide(color: isSel ? colorScheme.primary : colorScheme.outlineVariant.withValues(alpha: 0.5)),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             onSelected: (val) {
                               if (val) setState(() => _selectedCollection = c['id'] as String);
                             },
@@ -166,16 +123,19 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
 
                   const SizedBox(height: 24),
 
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('2. PASTE JSON ARRAY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: colorScheme.primary, letterSpacing: 1.0)),
-                      if (_ctrl.text.isNotEmpty)
-                        InkWell(
-                          onTap: () => setState(() => _ctrl.clear()),
-                          child: Text('Clear Editor', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colorScheme.error)),
-                        )
-                    ],
+                  // SectionLabel already lays itself out as a full-width row, so
+                  // the Clear action goes in its trailing slot. (Wrapping it in
+                  // another Row gave it unbounded width and the page failed to
+                  // render.)
+                  SectionLabel(
+                    'JSON array',
+                    padding: EdgeInsets.zero,
+                    trailing: _ctrl.text.isEmpty
+                        ? null
+                        : InkWell(
+                            onTap: () => setState(() => _ctrl.clear()),
+                            child: Text('Clear', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.palette.danger)),
+                          ),
                   ),
                   const SizedBox(height: 12),
 
@@ -183,10 +143,8 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF5F5F5), // Code editor feel
+                        color: context.palette.surface,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5), width: 1.5),
-                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
                       ),
                       child: TextField(
                         controller: _ctrl,
@@ -197,8 +155,11 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
                         onChanged: (_) => setState(() {}), // Trigger rebuild for "Clear" button
                         decoration: InputDecoration(
                           hintText: '[\n  {\n    "id": "doc1",\n    "name": "Example"\n  }\n]',
-                          hintStyle: TextStyle(fontFamily: 'monospace', color: Colors.grey.withValues(alpha: 0.6)),
+                          hintStyle: TextStyle(fontFamily: 'monospace', color: context.palette.inkFaint),
+                          filled: false,
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
                           contentPadding: const EdgeInsets.all(16),
                         ),
                       ),
@@ -212,21 +173,11 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
                   // -------------------------------------------------------------------
                   SizedBox(
                     width: double.infinity,
-                    height: 56,
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        backgroundColor: _ctrl.text.trim().isEmpty ? colorScheme.surfaceContainerHighest : colorScheme.primary,
-                        foregroundColor: _ctrl.text.trim().isEmpty ? colorScheme.onSurfaceVariant : colorScheme.onPrimary,
-                      ),
+                    child: FilledButton(
                       onPressed: (_isLoading || _ctrl.text.trim().isEmpty) ? null : _importData,
-                      icon: _isLoading
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : const Icon(Icons.cloud_upload_rounded),
-                      label: Text(
-                          _isLoading ? 'Executing Batch...' : 'Execute Batch Import',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
-                      ),
+                      child: _isLoading
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Text('Import'),
                     ),
                   ),
                   const SizedBox(height: 8), // SafeArea buffer
@@ -268,25 +219,17 @@ class _ImportExportPageState extends ConsumerState<ImportExportPage> {
 
       if (mounted) {
         _ctrl.clear();
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Import executed successfully!', style: TextStyle(fontWeight: FontWeight.bold)),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-            )
-        );
+        showMessage(context, 'Import complete.', success: true);
       }
     } on FormatException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Syntax Error: ${e.message}'), backgroundColor: Colors.orange, behavior: SnackBarBehavior.floating)
+            SnackBar(content: Text('That isn\'t valid JSON: ${e.message}'), backgroundColor: context.palette.warning)
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(FirebaseErrorParser.getMessage(e)), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating)
-        );
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

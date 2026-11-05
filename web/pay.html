@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Pay fees · Batchwise</title>
+  <!--
+    Fee reminders and receipts link here because WhatsApp doesn't make
+    upi:// links tappable. Everything comes from the query string
+    (pa, pn, am, cu, tn — the standard UPI link fields); nothing is stored
+    or sent anywhere. Built by lib/core/utils/upi.dart.
+  -->
+  <style>
+    :root { --bg:#fff; --ink:#0b0b0d; --muted:#62626c; --line:#e4e4e8; --surface:#f5f5f7; --accent:#2a5bff; --on-accent:#fff; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#09090b; --ink:#f5f5f6; --muted:#a0a0ab; --line:#26262b; --surface:#151518; --accent:#6d8bff; --on-accent:#09090b; }
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+      background:var(--bg); color:var(--ink);
+      font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { width:100%; max-width:380px; padding:32px 24px; }
+    .label { font-size:13px; color:var(--muted); font-weight:500; margin:0; }
+    .amount { font-size:44px; font-weight:700; letter-spacing:-1.5px; margin:2px 0 4px; font-variant-numeric:tabular-nums; }
+    .payee { font-size:17px; font-weight:600; margin:0; }
+    .meta { margin:20px 0; padding:14px 16px; border-radius:16px; background:var(--surface); font-size:14px; }
+    .meta div { display:flex; justify-content:space-between; gap:12px; padding:3px 0; }
+    .meta span:first-child { color:var(--muted); }
+    .meta span:last-child { text-align:right; word-break:break-all; }
+    a.pay, button { display:block; width:100%; padding:15px; border-radius:14px; border:0;
+      font:600 17px system-ui, sans-serif; text-align:center; text-decoration:none; cursor:pointer; }
+    a.pay { background:var(--accent); color:var(--on-accent); }
+    button { margin-top:10px; background:transparent; color:var(--ink); border:1px solid var(--line); font-size:15px; }
+    .note { font-size:13px; color:var(--muted); margin-top:18px; }
+    .brand { font-size:12px; color:var(--muted); margin-top:28px; letter-spacing:.3px; }
+    [hidden] { display:none !important; }
+  </style>
+</head>
+<body>
+<main>
+  <section id="pay" hidden>
+    <p class="label">Fees payment to</p>
+    <p class="payee" id="payee"></p>
+    <p class="amount" id="amount"></p>
+    <div class="meta">
+      <div><span>UPI ID</span><span id="vpa"></span></div>
+      <div id="noteRow"><span>Note</span><span id="tn"></span></div>
+    </div>
+    <a class="pay" id="payLink" href="#">Open UPI app</a>
+    <button id="copy" type="button">Copy UPI ID</button>
+    <p class="note" id="desktop" hidden>Open this link on the phone that has your UPI app (GPay, PhonePe, Paytm, BHIM).</p>
+    <p class="note">Your UPI app shows the bank-verified name of the account. Check it matches your institute before you pay. Your receipt arrives once the institute confirms the payment.</p>
+  </section>
+  <section id="bad" hidden>
+    <p class="payee">This payment link is incomplete.</p>
+    <p class="note">Ask your institute to send the fee reminder again.</p>
+  </section>
+  <p class="brand">BATCHWISE</p>
+</main>
+<script>
+  (function () {
+    var q = new URLSearchParams(location.search);
+    var pa = (q.get('pa') || '').trim();
+    var pn = (q.get('pn') || '').trim().slice(0, 100);
+    var am = (q.get('am') || '').trim();
+    var tn = (q.get('tn') || '').trim().slice(0, 50);
+    var $ = function (id) { return document.getElementById(id); };
+
+    // Same rule as UpiPayment.isValidUpiId in the app.
+    var validPa = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z][a-zA-Z0-9]{1,64}$/.test(pa);
+    var validAm = am === '' || /^\d{1,7}(\.\d{1,2})?$/.test(am);
+    if (!validPa || !validAm) { $('bad').hidden = false; return; }
+
+    var params = [['pa', pa], ['pn', pn || pa], ['cu', 'INR']];
+    if (am) params.splice(2, 0, ['am', Number(am).toFixed(2)]);
+    if (tn) params.push(['tn', tn]);
+    var link = 'upi://pay?' + params.map(function (p) { return p[0] + '=' + encodeURIComponent(p[1]).replace(/%40/g, '@'); }).join('&');
+
+    var money = am ? '₹' + Number(am).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '';
+    // textContent only: nothing from the URL is ever parsed as HTML.
+    $('payee').textContent = pn || pa;
+    $('amount').textContent = money;
+    $('amount').hidden = !am;
+    $('vpa').textContent = pa;
+    $('tn').textContent = tn;
+    $('noteRow').hidden = !tn;
+    $('payLink').href = link;
+    $('payLink').textContent = am ? 'Pay ' + money : 'Open UPI app';
+    document.title = (am ? 'Pay ' + money : 'Pay') + ' · ' + (pn || 'fees');
+    $('desktop').hidden = /Android|iPhone|iPad/i.test(navigator.userAgent);
+    $('copy').onclick = function () {
+      var done = function () { $('copy').textContent = 'Copied'; };
+      if (navigator.clipboard) navigator.clipboard.writeText(pa).then(done, function () {});
+    };
+    $('pay').hidden = false;
+  })();
+</script>
+</body>
+</html>

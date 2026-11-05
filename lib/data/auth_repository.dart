@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:flutter/foundation.dart';
 
@@ -9,6 +10,8 @@ import '../core/models/user.dart';
 import '../core/models/role.dart';
 import '../core/services/local_storage.dart';
 import '../core/utils/firebase_error_parser.dart';
+import '../core/utils/login_id.dart';
+import '../main.dart' show appFunctions;
 
 class AuthRepository {
   final LocalStorage _storage;
@@ -39,9 +42,16 @@ class AuthRepository {
     return _auth.authStateChanges().asyncMap(_mapFirebaseUserToAppUser);
   }
 
+  /// The signed-in user's profile, kept from the last read so the many
+  /// screens that call [currentUser] don't each fetch it again.
+  UserAccount? _cachedUser;
+
   Future<UserAccount?> _mapFirebaseUserToAppUser(
       fb_auth.User? firebaseUser) async {
-    if (firebaseUser == null) return null;
+    if (firebaseUser == null) {
+      _cachedUser = null;
+      return null;
+    }
 
     try {
       final doc = await _usersRef.doc(firebaseUser.uid).get();
@@ -52,6 +62,7 @@ class AuthRepository {
       }
 
       final user = doc.data();
+      _cachedUser = user;
       if (user != null) {
         await _storage.writeString('session_user_id', user.id);
       }
@@ -67,7 +78,10 @@ class AuthRepository {
   // 🔹 CURRENT USER
   // ============================
   Future<UserAccount?> currentUser() async {
-    return _mapFirebaseUserToAppUser(_auth.currentUser);
+    final fbUser = _auth.currentUser;
+    final cached = _cachedUser;
+    if (fbUser != null && cached != null && cached.id == fbUser.uid) return cached;
+    return _mapFirebaseUserToAppUser(fbUser);
   }
 
   // ============================
@@ -76,6 +90,22 @@ class AuthRepository {
   Future<List<UserAccount>> allUsers({int limit = 1000}) async {
     final snapshot = await _usersRef.orderBy('name').limit(limit).get();
     return snapshot.docs.map((doc) => doc.data()).toList();
+  }
+
+  Future<UserAccount?> userById(String uid) async {
+    final doc = await _usersRef.doc(uid).get();
+    return doc.data();
+  }
+
+  /// Teacher profiles only. Use this from screens students can open, so they
+  /// never download other students' personal details.
+  Future<List<UserAccount>> allTeachers() async {
+    final snapshot = await _usersRef
+        .where('role', isEqualTo: UserRole.teacher.key)
+        .get();
+
+    return snapshot.docs.map((doc) => doc.data()).toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
   }
 
   Future<List<UserAccount>> allStudents({int limit = 1000}) async {
@@ -112,7 +142,7 @@ class AuthRepository {
   Future<void> loginWithEmail(String email, String password) async {
     try {
       final cred = await _auth.signInWithEmailAndPassword(
-        email: email.trim(),
+        email: LoginId.toEmail(email),
         password: password,
       );
 
@@ -162,6 +192,7 @@ class AuthRepository {
   // ============================
   Future<void> logout() async {
     try {
+      _cachedUser = null;
       await Future.wait([
         _storage.clearSession(),
         _auth.signOut(),
@@ -180,6 +211,28 @@ class AuthRepository {
         user,
         SetOptions(merge: true),
       );
+      if (user.id == _cachedUser?.id) _cachedUser = user;
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  // ============================
+  // 🔹 CONTACT DETAILS (SELF-EDITABLE)
+  // ============================
+  Future<({String bio, String phone})> contactDetails(String uid) async {
+    try {
+      final data = (await _db.collection('users').doc(uid).get()).data() ?? {};
+      return (bio: data['bio']?.toString() ?? '', phone: data['phone']?.toString() ?? '');
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  Future<void> updateContactDetails(String uid, {required String bio, required String phone}) async {
+    try {
+      await _db.collection('users').doc(uid).update({'bio': bio, 'phone': phone});
+      if (uid == _cachedUser?.id) _cachedUser = _cachedUser!.copyWith(phone: phone);
     } catch (e) {
       throw Exception(FirebaseErrorParser.getMessage(e));
     }
@@ -197,45 +250,58 @@ class AuthRepository {
   }
 
   // ============================
-  // 🔹 DELETE CURRENT ACCOUNT
+  // 🔹 CREATE (ADMIN, VIA CLOUD FUNCTION)
   // ============================
-  Future<void> deleteCurrentUserAccount() async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-
+  /// Creates the Firebase Auth login and the Firestore profile under the same
+  /// UID. Returns the new UID.
+  Future<String> createAccount(UserAccount user, String password) async {
+    final profile = user.toMap()..remove('createdAt');
     try {
-      await _usersRef.doc(user.uid).delete();
-      await user.delete();
-      await _storage.clearSession();
-    } on fb_auth.FirebaseAuthException catch (e) {
-      if (e.code == 'requires-recent-login') {
-        throw Exception(
-          'Please re-login before deleting your account.',
-        );
-      }
+      final res = await appFunctions
+          .httpsCallable('createUserAccount')
+          .call<Map<String, dynamic>>({'password': password, 'profile': profile});
+      return res.data['uid'] as String;
+    } catch (e) {
       throw Exception(FirebaseErrorParser.getMessage(e));
     }
   }
 
   // ============================
-  // 🔹 DELETE (ADMIN SAFE)
+  // 🔹 BULK IMPORT / SET PASSWORD (ADMIN, VIA CLOUD FUNCTION)
   // ============================
+  /// Creates logins for up to 200 students. Each result has ok, login and,
+  /// when the server generated one, the password to hand to the student.
+  Future<List<Map<String, dynamic>>> bulkCreateStudents(List<Map<String, dynamic>> rows) async {
+    try {
+      final res = await appFunctions
+          .httpsCallable('bulkCreateStudents', options: HttpsCallableOptions(timeout: const Duration(minutes: 5)))
+          .call<Map<String, dynamic>>({'rows': rows});
+      return (res.data['results'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  Future<void> setPassword(String uid, String password) async {
+    try {
+      await appFunctions
+          .httpsCallable('setUserPassword')
+          .call<Map<String, dynamic>>({'uid': uid, 'password': password});
+    } catch (e) {
+      throw Exception(FirebaseErrorParser.getMessage(e));
+    }
+  }
+
+  // ============================
+  // 🔹 DELETE (ADMIN, VIA CLOUD FUNCTION)
+  // ============================
+  /// Removes both the login and the profile. Permission checks happen
+  /// server-side.
   Future<void> deleteAccount(String userId) async {
     try {
-      final currentUserRecord = await currentUser();
-
-      if (currentUserRecord == null) {
-        throw Exception('Not logged in');
-      }
-
-      final isSelf = currentUserRecord.id == userId;
-      final isAdmin = currentUserRecord.role.isAdmin;
-
-      if (!isAdmin && !isSelf) {
-        throw Exception('Insufficient permissions');
-      }
-
-      await _usersRef.doc(userId).delete();
+      await appFunctions
+          .httpsCallable('deleteUserAccount')
+          .call<Map<String, dynamic>>({'uid': userId});
     } catch (e) {
       throw Exception(FirebaseErrorParser.getMessage(e));
     }

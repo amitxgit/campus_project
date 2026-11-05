@@ -2,31 +2,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../../core/services/api_service.dart';
+import '../../core/models/notice.dart';
 import '../../core/models/role.dart';
 import '../../core/models/user.dart';
+import '../../core/utils/firebase_error_parser.dart';
 import '../../main.dart';
+import '../../theme.dart';
+import '../common/widgets/async_error_widget.dart';
+import '../common/widgets/class_card.dart' show EmptyNote;
+import '../common/widgets/ui_kit.dart';
 
-// --- PROVIDER ---
-final noticesProvider = FutureProvider.autoDispose<List<dynamic>>((ref) async {
+final noticesProvider = FutureProvider.autoDispose<List<Notice>>((ref) async {
   final user = await ref.watch(authRepoProvider).currentUser();
   if (user == null) return [];
 
-  final allNotices = await ref.watch(apiServiceProvider).getNotices();
-
-  // 🔴 FILTERING LOGIC: Students only see notices meant for them or everyone.
-  if (user.role == UserRole.student) {
-    return allNotices.where((n) {
-      final target = (n['targetAudience'] ?? n['target_audience'])?.toString() ?? 'all';
-      return target == 'all' || target == 'students';
-    }).toList();
-  }
-
-  // Teachers and Admins can see all notices
-  return allNotices;
+  // Students only receive notices meant for them or everyone.
+  return ref.watch(noticeRepoProvider).visibleTo(user.role);
 });
 
-// --- MAIN PAGE ---
 class NoticesPage extends ConsumerWidget {
   const NoticesPage({super.key});
 
@@ -36,37 +29,40 @@ class NoticesPage extends ConsumerWidget {
     final userAsync = ref.watch(authStateProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Campus Notices'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
-      ),
-      backgroundColor: Colors.grey[100],
+      appBar: AppBar(title: const Text('Notices')),
       body: asyncNotices.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(child: Text('Error: $err')),
+        error: (err, _) => AsyncErrorWidget(
+          message: FirebaseErrorParser.getMessage(err),
+          onRetry: () => ref.invalidate(noticesProvider),
+        ),
         data: (notices) {
           if (notices.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.campaign_outlined, size: 80, color: Colors.grey[300]),
-                  const SizedBox(height: 16),
-                  Text('No notices available.', style: TextStyle(fontSize: 18, color: Colors.grey[600])),
-                ],
-              ),
-            );
+            return const Center(child: EmptyNote(icon: Icons.campaign_outlined, text: 'No notices yet.'));
           }
 
+          final user = userAsync.valueOrNull;
           return RefreshIndicator(
             onRefresh: () async => ref.invalidate(noticesProvider),
-            child: ListView.builder(
-              padding: const EdgeInsets.all(12),
+            child: ListView.separated(
+              padding: const EdgeInsets.only(top: 4, bottom: 104),
               itemCount: notices.length,
+              separatorBuilder: (_, __) => const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Divider(),
+              ),
               itemBuilder: (ctx, i) {
                 final notice = notices[i];
-                return _NoticeCard(notice: notice);
+                final canDelete = user != null &&
+                    (user.role == UserRole.admin || user.isAdmin || notice.authorId == user.id);
+                return FadeSlideIn(
+                  index: i,
+                  child: _NoticeItem(
+                    notice: notice,
+                    isNew: DateTime.now().difference(notice.createdAt).inHours < 48,
+                    onDelete: canDelete ? () => _confirmDelete(context, ref, notice) : null,
+                  ),
+                );
               },
             ),
           );
@@ -76,11 +72,9 @@ class NoticesPage extends ConsumerWidget {
         data: (user) {
           if (user != null && user.role != UserRole.student) {
             return FloatingActionButton.extended(
-              backgroundColor: Colors.indigo,
-              foregroundColor: Colors.white,
               onPressed: () => _showAddNoticeDialog(context, user),
-              icon: const Icon(Icons.add),
-              label: const Text('Post Notice'),
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('New notice'),
             );
           }
           return null;
@@ -88,6 +82,33 @@ class NoticesPage extends ConsumerWidget {
         orElse: () => null,
       ),
     );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref, Notice notice) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete notice?'),
+        content: Text('"${notice.title}" will be removed for everyone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: ctx.palette.danger, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(noticeRepoProvider).delete(notice.id);
+      ref.invalidate(noticesProvider);
+    } catch (e) {
+      if (context.mounted) {
+        showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
+      }
+    }
   }
 
   void _showAddNoticeDialog(BuildContext context, UserAccount currentUser) {
@@ -98,124 +119,63 @@ class NoticesPage extends ConsumerWidget {
   }
 }
 
-// --- PROFESSIONAL NOTICE CARD UI ---
-class _NoticeCard extends StatelessWidget {
-  final dynamic notice;
-  const _NoticeCard({required this.notice});
+/// One notice as plain, readable text: who it's for (when not everyone),
+/// the title, the message, then author and date.
+class _NoticeItem extends StatelessWidget {
+  final Notice notice;
+  final bool isNew;
+  final VoidCallback? onDelete;
+  const _NoticeItem({required this.notice, required this.isNew, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
-    final title = notice['title'] ?? 'Untitled Notice';
-    final content = notice['content'] ?? 'No content provided.';
-    final authorName = notice['authorName'] ?? notice['author_name'] ?? 'Admin';
-    final authorRole = notice['authorRole'] ?? notice['author_role'] ?? 'Staff';
-    final target = notice['targetAudience'] ?? notice['target_audience'] ?? 'all';
+    final p = context.palette;
+    final audience = switch (notice.audience) {
+      NoticeAudience.students => 'Students',
+      NoticeAudience.teachers => 'Teachers',
+      NoticeAudience.all => null,
+    };
+    final author = notice.authorName.isEmpty ? 'Office' : notice.authorName;
 
-    // 🟢 FOOLPROOF DATE PARSING
-    final rawDate = notice['createdAt'] ?? notice['created_at'];
-    String dateStr = 'Recently';
-
-    if (rawDate != null) {
-      try {
-        // Attempt 1: Standard ISO-8601 (e.g. 2026-03-23T05:53:40Z)
-        final dt = DateTime.parse(rawDate.toString());
-        dateStr = DateFormat('MMM d, yyyy').format(dt);
-      } catch (_) {
-        try {
-          // Attempt 2: Flask/HTTP Format (e.g. Mon, 23 Mar 2026 05:53:40 GMT)
-          final dt = DateFormat("E, d MMM yyyy HH:mm:ss 'GMT'").parse(rawDate.toString(), true);
-          dateStr = DateFormat('MMM d, yyyy').format(dt.toLocal());
-        } catch (_) {
-          // Attempt 3: If both fail, safely show a piece of the raw string without crashing
-          dateStr = rawDate.toString().length > 12
-              ? rawDate.toString().substring(0, 12)
-              : rawDate.toString();
-        }
-      }
-    }
-
-    Color badgeColor = Colors.grey;
-    String badgeText = 'All Users';
-    if (target == 'students') {
-      badgeColor = Colors.blue;
-      badgeText = 'Students Only';
-    } else if (target == 'teachers') {
-      badgeColor = Colors.orange;
-      badgeText = 'Teachers Only';
-    }
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 16, onDelete == null ? 20 : 4, 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 16,
-                      backgroundColor: Colors.indigo.shade100,
-                      child: Text(
-                        authorName.isNotEmpty ? authorName[0].toUpperCase() : 'A',
-                        style: TextStyle(color: Colors.indigo.shade800, fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(authorName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                        Text(authorRole.toString().toUpperCase(), style: TextStyle(color: Colors.grey.shade600, fontSize: 10, letterSpacing: 0.5)),
-                      ],
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: badgeColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: badgeColor.withOpacity(0.5)),
-                  ),
-                  child: Text(
-                    badgeText,
-                    style: TextStyle(color: badgeColor, fontSize: 10, fontWeight: FontWeight.bold),
-                  ),
+                if (isNew || audience != null) ...[
+                  Wrap(spacing: 6, children: [
+                    if (isNew) StatusPill(text: 'New', color: p.onAccent, background: p.accent),
+                    if (audience != null) StatusPill(text: audience, color: p.inkMuted, background: p.surfaceRaised),
+                  ]),
+                  const SizedBox(height: 8),
+                ],
+                Text(notice.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 17, letterSpacing: -0.2)),
+                const SizedBox(height: 6),
+                Text(notice.content, style: TextStyle(fontSize: 15, height: 1.5, color: p.ink)),
+                const SizedBox(height: 10),
+                Text(
+                  '$author · ${DateFormat('d MMM yyyy').format(notice.createdAt)}',
+                  style: TextStyle(color: p.inkMuted, fontSize: 13),
                 ),
               ],
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Divider(height: 1),
+          ),
+          if (onDelete != null)
+            PopupMenuButton<String>(
+              icon: Icon(Icons.more_vert_rounded, color: p.inkFaint, size: 20),
+              onSelected: (_) => onDelete!(),
+              itemBuilder: (_) => const [PopupMenuItem(value: 'delete', child: Text('Delete'))],
             ),
-
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            const SizedBox(height: 8),
-            Text(content, style: const TextStyle(fontSize: 15, height: 1.4)),
-            const SizedBox(height: 16),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Icon(Icons.access_time, size: 14, color: Colors.grey.shade500),
-                const SizedBox(width: 4),
-                Text(dateStr, style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
-              ],
-            )
-          ],
-        ),
+        ],
       ),
     );
   }
 }
 
-// --- STATEFUL CREATE DIALOG ---
 class _AddNoticeDialog extends ConsumerStatefulWidget {
   final UserAccount currentUser;
   const _AddNoticeDialog({required this.currentUser});
@@ -227,48 +187,71 @@ class _AddNoticeDialog extends ConsumerStatefulWidget {
 class _AddNoticeDialogState extends ConsumerState<_AddNoticeDialog> {
   final titleCtrl = TextEditingController();
   final contentCtrl = TextEditingController();
-  String _selectedTarget = 'all';
+  NoticeAudience _selectedTarget = NoticeAudience.all;
   bool _isLoading = false;
 
   @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Post New Notice'),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Send to:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12)),
-              initialValue: _selectedTarget,
-              items: const [
-                DropdownMenuItem(value: 'all', child: Text('Everyone (All Users)')),
-                DropdownMenuItem(value: 'students', child: Text('Students Only')),
-                DropdownMenuItem(value: 'teachers', child: Text('Teachers Only')),
-              ],
-              onChanged: (val) => setState(() => _selectedTarget = val!),
-            ),
-            const SizedBox(height: 16),
+  void dispose() {
+    titleCtrl.dispose();
+    contentCtrl.dispose();
+    super.dispose();
+  }
 
-            TextField(controller: titleCtrl, decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder())),
-            const SizedBox(height: 12),
-            TextField(controller: contentCtrl, decoration: const InputDecoration(labelText: 'Message Content', border: OutlineInputBorder()), maxLines: 4),
-          ],
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return AlertDialog(
+      title: const Text('New notice'),
+      content: SizedBox(
+        width: 440,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Send to', style: TextStyle(fontSize: 13, color: p.inkMuted, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                children: [
+                  for (final (a, label) in const [
+                    (NoticeAudience.all, 'Everyone'),
+                    (NoticeAudience.students, 'Students'),
+                    (NoticeAudience.teachers, 'Teachers'),
+                  ])
+                    ChoiceChip(
+                      label: Text(label),
+                      selected: _selectedTarget == a,
+                      showCheckmark: false,
+                      onSelected: (_) => setState(() => _selectedTarget = a),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: titleCtrl,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(labelText: 'Title'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: contentCtrl,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(labelText: 'Message', alignLabelWithHint: true),
+                minLines: 4,
+                maxLines: 8,
+              ),
+            ],
+          ),
         ),
       ),
       actions: [
         TextButton(onPressed: _isLoading ? null : () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: Colors.indigo),
+        FilledButton(
           onPressed: _isLoading ? null : _submitNotice,
-          icon: _isLoading
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-              : const Icon(Icons.send, size: 18),
-          label: const Text('Publish'),
+          child: _isLoading
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('Post'),
         ),
       ],
     );
@@ -276,28 +259,30 @@ class _AddNoticeDialogState extends ConsumerState<_AddNoticeDialog> {
 
   Future<void> _submitNotice() async {
     if (titleCtrl.text.trim().isEmpty || contentCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill all fields')));
+      showMessage(context, 'Add a title and a message.', error: true);
       return;
     }
 
     setState(() => _isLoading = true);
     try {
-      await ref.read(apiServiceProvider).createNotice({
-        'title': titleCtrl.text.trim(),
-        'content': contentCtrl.text.trim(),
-        'targetAudience': _selectedTarget,
-        'authorName': widget.currentUser.name,
-        'authorRole': widget.currentUser.role.key,
-        'createdAt': DateTime.now().toIso8601String(),
-      });
+      await ref.read(noticeRepoProvider).create(Notice(
+        id: '',
+        title: titleCtrl.text.trim(),
+        content: contentCtrl.text.trim(),
+        audience: _selectedTarget,
+        authorId: widget.currentUser.id,
+        authorName: widget.currentUser.name,
+        authorRole: widget.currentUser.role.key,
+        createdAt: DateTime.now(),
+      ));
 
       ref.invalidate(noticesProvider);
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Notice published successfully!'), backgroundColor: Colors.green));
+        showMessage(context, 'Notice posted.', success: true);
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      if (mounted) showMessage(context, FirebaseErrorParser.getMessage(e), error: true);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

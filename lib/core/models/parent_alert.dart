@@ -1,0 +1,100 @@
+// lib/core/models/parent_alert.dart
+import '../utils/date_parser.dart';
+
+/// Each kind maps to one pre-approved WhatsApp message template. The
+/// [params] fill the template's {{1}}, {{2}}... placeholders in order, and
+/// [preview] renders the same message as plain text for manual sending.
+enum ParentAlertKind { absence, feeReminder, feeReceipt, testResult }
+
+extension ParentAlertKindX on ParentAlertKind {
+  String get label => switch (this) {
+        ParentAlertKind.absence => 'Absence',
+        ParentAlertKind.feeReminder => 'Fee reminder',
+        ParentAlertKind.feeReceipt => 'Fee receipt',
+        ParentAlertKind.testResult => 'Test result',
+      };
+
+  /// WhatsApp template name to create in Meta Business Manager.
+  String get templateName => switch (this) {
+        ParentAlertKind.absence => 'absence_alert',
+        ParentAlertKind.feeReminder => 'fee_reminder',
+        ParentAlertKind.feeReceipt => 'fee_receipt',
+        ParentAlertKind.testResult => 'test_result',
+      };
+
+  /// Template body. Must match what is registered with Meta, word for word.
+  String get templateBody => switch (this) {
+        ParentAlertKind.absence =>
+          'Dear Parent, {{1}} was absent from class on {{2}}. Please contact {{3}} if you have any questions.',
+        // {{5}} is a pay link, or "at the office" when UPI isn't set up. Links
+        // sit at the end of a line so no punctuation sticks to them.
+        ParentAlertKind.feeReminder =>
+          'Dear Parent, a fee payment of {{1}} for {{2}} is due on {{3}} at {{4}}.\nPay: {{5}}\nIgnore if already paid.',
+        // {{5}} is "nil", or the balance followed by a pay link.
+        ParentAlertKind.feeReceipt =>
+          'Dear Parent, we have received {{1}} towards the fees of {{2}} (Receipt No. {{3}}) at {{4}}.\nBalance due: {{5}}\nThank you for your payment.',
+        ParentAlertKind.testResult =>
+          'Dear Parent, {{1}} scored {{2}} in {{3}} at {{4}}. Please contact us to discuss progress.',
+      };
+
+  /// Number of {{n}} placeholders; the server checks queued alerts against it.
+  int get paramCount => RegExp(r'\{\{\d+\}\}').allMatches(templateBody).length;
+
+  String render(List<String> params) {
+    var text = templateBody;
+    for (var i = 0; i < params.length; i++) {
+      text = text.replaceAll('{{${i + 1}}}', params[i]);
+    }
+    return text;
+  }
+}
+
+/// The owner's 8 pm summary (sent by the dailySummary function, not queued
+/// like parent alerts). Values: date, institute, collected, absent count,
+/// total overdue, enquiries.
+const kDailySummaryTemplateName = 'daily_summary';
+const kDailySummaryTemplateBody = 'Daily summary for {{1}} at {{2}}.\nFees collected: {{3}}\nStudents absent: {{4}}\n'
+    'Total overdue: {{5}}\nEnquiries: {{6}}';
+
+/// Every template to register in Meta, as (name, body).
+List<(String, String)> get allWhatsAppTemplates => [
+      for (final k in ParentAlertKind.values) (k.templateName, k.templateBody),
+      (kDailySummaryTemplateName, kDailySummaryTemplateBody),
+    ];
+
+enum ParentAlertStatus { pending, sent, failed, noPhone, notConfigured, rejected }
+
+class ParentAlert {
+  final String id;
+  final String studentId;
+  final String studentName;
+  final ParentAlertKind kind;
+  final List<String> params;
+  final ParentAlertStatus status;
+  final String? error;
+  final DateTime createdAt;
+
+  const ParentAlert({
+    required this.id,
+    required this.studentId,
+    required this.studentName,
+    required this.kind,
+    required this.params,
+    required this.status,
+    this.error,
+    required this.createdAt,
+  });
+
+  String get preview => kind.render(params);
+
+  factory ParentAlert.fromMap(String id, Map<String, dynamic> map) => ParentAlert(
+        id: id,
+        studentId: map['studentId'] ?? '',
+        studentName: map['studentName'] ?? '',
+        kind: ParentAlertKind.values.firstWhere((k) => k.name == map['kind'], orElse: () => ParentAlertKind.absence),
+        params: (map['params'] as List? ?? []).map((e) => e.toString()).toList(),
+        status: ParentAlertStatus.values.firstWhere((s) => s.name == map['status'], orElse: () => ParentAlertStatus.pending),
+        error: map['error'] as String?,
+        createdAt: DateParser.parse(map['createdAt'], fieldName: 'ParentAlert.createdAt'),
+      );
+}

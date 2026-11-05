@@ -12,10 +12,15 @@
             <action android:name="android.intent.action.PROCESS_TEXT" />
             <data android:mimeType="text/plain" />
         </intent>
+        <!-- "Pay" on My Fees opens a UPI app (GPay, PhonePe, Paytm, BHIM). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="upi" />
+        </intent>
     </queries>
 
     <application
-        android:label="Campus Track"
+        android:label="Batchwise"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:enableOnBackInvokedCallback="true">

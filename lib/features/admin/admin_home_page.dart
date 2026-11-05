@@ -4,12 +4,19 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../common/widgets/profile_avatar_action.dart';
 import '../common/widgets/app_drawer.dart';
 import '../common/widgets/async_error_widget.dart';
+import '../common/widgets/ui_kit.dart';
 import '../../core/models/role.dart';
 import '../../core/models/query_ticket.dart';
+import '../../data/settings_repository.dart';
+import '../../theme.dart';
+import '../../core/utils/firebase_error_parser.dart';
+import '../enquiries/enquiries_page.dart' show enquiryConversionProvider;
+import 'deletion_requests_page.dart' show pendingDeletionsProvider;
 
 // -----------------------------------------------------------------------------
 // VIEW MODEL & PROVIDER
@@ -76,152 +83,183 @@ class AdminHomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncData = ref.watch(adminDashboardProvider);
+    final settings = ref.watch(settingsProvider);
+    final p = context.palette;
 
-    final tools = [
-      _AdminItem('Users', Icons.manage_accounts_rounded, '/admin/users', Colors.blue),
-      // 🔴 ROUTE FIX: Changed to match app_router.dart exactly
-      _AdminItem('Queries', Icons.support_agent_rounded, '/admin/query-management', Colors.orange),
-      _AdminItem('Timetable', Icons.calendar_month_rounded, '/admin/timetable', Colors.purple),
-      _AdminItem('Attendance', Icons.fact_check_rounded, '/admin/attendance-overrides', Colors.teal),
-      _AdminItem('Internal Marks', Icons.military_tech_rounded, '/admin/internal-marks-overrides', Colors.amber),
-      _AdminItem('Passwords', Icons.password_rounded, '/admin/reset-passwords', Colors.red),
-      _AdminItem('Students', Icons.school_rounded, '/students/directory', Colors.indigo),
-      _AdminItem('Teachers', Icons.history_edu_rounded, '/teachers/directory', Colors.brown),
-      _AdminItem('Data Sync', Icons.cloud_sync_rounded, '/admin/import-export', Colors.green),
+    // Things done most days come first; one-off setup lives further down.
+    final daily = [
+      _AdminItem('Attendance', Icons.fact_check_outlined, '/admin/attendance-overrides'),
+      if (settings.feesEnabled) _AdminItem('Fees', Icons.currency_rupee_rounded, '/admin/fees'),
+      _AdminItem('Enquiries', Icons.person_search_outlined, '/admin/enquiries'),
+      _AdminItem('Reports', Icons.insert_chart_outlined_rounded, '/admin/reports'),
+      if (settings.testsEnabled) _AdminItem('Tests', Icons.quiz_outlined, '/tests'),
+      if (settings.parentAlertsEnabled) _AdminItem('Parent alerts', Icons.chat_outlined, '/admin/parent-alerts'),
+      _AdminItem('Queries', Icons.support_agent_rounded, '/admin/query-management'),
+      _AdminItem('Timetable', Icons.calendar_month_outlined, '/admin/timetable'),
+      if (settings.internalMarksEnabled)
+        _AdminItem('Internal marks', Icons.military_tech_outlined, '/admin/internal-marks-overrides'),
     ];
+    final setup = [
+      _AdminItem('Students', Icons.school_outlined, '/students/directory'),
+      _AdminItem('Teachers', Icons.co_present_outlined, '/teachers/directory'),
+      _AdminItem('Users', Icons.manage_accounts_outlined, '/admin/users'),
+      _AdminItem('Import students', Icons.upload_file_outlined, '/admin/import-students'),
+      _AdminItem('Reset passwords', Icons.key_outlined, '/admin/reset-passwords'),
+      _AdminItem('Backup', Icons.cloud_sync_outlined, '/admin/import-export'),
+      _AdminItem('Settings', Icons.tune_rounded, '/admin/settings'),
+    ];
+
+    Widget grid(List<_AdminItem> items) => ActionGrid(
+          children: [
+            for (final item in items)
+              ActionTile(label: item.title, icon: item.icon, onTap: () => context.push(item.path)),
+          ],
+        );
 
     return Scaffold(
       appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
         leading: Builder(
           builder: (ctx) => IconButton(
             icon: const Icon(Icons.menu_rounded),
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
-        title: const Text('Workspace', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(settings.name),
         actions: const [ProfileAvatarAction()],
       ),
       drawer: const AppDrawer(),
-      body: asyncData.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => AsyncErrorWidget(
-          message: err.toString(),
-          onRetry: () => ref.invalidate(adminDashboardProvider),
-        ),
-        data: (vm) => RefreshIndicator(
-          onRefresh: () async => ref.invalidate(adminDashboardProvider),
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Premium Header
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Admin Dashboard',
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'System status and management tools',
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(adminDashboardProvider);
+          ref.invalidate(enquiryConversionProvider);
+        },
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(bottom: 40),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              child: Text(DateFormat('EEEE, d MMMM').format(DateTime.now()),
+                  style: TextStyle(color: p.inkMuted, fontWeight: FontWeight.w500)),
+            ),
+            AnimatedSwitcher(
+              duration: Motion.medium,
+              child: asyncData.when(
+                loading: () => const SizedBox(height: 92, child: Center(child: CircularProgressIndicator())),
+                error: (err, _) => AsyncErrorWidget(
+                  message: FirebaseErrorParser.getMessage(err),
+                  onRetry: () => ref.invalidate(adminDashboardProvider),
                 ),
-
-                // Statistics Section
-                Padding(
+                data: (vm) => Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _ModernStatCard(
-                        title: 'Total Users',
-                        value: vm.totalUsers.toString(),
-                        subtitle: '${vm.totalStudents} Students • ${vm.totalTeachers} Teachers',
-                        icon: Icons.people_alt_rounded,
-                        gradientColors: const [Color(0xFF4F46E5), Color(0xFF7C3AED)],
-                        fullWidth: true,
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _ModernStatCard(
-                              title: 'Attendance',
-                              value: vm.attendanceToday.toString(),
-                              subtitle: 'Marked today',
-                              icon: Icons.how_to_reg_rounded,
-                              gradientColors: const [Color(0xFF0D9488), Color(0xFF059669)],
-                              fullWidth: false,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _ModernStatCard(
-                              title: 'Queries',
-                              value: vm.openQueries.toString(),
-                              subtitle: vm.openQueries > 0 ? 'Action required' : 'All clear',
-                              icon: Icons.notifications_active_rounded,
-                              gradientColors: vm.openQueries > 0
-                                  ? const [Color(0xFFEA580C), Color(0xFFDC2626)]
-                                  : const [Color(0xFF65A30D), Color(0xFF16A34A)],
-                              fullWidth: false,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 36),
-
-                // Tools Section
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Row(
                     children: [
-                      Text(
-                        'Quick Actions',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                      Expanded(
+                        child: StatBlock(
+                          value: '${vm.totalStudents}',
+                          label: 'Students',
+                          onTap: () => context.push('/students/directory'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: StatBlock(
+                          value: '${vm.attendanceToday}',
+                          label: 'Marked today',
+                          tone: p.accent,
+                          onTap: () => context.push('/admin/attendance-overrides'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: StatBlock(
+                          value: '${vm.openQueries}',
+                          label: 'Open queries',
+                          tone: vm.openQueries > 0 ? p.warning : null,
+                          onTap: () => context.push('/admin/query-management'),
+                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-
-                GridView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    childAspectRatio: 0.85,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                  ),
-                  itemCount: tools.length,
-                  itemBuilder: (_, i) => _ModernToolCard(item: tools[i]),
-                ),
-                const SizedBox(height: 40),
-              ],
+              ),
             ),
-          ),
+            const _DeletionRequestsBanner(),
+            const _EnquiryConversionLine(),
+            const SectionLabel('Today'),
+            grid(daily),
+            const SectionLabel('Setup'),
+            grid(setup),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown only while someone is waiting for their account to be deleted.
+class _DeletionRequestsBanner extends ConsumerWidget {
+  const _DeletionRequestsBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final n = ref.watch(pendingDeletionsProvider).valueOrNull?.length ?? 0;
+    if (n == 0) return const SizedBox.shrink();
+    final p = context.palette;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Pressable(
+        color: p.warningSoft,
+        onTap: () => context.push('/admin/deletion-requests'),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+          child: Row(children: [
+            Icon(Icons.person_remove_outlined, color: p.warning),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '$n account deletion request${n == 1 ? '' : 's'}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: p.inkFaint),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// "November: 12 enquiries → 25% joined". Hidden until there are enquiries.
+class _EnquiryConversionLine extends ConsumerWidget {
+  const _EnquiryConversionLine();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = ref.watch(enquiryConversionProvider).valueOrNull;
+    if (c == null || c.total == 0) return const SizedBox.shrink();
+    final p = context.palette;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Pressable(
+        onTap: () => context.push('/admin/enquiries'),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Text('${c.percent}%', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: p.accent, letterSpacing: -0.5)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${c.joined} of ${c.total} enquir${c.total == 1 ? 'y' : 'ies'} joined in ${DateFormat('MMMM').format(DateTime.now())}',
+                  style: TextStyle(color: p.inkMuted, fontWeight: FontWeight.w500),
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: p.inkFaint),
+            ]),
+            const SizedBox(height: 10),
+            ProgressLine(value: c.total == 0 ? 0 : c.joined / c.total, color: p.accent),
+          ]),
         ),
       ),
     );
@@ -229,174 +267,12 @@ class AdminHomePage extends ConsumerWidget {
 }
 
 // -----------------------------------------------------------------------------
-// HELPER MODELS & WIDGETS
+// HELPER MODELS
 // -----------------------------------------------------------------------------
 
 class _AdminItem {
   final String title;
   final IconData icon;
   final String path;
-  final MaterialColor colorTheme;
-  _AdminItem(this.title, this.icon, this.path, this.colorTheme);
-}
-
-class _ModernStatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String subtitle;
-  final IconData icon;
-  final List<Color> gradientColors;
-  final bool fullWidth;
-
-  const _ModernStatCard({
-    required this.title,
-    required this.value,
-    required this.subtitle,
-    required this.icon,
-    required this.gradientColors,
-    required this.fullWidth,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: fullWidth ? double.infinity : null,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        gradient: LinearGradient(
-          colors: gradientColors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: gradientColors.last.withValues(alpha: 0.3),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: Colors.white, size: 24),
-              ),
-              if (fullWidth)
-                const Icon(Icons.analytics_rounded, color: Colors.white38, size: 48),
-            ],
-          ),
-          SizedBox(height: fullWidth ? 24 : 16),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 32,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -1,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-              fontSize: 16,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ModernToolCard extends StatelessWidget {
-  final _AdminItem item;
-
-  const _ModernToolCard({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => context.push(item.path),
-        borderRadius: BorderRadius.circular(20),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? item.colorTheme.shade900.withValues(alpha: 0.5)
-                        : item.colorTheme.shade50,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    item.icon,
-                    color: isDark ? item.colorTheme.shade200 : item.colorTheme.shade600,
-                    size: 28,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  item.title,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurface,
-                    height: 1.2,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  _AdminItem(this.title, this.icon, this.path);
 }

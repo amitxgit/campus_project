@@ -27,6 +27,10 @@ class UserAccount {
   // ✅ NEW: Admin Override Flag
   final bool isAdmin;
 
+  // Students only: who receives absence, fee and result alerts.
+  final String? parentName;
+  final String? parentPhone;
+
   const UserAccount({
     required this.id,
     required this.role,
@@ -46,6 +50,8 @@ class UserAccount {
     this.course,
     this.semester,
     this.isAdmin = false, // Default to false
+    this.parentName,
+    this.parentPhone,
   });
 
   UserAccount copyWith({
@@ -67,6 +73,8 @@ class UserAccount {
     String? course,
     int? semester,
     bool? isAdmin,
+    String? parentName,
+    String? parentPhone,
   }) {
     return UserAccount(
       id: id ?? this.id,
@@ -87,6 +95,8 @@ class UserAccount {
       course: course ?? this.course,
       semester: semester ?? this.semester,
       isAdmin: isAdmin ?? this.isAdmin,
+      parentName: parentName ?? this.parentName,
+      parentPhone: parentPhone ?? this.parentPhone,
     );
   }
 
@@ -117,6 +127,8 @@ class UserAccount {
       'course': course,
       'semester': semester,
       'isAdmin': isAdmin,
+      'parentName': parentName,
+      'parentPhone': parentPhone,
     };
   }
 
@@ -196,6 +208,8 @@ class UserAccount {
       course: map['course']?.toString(),
       semester: parsedSemester,
       isAdmin: adminFlag, // ✅ Assigning the parsed flag
+      parentName: map['parentName']?.toString(),
+      parentPhone: map['parentPhone']?.toString(),
     );
   }
 
@@ -220,12 +234,15 @@ class UserAccount {
         other.course == course &&
         other.semester == semester &&
         other.isAdmin == isAdmin &&
+        other.parentName == parentName &&
+        other.parentPhone == parentPhone &&
         listEquals(other.qualifications, qualifications);
   }
 
   @override
   int get hashCode => Object.hash(
     id, role, name, email, phone, isActive, createdAt, collegeRollNo,
-    examRollNo, section, year, idCardPhotoPath, gender, dateOfBirth, course, semester, isAdmin, Object.hashAll(qualifications),
+    examRollNo, section, year, idCardPhotoPath, gender, dateOfBirth, course, semester, isAdmin,
+    parentName, parentPhone, Object.hashAll(qualifications),
   );
 }
