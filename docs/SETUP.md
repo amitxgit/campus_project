@@ -330,7 +330,16 @@ refuses QR scans for that class.
 The marketing page is `landing/index.html` (with `favicon.png` and the share
 image `og.png`). `.github/workflows/landing.yml` publishes the folder to its
 own Cloudflare Pages project, `batchwise-landing`, whenever `landing/` changes
-on `main`. It uses the same `CLOUDFLARE_API_TOKEN` secret as the web app.
+on `main`. It uses the same secrets as the web app's deploy (section 4):
+
+- `CLOUDFLARE_API_TOKEN`: Cloudflare dashboard → *My Profile* → *API Tokens*
+  → *Create Token* → *Create Custom Token*, with the permission
+  *Account* → *Cloudflare Pages* → *Edit*.
+- `CLOUDFLARE_ACCOUNT_ID`: shown on the Cloudflare dashboard's
+  *Workers & Pages* overview, in the right-hand column.
+
+Add both under GitHub → the repo's *Settings* → *Secrets and variables* →
+*Actions* → *New repository secret*.
 
 1. **First publish.** Merge to `main`, or run the workflow by hand: GitHub →
    *Actions* → *Deploy landing page* → *Run workflow*. The first run creates
