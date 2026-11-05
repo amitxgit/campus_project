@@ -23,10 +23,19 @@ jobs:
       - name: Build web
         run: flutter build web
 
+      # Creates the Pages project the first time. Fails harmlessly once it exists.
+      - name: Create Cloudflare Pages project
+        continue-on-error: true
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages project create campus-track --production-branch=main
+
       - name: Deploy to Cloudflare
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy build/web --project-name=campus-track
+          command: pages deploy build/web --project-name=campus-track --branch=main
 
